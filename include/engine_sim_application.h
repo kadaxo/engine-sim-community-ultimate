@@ -156,6 +156,7 @@ class EngineSimApplication {
         SimulationObject::ViewParameters m_viewParameters;
 
         bool m_paused;
+        bool m_fineThrottleControlUsed;
 
     protected:
         void startRecording();
