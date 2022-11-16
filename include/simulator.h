@@ -71,6 +71,10 @@ public:
 
     int simulationSteps() const { return m_steps; }
 
+    // Simulated time since the last resetSinceLastUpdate() call
+    double getSinceLastUpdate() const { return m_sinceLastUpdate; }
+    void resetSinceLastUpdate() { m_sinceLastUpdate = 0.0; }
+
     virtual double getFilteredDynoTorque() const;
     virtual double getDynoPower() const;
     virtual double getAverageOutputSignal() const;
@@ -110,6 +114,7 @@ private:
 
     double m_targetSynthesizerLatency;
     double m_simulationSpeed;
+    double m_sinceLastUpdate;
 
     double *m_dynoTorqueSamples;
     int m_lastDynoTorqueSample;
