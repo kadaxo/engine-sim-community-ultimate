@@ -76,7 +76,10 @@ void Simulator::startFrame(double dt) {
 
     const double targetLatency = getSynthesizerInputLatencyTarget();
     if (m_synthesizer.getLatency() < targetLatency) {
-        m_steps = static_cast<int>((m_steps + 1) * 1.1);
+        const double frameBudgetUs = dt * 1E6;
+        if (m_physicsProcessingTime < frameBudgetUs * 0.8) {
+            m_steps = static_cast<int>((m_steps + 1) * 1.1);
+        }
     }
     else if (m_synthesizer.getLatency() > targetLatency) {
         m_steps = static_cast<int>((m_steps - 1) * 0.9);
