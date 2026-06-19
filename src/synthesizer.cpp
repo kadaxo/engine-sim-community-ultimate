@@ -278,15 +278,19 @@ void Synthesizer::audioRenderingThread() {
 void Synthesizer::renderAudio() {
     std::unique_lock<std::mutex> lk0(m_lock0);
 
-    m_cv0.wait(lk0, [this] {
+    const int targetAudioBufferSamples = std::min(
+        m_audioBufferSize,
+        std::max(2000, static_cast<int>(std::round(m_audioSampleRate * 0.1f))));
+
+    m_cv0.wait(lk0, [this, targetAudioBufferSamples] {
         const bool inputAvailable =
             m_inputChannels[0].data.size() > 0
-            && m_audioBuffer.size() < 2000;
+            && m_audioBuffer.size() < targetAudioBufferSamples;
         return !m_run || (inputAvailable && !m_processed);
     });
 
     const int n = std::min(
-        std::max(0, 2000 - (int)m_audioBuffer.size()),
+        std::max(0, targetAudioBufferSamples - (int)m_audioBuffer.size()),
         (int)m_inputChannels[0].data.size());
 
     for (int i = 0; i < m_inputChannelCount; ++i) {
