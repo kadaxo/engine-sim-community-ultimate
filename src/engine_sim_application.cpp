@@ -21,6 +21,7 @@
 #include "build_info.h"
 
 #include <chrono>
+#include <cstdio>
 #include <stdlib.h>
 #include <sstream>
 
@@ -29,6 +30,18 @@
 #endif
 
 std::string EngineSimApplication::s_buildVersion = ENGINE_SIM_PROJECT_VERSION "a" "-" ENGINE_SIM_SYSTEM_NAME;
+
+namespace {
+bool AudioDiagEnabled() {
+    static const bool enabled = std::getenv("ENGINE_SIM_AUDIO_DIAG") != nullptr;
+    return enabled;
+}
+
+long long AudioDiagTimeMs() {
+    using namespace std::chrono;
+    return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+}
+}
 
 struct LoggingErrorHandler : ysErrorHandler {
     void OnError(ysError error, unsigned int line, ysObject *object, const char *file) override {
@@ -303,6 +316,24 @@ void EngineSimApplication::process(float frame_dt) {
     SampleOffset currentLead = m_audioBuffer.offsetDelta(safeWritePosition, writePosition);
     SampleOffset newLead = m_audioBuffer.offsetDelta(safeWritePosition, targetWritePosition);
 
+    if (AudioDiagEnabled() && currentLead < 44100 / 50) {
+        Engine *engine = m_simulator->getEngine();
+        std::fprintf(
+            stderr,
+            "ENGINE_SIM_AUDIO_LEAD_LOW t_ms=%lld rpm=%.1f throttle=%.3f frame_ms=%.3f iterations=%d lead_samples=%d lead_ms=%.3f safe_write=%d write=%d target=%d max_write=%d\n",
+            AudioDiagTimeMs(),
+            engine != nullptr ? engine->getRpm() : 0.0,
+            engine != nullptr ? engine->getThrottle() : 0.0,
+            std::chrono::duration<double, std::milli>(duration).count(),
+            iterationCount,
+            static_cast<int>(currentLead),
+            1000.0 * static_cast<double>(currentLead) / 44100.0,
+            static_cast<int>(safeWritePosition),
+            static_cast<int>(writePosition),
+            static_cast<int>(targetWritePosition),
+            static_cast<int>(maxWrite));
+    }
+
     if (currentLead > 44100 * 0.5) {
         m_audioBuffer.m_writePointer = m_audioBuffer.getBufferIndex(safeWritePosition, (int)(44100 * 0.05));
         currentLead = m_audioBuffer.offsetDelta(safeWritePosition, m_audioBuffer.m_writePointer);
@@ -315,6 +346,57 @@ void EngineSimApplication::process(float frame_dt) {
 
     int16_t *samples = new int16_t[maxWrite];
     const int readSamples = m_simulator->readAudioOutput(maxWrite, samples);
+
+    if (AudioDiagEnabled() && readSamples < maxWrite) {
+        static long long lastReportMs = 0;
+        static int eventCount = 0;
+        static long long totalMissing = 0;
+        static int maxMissing = 0;
+        static double maxRpm = 0.0;
+        static double maxFrameMs = 0.0;
+        static int maxIterations = 0;
+
+        Engine *engine = m_simulator->getEngine();
+        const long long nowMs = AudioDiagTimeMs();
+        const int missing = static_cast<int>(maxWrite - readSamples);
+        const double rpm = engine != nullptr ? engine->getRpm() : 0.0;
+        const double throttle = engine != nullptr ? engine->getThrottle() : 0.0;
+        const double frameMs = std::chrono::duration<double, std::milli>(duration).count();
+
+        ++eventCount;
+        totalMissing += missing;
+        maxMissing = std::max(maxMissing, missing);
+        maxRpm = std::max(maxRpm, rpm);
+        maxFrameMs = std::max(maxFrameMs, frameMs);
+        maxIterations = std::max(maxIterations, iterationCount);
+
+        if (lastReportMs == 0 || nowMs - lastReportMs >= 1000) {
+            std::fprintf(
+                stderr,
+                "ENGINE_SIM_AUDIO_APP_UNDERRUN_SUMMARY t_ms=%lld events=%d total_missing=%lld max_missing=%d max_rpm=%.1f last_rpm=%.1f last_throttle=%.3f max_frame_ms=%.3f last_frame_ms=%.3f max_iterations=%d last_iterations=%d max_write=%d read_samples=%d\n",
+                nowMs,
+                eventCount,
+                totalMissing,
+                maxMissing,
+                maxRpm,
+                rpm,
+                throttle,
+                maxFrameMs,
+                frameMs,
+                maxIterations,
+                iterationCount,
+                static_cast<int>(maxWrite),
+                readSamples);
+
+            lastReportMs = nowMs;
+            eventCount = 0;
+            totalMissing = 0;
+            maxMissing = 0;
+            maxRpm = 0.0;
+            maxFrameMs = 0.0;
+            maxIterations = 0;
+        }
+    }
 
     for (SampleOffset i = 0; i < (SampleOffset)readSamples && i < maxWrite; ++i) {
         const int16_t sample = samples[i];

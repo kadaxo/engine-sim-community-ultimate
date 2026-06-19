@@ -4,10 +4,25 @@
 #include "../include/delta.h"
 
 #include <cassert>
+#include <chrono>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 
 #undef min
 #undef max
+
+namespace {
+bool AudioDiagEnabled() {
+    static const bool enabled = std::getenv("ENGINE_SIM_AUDIO_DIAG") != nullptr;
+    return enabled;
+}
+
+long long AudioDiagTimeMs() {
+    using namespace std::chrono;
+    return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+}
+}
 
 Synthesizer::Synthesizer() {
     m_inputChannels = nullptr;
@@ -147,6 +162,45 @@ int Synthesizer::readAudioOutput(int samples, int16_t *buffer) {
         m_audioBuffer.readAndRemove(samples, buffer);
     }
     else {
+        if (AudioDiagEnabled() && samples > 0) {
+            static long long lastReportMs = 0;
+            static int eventCount = 0;
+            static long long totalMissing = 0;
+            static int maxMissing = 0;
+            static int minAvailable = 0;
+
+            const long long nowMs = AudioDiagTimeMs();
+            const int missing = samples - newDataLength;
+            ++eventCount;
+            totalMissing += missing;
+            maxMissing = std::max(maxMissing, missing);
+            minAvailable = (eventCount == 1)
+                ? newDataLength
+                : std::min(minAvailable, newDataLength);
+
+            if (lastReportMs == 0 || nowMs - lastReportMs >= 1000) {
+                std::fprintf(
+                    stderr,
+                    "ENGINE_SIM_AUDIO_SYNTH_UNDERRUN_SUMMARY t_ms=%lld events=%d total_missing=%lld max_missing=%d min_available=%d last_requested=%d synth_latency_samples=%d audio_buffer_capacity=%d input_rate=%.3f audio_rate=%.3f\n",
+                    nowMs,
+                    eventCount,
+                    totalMissing,
+                    maxMissing,
+                    minAvailable,
+                    samples,
+                    m_latency,
+                    m_audioBufferSize,
+                    static_cast<double>(m_inputSampleRate),
+                    static_cast<double>(m_audioSampleRate));
+
+                lastReportMs = nowMs;
+                eventCount = 0;
+                totalMissing = 0;
+                maxMissing = 0;
+                minAvailable = 0;
+            }
+        }
+
         m_audioBuffer.readAndRemove(newDataLength, buffer);
         memset(
             buffer + newDataLength,
