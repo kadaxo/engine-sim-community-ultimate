@@ -398,7 +398,7 @@ void EngineSimApplication::process(float frame_dt) {
         }
     }
 
-    for (SampleOffset i = 0; i < (SampleOffset)readSamples && i < maxWrite; ++i) {
+    for (SampleOffset i = 0; i < maxWrite; ++i) {
         const int16_t sample = samples[i];
         if (m_oscillatorSampleOffset % 4 == 0) {
             m_oscCluster->getAudioWaveformOscilloscope()->addDataPoint(
@@ -413,11 +413,11 @@ void EngineSimApplication::process(float frame_dt) {
 
     delete[] samples;
 
-    if (readSamples > 0) {
+    if (maxWrite > 0) {
         SampleOffset size0, size1;
         void *data0, *data1;
         m_audioSource->LockBufferSegment(
-            m_audioBuffer.m_writePointer, readSamples, &data0, &size0, &data1, &size1);
+            m_audioBuffer.m_writePointer, maxWrite, &data0, &size0, &data1, &size1);
 
         m_audioBuffer.copyBuffer(
             reinterpret_cast<int16_t *>(data0), m_audioBuffer.m_writePointer, size0);
@@ -427,7 +427,7 @@ void EngineSimApplication::process(float frame_dt) {
             size1);
 
         m_audioSource->UnlockBufferSegments(data0, size0, data1, size1);
-        m_audioBuffer.commitBlock(readSamples);
+        m_audioBuffer.commitBlock(maxWrite);
     }
 
     m_performanceCluster->addInputBufferUsageSample(
