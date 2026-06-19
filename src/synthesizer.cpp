@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <vector>
 
 #undef min
 #undef max
@@ -303,8 +304,16 @@ void Synthesizer::renderAudio() {
         m_filters[i].jitterFilter.setJitterScale(m_audioParameters.inputSampleNoise);
     }
 
+    std::vector<int16_t> renderedAudio(n);
     for (int i = 0; i < n; ++i) {
-        m_audioBuffer.write(renderAudio(i));
+        renderedAudio[i] = renderAudio(i);
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(m_lock0);
+        for (int i = 0; i < n; ++i) {
+            m_audioBuffer.write(renderedAudio[i]);
+        }
     }
 
     m_cv0.notify_one();
