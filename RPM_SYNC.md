@@ -49,6 +49,14 @@ Fixes low-RPM behavior and improves the synthetic RPM source.
 - Adds `--log` to record sent RPM values as CSV.
 - Smoothly ramps to `0 rpm` from 15s to 17s, then holds `0 rpm` until 20s.
 
+### `ff8d060 Document and smooth RPM sync stop`
+
+Documents the RPM sync behavior and finalizes the default stop profile.
+
+- Adds this `RPM_SYNC.md` reference file.
+- Records the commit history and behavior for later review.
+- Keeps the default final section as a smooth `0 rpm` ramp followed by a `0 rpm` hold.
+
 Example with logging:
 
 ```sh
