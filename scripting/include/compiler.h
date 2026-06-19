@@ -17,6 +17,7 @@ namespace es_script {
             Vehicle *vehicle = nullptr;
             Transmission *transmission = nullptr;
             Simulator::Parameters simulatorParameters;
+            ApplicationSettings applicationSettings;
 
             std::vector<Function *> functions;
         };
@@ -30,13 +31,13 @@ namespace es_script {
 
         static Output *output();
 
-        void initialize();
-        bool compile(const piranha::IrPath &path);
+        void initialize(const std::vector<piranha::IrPath> &searchPaths);
+        bool compile(const piranha::IrPath &path, std::ostream &logs);
         Output execute();
         void destroy();
 
     private:
-        void printError(const piranha::CompilationError *err, std::ofstream &file) const;
+        void printError(const piranha::CompilationError *err, std::ostream &logs) const;
 
     private:
         LanguageRules m_rules;

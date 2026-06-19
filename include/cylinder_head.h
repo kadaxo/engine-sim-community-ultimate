@@ -8,16 +8,17 @@
 #include "exhaust_system.h"
 #include "intake.h"
 
+class Valvetrain;
 class CylinderBank;
 class CylinderHead : public Part {
     public:
         struct Parameters {
             CylinderBank *Bank;
-            Camshaft *ExhaustCam;
-            Camshaft *IntakeCam;
 
             Function *ExhaustPortFlow;
             Function *IntakePortFlow;
+
+            Valvetrain *valvetrain;
 
             double CombustionChamberVolume;
 
@@ -27,6 +28,14 @@ class CylinderHead : public Part {
             double ExhaustRunnerCrossSectionArea;
 
             bool FlipDisplay = false;
+        };
+
+        struct Cylinder {
+            ExhaustSystem *exhaustSystem = nullptr;
+            Intake *intake = nullptr;
+
+            double soundAttenuation = 1.0;
+            double headerPrimaryLength = 0.0;
         };
 
     public:
@@ -41,13 +50,20 @@ class CylinderHead : public Part {
         double intakeValveLift(int cylinder) const;
         double exhaustValveLift(int cylinder) const;
 
-        inline ExhaustSystem *getExhaustSystem(int cylinderIndex) const { return m_exhaustSystems[cylinderIndex]; }
+        inline ExhaustSystem *getExhaustSystem(int cylinderIndex) const { return m_cylinders[cylinderIndex].exhaustSystem; }
         void setAllExhaustSystems(ExhaustSystem *system);
         void setExhaustSystem(int i, ExhaustSystem *system);
 
-        inline Intake *getIntake(int cylinderIndex) const { return m_intakes[cylinderIndex]; }
+        inline double getSoundAttenuation(int cylinderIndex) const { return m_cylinders[cylinderIndex].soundAttenuation; }
+        void setSoundAttenuation(int i, double soundAttenuation);
+
+        inline Intake *getIntake(int cylinderIndex) const { return m_cylinders[cylinderIndex].intake; }
         void setAllIntakes(Intake *intake);
         void setIntake(int i, Intake *intake);
+
+        inline double getHeaderPrimaryLength(int cylinderIndex) const { return m_cylinders[cylinderIndex].headerPrimaryLength; }
+        void setAllHeaderPrimaryLengths(double length);
+        void setHeaderPrimaryLength(int i, double length);
 
         inline bool getFlipDisplay() const { return m_flipDisplay; }
         inline double getCombustionChamberVolume() const { return m_combustionChamberVolume; }
@@ -62,12 +78,10 @@ class CylinderHead : public Part {
         Camshaft *getIntakeCamshaft();
 
     protected:
-        ExhaustSystem **m_exhaustSystems;
-        Intake **m_intakes;
+        Cylinder *m_cylinders;
 
         CylinderBank *m_bank;
-        Camshaft *m_exhaustCamshaft;
-        Camshaft *m_intakeCamshaft;
+        Valvetrain *m_valvetrain;
 
         Function *m_exhaustPortFlow;
         Function *m_intakePortFlow;

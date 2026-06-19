@@ -20,6 +20,9 @@
 #include "load_simulation_cluster.h"
 #include "mixer_cluster.h"
 #include "info_cluster.h"
+#include "application_settings.h"
+#include "transmission.h"
+#include "rpm_sync.h"
 
 #include "delta.h"
 #include "dtv.h"
@@ -40,6 +43,7 @@ class EngineSimApplication {
         void run();
         void destroy();
 
+        void loadEngine(Engine *engine, Vehicle *vehicle, Transmission *transmission);
         void drawGenerated(
                 const GeometryGenerator::GeometryIndices &indices,
                 int layer = 0);
@@ -50,20 +54,22 @@ class EngineSimApplication {
                 const GeometryGenerator::GeometryIndices &indices,
                 int layer,
                 dbasic::StageEnableFlags flags);
+        void configure(const ApplicationSettings &settings);
         GeometryGenerator *getGeometryGenerator() { return &m_geometryGenerator; }
 
         Shaders *getShaders() { return &m_shaders; }
         dbasic::TextRenderer *getTextRenderer() { return &m_textRenderer; }
 
         void createObjects(Engine *engine);
+        void destroyObjects();
         dbasic::DeltaEngine *getEngine() { return &m_engine; }
 
         float pixelsToUnits(float pixels) const;
         float unitsToPixels(float units) const;
 
         ysVector getBackgroundColor() const { return m_background; }
+        ysVector getForegroundColor() const { return m_foreground; }
         ysVector getHightlight1Color() const { return m_highlight1; }
-        ysVector getWhite() const { return ysMath::Constants::One; }
         ysVector getPink() const { return m_pink; }
         ysVector getGreen() const { return m_green; }
         ysVector getYellow() const { return m_yellow; }
@@ -79,27 +85,46 @@ class EngineSimApplication {
         int getScreenWidth() const { return m_screenWidth; }
         int getScreenHeight() const { return m_screenHeight; }
 
-        Simulator *getSimulator() { return &m_simulator; }
+        Simulator *getSimulator() { return m_simulator; }
         InfoCluster *getInfoCluster() { return m_infoCluster; }
+        ApplicationSettings* getAppSettings() { return &m_applicationSettings; }
 
     protected:
+        void loadScript();
+        void processEngineInput();
         void renderScene();
+
+        void refreshUserInterface();
+
+    protected:
+        double m_speedSetting = 1.0;
+        double m_targetSpeedSetting = 1.0;
+
+        double m_clutchPressure = 1.0;
+        double m_targetClutchPressure = 1.0;
+        int m_lastMouseWheel = 0;
 
     protected:
         virtual void initialize();
         virtual void process(float dt);
         virtual void render();
 
+        float m_displayAngle;
         float m_displayHeight;
         int m_gameWindowHeight;
         int m_screenWidth;
         int m_screenHeight;
-
+        
+        ApplicationSettings m_applicationSettings;
         dbasic::ShaderSet m_shaderSet;
         Shaders m_shaders;
 
         dbasic::DeltaEngine m_engine;
         dbasic::AssetManager m_assetManager;
+
+        dbasic::Path m_dataRoot;
+        dbasic::Path m_userData;
+        dbasic::Path m_outputPath;
 
         std::string m_assetPath;
 
@@ -112,7 +137,10 @@ class EngineSimApplication {
 
         std::vector<SimulationObject *> m_objects;
         Engine *m_iceEngine;
-        Simulator m_simulator;
+        Vehicle *m_vehicle;
+        Transmission *m_transmission;
+        Simulator *m_simulator;
+        RpmSync m_rpmSync;
         double m_dynoSpeed;
         double m_torque;
 
@@ -161,6 +189,8 @@ class EngineSimApplication {
 
         int m_oscillatorSampleOffset;
         int m_screen;
+
+        struct LoggingErrorHandler *m_error_handler;
 
 #ifdef ATG_ENGINE_SIM_VIDEO_CAPTURE
         atg_dtv::Encoder m_encoder;

@@ -28,14 +28,14 @@ namespace es_script {
 
     protected:
         virtual void registerInputs() {
-            addInput("plenum_volume", &m_parameters.Volume);
+            addInput("plenum_volume", &m_parameters.volume);
             addInput("plenum_cross_section_area", &m_parameters.CrossSectionArea);
             addInput("intake_flow_rate", &m_parameters.InputFlowK);
             addInput("idle_flow_rate", &m_parameters.IdleFlowK);
             addInput("runner_flow_rate", &m_parameters.RunnerFlowRate);
             addInput("molecular_afr", &m_parameters.MolecularAfr);
             addInput("idle_throttle_plate_position", &m_parameters.IdleThrottlePlatePosition);
-            addInput("throttle_gamma", &m_parameters.ThrottleGamma);
+            addInput("throttle_gamma", &m_throttleGammaUnused);
             addInput("runner_length", &m_parameters.RunnerLength);
             addInput("velocity_decay", &m_parameters.VelocityDecay);
 
@@ -49,6 +49,7 @@ namespace es_script {
             readAllInputs();
         }
 
+        double m_throttleGammaUnused = 0.0; // Deprecated; to be removed in a future release
         Intake::Parameters m_parameters;
     };
 

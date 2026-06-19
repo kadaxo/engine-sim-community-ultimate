@@ -9,6 +9,7 @@ CylinderBank::CylinderBank() {
     m_bore = 0.0;
     m_deckHeight = 0.0;
     m_cylinderCount = 0;
+    m_displayDepth = 0.4;
     m_index = -1;
 
     m_dx = m_dy = 0;
@@ -20,18 +21,20 @@ CylinderBank::~CylinderBank() {
 }
 
 void CylinderBank::initialize(const Parameters &params) {
-    m_angle = params.Angle;
-    m_bore = params.Bore;
-    m_deckHeight = params.DeckHeight;
-    m_cylinderCount = params.CylinderCount;
+    m_angle = params.angle;
+    m_bore = params.bore;
+    m_deckHeight = params.deckHeight;
+    m_cylinderCount = params.cylinderCount;
 
     m_dx = std::cos(m_angle + constants::pi / 2);
     m_dy = std::sin(m_angle + constants::pi / 2);
 
-    m_x = params.PositionX;
-    m_y = params.PositionY;
+    m_x = params.positionX;
+    m_y = params.positionY;
 
-    m_index = params.Index;
+    m_displayDepth = params.displayDepth;
+
+    m_index = params.index;
 }
 
 void CylinderBank::destroy() {
