@@ -991,7 +991,7 @@ void EngineSimApplication::processEngineInput() {
         const double targetSpeed = units::rpm(m_rpmSync.getTargetRpm());
         const double maxStep = units::rpm(20000.0) * dt;
         m_dynoSpeed += clamp(targetSpeed - m_dynoSpeed, -maxStep, maxStep);
-        m_dynoSpeed = clamp(m_dynoSpeed, m_iceEngine->getDynoMinSpeed(), m_iceEngine->getDynoMaxSpeed());
+        m_dynoSpeed = clamp(m_dynoSpeed, units::rpm(0), m_iceEngine->getRedline());
 
         m_simulator->m_dyno.m_enabled = true;
         m_simulator->m_dyno.m_hold = true;
@@ -1021,7 +1021,12 @@ void EngineSimApplication::processEngineInput() {
         }
     }
 
-    m_dynoSpeed = clamp(m_dynoSpeed, m_iceEngine->getDynoMinSpeed(), m_iceEngine->getDynoMaxSpeed());
+    if (m_rpmSync.hasTarget()) {
+        m_dynoSpeed = clamp(m_dynoSpeed, units::rpm(0), m_iceEngine->getRedline());
+    }
+    else {
+        m_dynoSpeed = clamp(m_dynoSpeed, m_iceEngine->getDynoMinSpeed(), m_iceEngine->getDynoMaxSpeed());
+    }
     m_simulator->m_dyno.m_rotationSpeed = m_dynoSpeed;
 
     const bool prevStarterEnabled = m_simulator->m_starterMotor.m_enabled;
