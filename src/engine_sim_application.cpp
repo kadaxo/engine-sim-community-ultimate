@@ -239,6 +239,10 @@ void EngineSimApplication::initialize() {
     m_audioSource->SetPan(0.0f);
     m_audioSource->SetVolume(1.0f);
 
+    if (m_rpmSync.initialize()) {
+        m_infoCluster->setLogMessage("RPM sync listening on UDP 127.0.0.1:" + std::to_string(m_rpmSync.getPort()));
+    }
+
 #ifdef ATG_ENGINE_SIM_DISCORD_ENABLED
     // Create a global instance of discord-rpc
     CDiscord::CreateInstance();
@@ -547,6 +551,8 @@ void EngineSimApplication::run() {
 }
 
 void EngineSimApplication::destroy() {
+    m_rpmSync.destroy();
+
     m_shaderSet.Destroy();
 
     m_engine.GetDevice()->DestroyGPUBuffer(m_geometryVertexBuffer);
@@ -815,6 +821,8 @@ void EngineSimApplication::loadScript() {
 }
 
 void EngineSimApplication::processEngineInput() {
+    m_rpmSync.update();
+
     if (m_iceEngine == nullptr) {
         return;
     }
@@ -979,7 +987,20 @@ void EngineSimApplication::processEngineInput() {
         m_infoCluster->setLogMessage(msg);
     }
 
-    if (m_simulator->m_dyno.m_enabled) {
+    if (m_rpmSync.hasTarget()) {
+        const double targetSpeed = units::rpm(m_rpmSync.getTargetRpm());
+        const double maxStep = units::rpm(20000.0) * dt;
+        m_dynoSpeed += clamp(targetSpeed - m_dynoSpeed, -maxStep, maxStep);
+        m_dynoSpeed = clamp(m_dynoSpeed, m_iceEngine->getDynoMinSpeed(), m_iceEngine->getDynoMaxSpeed());
+
+        m_simulator->m_dyno.m_enabled = true;
+        m_simulator->m_dyno.m_hold = true;
+
+        m_targetSpeedSetting = 1.0;
+        m_speedSetting = 1.0;
+        m_iceEngine->setSpeedControl(m_speedSetting);
+    }
+    else if (m_simulator->m_dyno.m_enabled) {
         if (!m_simulator->m_dyno.m_hold) {
             if (m_simulator->getFilteredDynoTorque() > units::torque(1.0, units::ft_lb)) {
                 m_dynoSpeed += units::rpm(500) * dt;
