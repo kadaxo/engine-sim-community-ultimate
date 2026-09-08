@@ -360,6 +360,9 @@ bool GeometryGenerator::generateLine2d(
         return true;
     }
 
+    // A collapsed line has no area and no direction to normalize.
+    if (length == 0.0f) return true;
+
     const float dir_x = dx / length;
     const float dir_y = dy / length;
 
