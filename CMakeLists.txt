@@ -342,4 +342,6 @@ target_link_libraries(engine-sim-test
 )
 
 include(GoogleTest)
-gtest_discover_tests(engine-sim-test)
+# Discover at test time: listing the tests runs the executable, which fails
+# during the build if runtime DLLs (SDL2, ...) aren't next to it yet
+gtest_discover_tests(engine-sim-test DISCOVERY_MODE PRE_TEST)
