@@ -1,0 +1,28 @@
+From 8039d0e1ac481755f6db6d4bc70e403ec682ba35 Mon Sep 17 00:00:00 2001
+From: kadaxo <105596590+kadaxo@users.noreply.github.com>
+Date: Mon, 26 Oct 2026 00:01:56 +0300
+Subject: [PATCH 3/4] Drop the removed InitializeDeviceName() call from
+ ysWindowsMonitor
+
+ysMonitor stores its device name as a std::string now, so there is no buffer
+to pre-allocate; the Win32 window system fills it in with SetDeviceName()
+when it enumerates monitors. Fixes the Windows build.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/yds_windows_monitor.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/yds_windows_monitor.cpp b/src/yds_windows_monitor.cpp
+index df311fc4..4a905ea9 100644
+--- a/src/yds_windows_monitor.cpp
++++ b/src/yds_windows_monitor.cpp
+@@ -3,7 +3,7 @@
+ #include <Windows.h>
+ 
+ ysWindowsMonitor::ysWindowsMonitor() : ysMonitor(Platform::Windows) {
+-    InitializeDeviceName(CCHDEVICENAME);
++    /* void */
+ }
+ 
+ ysWindowsMonitor::~ysWindowsMonitor() {

@@ -369,10 +369,11 @@ void EngineSimApplication::process(float frame_dt) {
 
         ++eventCount;
         totalMissing += missing;
-        maxMissing = std::max(maxMissing, missing);
-        maxRpm = std::max(maxRpm, rpm);
-        maxFrameMs = std::max(maxFrameMs, frameMs);
-        maxIterations = std::max(maxIterations, iterationCount);
+        // Parenthesized so the <windows.h> max() macro doesn't expand
+        maxMissing = (std::max)(maxMissing, missing);
+        maxRpm = (std::max)(maxRpm, rpm);
+        maxFrameMs = (std::max)(maxFrameMs, frameMs);
+        maxIterations = (std::max)(maxIterations, iterationCount);
 
         if (lastReportMs == 0 || nowMs - lastReportMs >= 1000) {
             std::fprintf(

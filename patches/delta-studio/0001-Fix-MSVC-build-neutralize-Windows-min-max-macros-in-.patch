@@ -1,0 +1,43 @@
+From 60487e13b107fbc509d98dda6ab44fe7284b894a Mon Sep 17 00:00:00 2001
+From: David <amegahurt@gmail.com>
+Date: Wed, 15 Jul 2026 14:14:37 -0400
+Subject: [PATCH 1/4] Fix MSVC build: neutralize Windows min/max macros in
+ collision_detector
+
+The macOS port converted collision_detector.cpp's bare min()/max() calls to
+std::min/std::max so they resolve without the Windows min/max macros. On MSVC
+those macros are still defined (rigid_body_system.h includes <Windows.h> with
+no NOMINMAX), so std::max(...) macro-expands to std::(...) -> C2589/C2059.
+
+A project-wide NOMINMAX isn't safe here: yds_ds8_audio_source.cpp (Windows-only
+DirectSound) legitimately relies on the min/max macros. Undefine them locally in
+this translation unit instead, which now uses the std:: forms. Restores the
+Windows build; no effect on the macOS/Clang build.
+
+(cherry picked from commit ae1d929aebd836b02d069e28a4748d35ebb0af5f)
+---
+ physics/src/collision_detector.cpp | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/physics/src/collision_detector.cpp b/physics/src/collision_detector.cpp
+index d02b75fd..aea4f00c 100644
+--- a/physics/src/collision_detector.cpp
++++ b/physics/src/collision_detector.cpp
+@@ -4,6 +4,17 @@
+ #include <math.h>
+ #include <algorithm>
+ 
++// <Windows.h> (pulled in transitively via rigid_body.h) defines min/max as
++// macros on MSVC, which mangle the std::min/std::max calls below. Undefine
++// them for this translation unit so the qualified calls compile on Windows
++// as they do on Clang/macOS.
++#ifdef min
++#undef min
++#endif
++#ifdef max
++#undef max
++#endif
++
+ #define THRESH_0_POSITIVE 10e-9
+ #define THRESH_0_NEGATIVE (-THRESH_0_POSITIVE)
+ 
