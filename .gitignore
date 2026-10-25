@@ -19,3 +19,10 @@ compile_commands.json
 #Visual Studio project files.
 /.vs/
 
+
+# Unit test output (written to the working directory)
+gas_system_test_output.csv
+intake_stroke.csv
+
+# Additional build directories (build-debug/, build-asan/, ...)
+build-*/
