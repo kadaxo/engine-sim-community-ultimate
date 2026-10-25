@@ -1,18 +1,76 @@
 #include "../include/rpm_sync.h"
 
 #include <algorithm>
-#include <cerrno>
 #include <cstdlib>
 #include <cstring>
 
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#endif
+
+namespace {
+#ifdef _WIN32
+using NativeSocket = SOCKET;
+
+bool startNetworking() {
+    WSADATA wsaData;
+    return WSAStartup(MAKEWORD(2, 2), &wsaData) == 0;
+}
+
+void stopNetworking() {
+    WSACleanup();
+}
+
+void closeSocket(NativeSocket s) {
+    closesocket(s);
+}
+
+bool setNonBlocking(NativeSocket s) {
+    u_long mode = 1;
+    return ioctlsocket(s, FIONBIO, &mode) == 0;
+}
+#else
+using NativeSocket = int;
+
+bool startNetworking() {
+    return true;
+}
+
+void stopNetworking() {
+    /* void */
+}
+
+void closeSocket(NativeSocket s) {
+    close(s);
+}
+
+bool setNonBlocking(NativeSocket s) {
+    const int flags = fcntl(s, F_GETFL, 0);
+    return flags >= 0 && fcntl(s, F_SETFL, flags | O_NONBLOCK) == 0;
+}
+#endif
+
+NativeSocket toNative(std::intptr_t s) {
+    return static_cast<NativeSocket>(s);
+}
+}
 
 RpmSync::RpmSync() {
     m_socket = -1;
+    m_networkStarted = false;
     m_port = 8765;
     m_targetRpm = 0.0;
     m_lastUpdate = std::chrono::steady_clock::time_point{};
@@ -26,14 +84,22 @@ bool RpmSync::initialize(int port) {
     destroy();
 
     m_port = port;
-    m_socket = socket(AF_INET, SOCK_DGRAM, 0);
+    if (!startNetworking()) {
+        return false;
+    }
+    m_networkStarted = true;
+
+    // INVALID_SOCKET on Windows and -1 elsewhere both map to -1 here
+    m_socket = static_cast<std::intptr_t>(socket(AF_INET, SOCK_DGRAM, 0));
     if (m_socket < 0) {
+        destroy();
         return false;
     }
 
-    const int flags = fcntl(m_socket, F_GETFL, 0);
-    if (flags >= 0) {
-        fcntl(m_socket, F_SETFL, flags | O_NONBLOCK);
+    // A blocking socket would stall the UI thread in update()
+    if (!setNonBlocking(toNative(m_socket))) {
+        destroy();
+        return false;
     }
 
     sockaddr_in addr{};
@@ -41,7 +107,7 @@ bool RpmSync::initialize(int port) {
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     addr.sin_port = htons(static_cast<uint16_t>(m_port));
 
-    if (bind(m_socket, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) < 0) {
+    if (bind(toNative(m_socket), reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) < 0) {
         destroy();
         return false;
     }
@@ -51,8 +117,13 @@ bool RpmSync::initialize(int port) {
 
 void RpmSync::destroy() {
     if (m_socket >= 0) {
-        close(m_socket);
+        closeSocket(toNative(m_socket));
         m_socket = -1;
+    }
+
+    if (m_networkStarted) {
+        stopNetworking();
+        m_networkStarted = false;
     }
 }
 
@@ -63,16 +134,9 @@ void RpmSync::update() {
 
     char buffer[128];
     while (true) {
-        const ssize_t bytes = recv(m_socket, buffer, sizeof(buffer) - 1, 0);
-        if (bytes < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                break;
-            }
-
-            break;
-        }
-
-        if (bytes == 0) {
+        // Would-block, errors and empty datagrams all end this poll
+        const auto bytes = recv(toNative(m_socket), buffer, sizeof(buffer) - 1, 0);
+        if (bytes <= 0) {
             break;
         }
 

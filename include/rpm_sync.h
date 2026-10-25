@@ -2,6 +2,7 @@
 #define ATG_ENGINE_SIM_RPM_SYNC_H
 
 #include <chrono>
+#include <cstdint>
 
 class RpmSync {
 public:
@@ -18,7 +19,9 @@ public:
     bool isInitialized() const { return m_socket >= 0; }
 
 private:
-    int m_socket;
+    // Native socket handle (SOCKET on Windows, file descriptor elsewhere); -1 when closed
+    std::intptr_t m_socket;
+    bool m_networkStarted;
     int m_port;
     double m_targetRpm;
     std::chrono::steady_clock::time_point m_lastUpdate;

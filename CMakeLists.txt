@@ -303,6 +303,13 @@ target_link_libraries(engine-sim-app
     engine-sim
 )
 
+# Winsock for the UDP RPM sync receiver
+if (WIN32)
+    target_link_libraries(engine-sim-app
+        ws2_32
+    )
+endif (WIN32)
+
 # ========================================================
 # Generated build info
 
