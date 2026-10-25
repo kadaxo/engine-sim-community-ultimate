@@ -22,6 +22,7 @@
 #include "info_cluster.h"
 #include "application_settings.h"
 #include "transmission.h"
+#include "rpm_sync.h"
 
 #include "delta.h"
 #include "dtv.h"
@@ -139,6 +140,7 @@ class EngineSimApplication {
         Vehicle *m_vehicle;
         Transmission *m_transmission;
         Simulator *m_simulator;
+        RpmSync m_rpmSync;
         double m_dynoSpeed;
         double m_torque;
 

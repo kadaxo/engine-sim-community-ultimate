@@ -21,6 +21,7 @@
 #include "build_info.h"
 
 #include <chrono>
+#include <cstdio>
 #include <stdlib.h>
 #include <sstream>
 
@@ -29,6 +30,18 @@
 #endif
 
 std::string EngineSimApplication::s_buildVersion = ENGINE_SIM_PROJECT_VERSION "a" "-" ENGINE_SIM_SYSTEM_NAME;
+
+namespace {
+bool AudioDiagEnabled() {
+    static const bool enabled = std::getenv("ENGINE_SIM_AUDIO_DIAG") != nullptr;
+    return enabled;
+}
+
+long long AudioDiagTimeMs() {
+    using namespace std::chrono;
+    return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+}
+}
 
 struct LoggingErrorHandler : ysErrorHandler {
     void OnError(ysError error, unsigned int line, ysObject *object, const char *file) override {
@@ -226,6 +239,10 @@ void EngineSimApplication::initialize() {
     m_audioSource->SetPan(0.0f);
     m_audioSource->SetVolume(1.0f);
 
+    if (m_rpmSync.initialize()) {
+        m_infoCluster->setLogMessage("RPM sync listening on UDP 127.0.0.1:" + std::to_string(m_rpmSync.getPort()));
+    }
+
 #ifdef ATG_ENGINE_SIM_DISCORD_ENABLED
     // Create a global instance of discord-rpc
     CDiscord::CreateInstance();
@@ -303,6 +320,24 @@ void EngineSimApplication::process(float frame_dt) {
     SampleOffset currentLead = m_audioBuffer.offsetDelta(safeWritePosition, writePosition);
     SampleOffset newLead = m_audioBuffer.offsetDelta(safeWritePosition, targetWritePosition);
 
+    if (AudioDiagEnabled() && currentLead < 44100 / 50) {
+        Engine *engine = m_simulator->getEngine();
+        std::fprintf(
+            stderr,
+            "ENGINE_SIM_AUDIO_LEAD_LOW t_ms=%lld rpm=%.1f throttle=%.3f frame_ms=%.3f iterations=%d lead_samples=%d lead_ms=%.3f safe_write=%d write=%d target=%d max_write=%d\n",
+            AudioDiagTimeMs(),
+            engine != nullptr ? engine->getRpm() : 0.0,
+            engine != nullptr ? engine->getThrottle() : 0.0,
+            std::chrono::duration<double, std::milli>(duration).count(),
+            iterationCount,
+            static_cast<int>(currentLead),
+            1000.0 * static_cast<double>(currentLead) / 44100.0,
+            static_cast<int>(safeWritePosition),
+            static_cast<int>(writePosition),
+            static_cast<int>(targetWritePosition),
+            static_cast<int>(maxWrite));
+    }
+
     if (currentLead > 44100 * 0.5) {
         m_audioBuffer.m_writePointer = m_audioBuffer.getBufferIndex(safeWritePosition, (int)(44100 * 0.05));
         currentLead = m_audioBuffer.offsetDelta(safeWritePosition, m_audioBuffer.m_writePointer);
@@ -316,7 +351,58 @@ void EngineSimApplication::process(float frame_dt) {
     int16_t *samples = new int16_t[maxWrite];
     const int readSamples = m_simulator->readAudioOutput(maxWrite, samples);
 
-    for (SampleOffset i = 0; i < (SampleOffset)readSamples && i < maxWrite; ++i) {
+    if (AudioDiagEnabled() && readSamples < maxWrite) {
+        static long long lastReportMs = 0;
+        static int eventCount = 0;
+        static long long totalMissing = 0;
+        static int maxMissing = 0;
+        static double maxRpm = 0.0;
+        static double maxFrameMs = 0.0;
+        static int maxIterations = 0;
+
+        Engine *engine = m_simulator->getEngine();
+        const long long nowMs = AudioDiagTimeMs();
+        const int missing = static_cast<int>(maxWrite - readSamples);
+        const double rpm = engine != nullptr ? engine->getRpm() : 0.0;
+        const double throttle = engine != nullptr ? engine->getThrottle() : 0.0;
+        const double frameMs = std::chrono::duration<double, std::milli>(duration).count();
+
+        ++eventCount;
+        totalMissing += missing;
+        maxMissing = std::max(maxMissing, missing);
+        maxRpm = std::max(maxRpm, rpm);
+        maxFrameMs = std::max(maxFrameMs, frameMs);
+        maxIterations = std::max(maxIterations, iterationCount);
+
+        if (lastReportMs == 0 || nowMs - lastReportMs >= 1000) {
+            std::fprintf(
+                stderr,
+                "ENGINE_SIM_AUDIO_APP_UNDERRUN_SUMMARY t_ms=%lld events=%d total_missing=%lld max_missing=%d max_rpm=%.1f last_rpm=%.1f last_throttle=%.3f max_frame_ms=%.3f last_frame_ms=%.3f max_iterations=%d last_iterations=%d max_write=%d read_samples=%d\n",
+                nowMs,
+                eventCount,
+                totalMissing,
+                maxMissing,
+                maxRpm,
+                rpm,
+                throttle,
+                maxFrameMs,
+                frameMs,
+                maxIterations,
+                iterationCount,
+                static_cast<int>(maxWrite),
+                readSamples);
+
+            lastReportMs = nowMs;
+            eventCount = 0;
+            totalMissing = 0;
+            maxMissing = 0;
+            maxRpm = 0.0;
+            maxFrameMs = 0.0;
+            maxIterations = 0;
+        }
+    }
+
+    for (SampleOffset i = 0; i < maxWrite; ++i) {
         const int16_t sample = samples[i];
         if (m_oscillatorSampleOffset % 4 == 0) {
             m_oscCluster->getAudioWaveformOscilloscope()->addDataPoint(
@@ -331,11 +417,11 @@ void EngineSimApplication::process(float frame_dt) {
 
     delete[] samples;
 
-    if (readSamples > 0) {
+    if (maxWrite > 0) {
         SampleOffset size0, size1;
         void *data0, *data1;
         m_audioSource->LockBufferSegment(
-            m_audioBuffer.m_writePointer, readSamples, &data0, &size0, &data1, &size1);
+            m_audioBuffer.m_writePointer, maxWrite, &data0, &size0, &data1, &size1);
 
         m_audioBuffer.copyBuffer(
             reinterpret_cast<int16_t *>(data0), m_audioBuffer.m_writePointer, size0);
@@ -345,7 +431,7 @@ void EngineSimApplication::process(float frame_dt) {
             size1);
 
         m_audioSource->UnlockBufferSegments(data0, size0, data1, size1);
-        m_audioBuffer.commitBlock(readSamples);
+        m_audioBuffer.commitBlock(maxWrite);
     }
 
     m_performanceCluster->addInputBufferUsageSample(
@@ -465,6 +551,8 @@ void EngineSimApplication::run() {
 }
 
 void EngineSimApplication::destroy() {
+    m_rpmSync.destroy();
+
     m_shaderSet.Destroy();
 
     m_engine.GetDevice()->DestroyGPUBuffer(m_geometryVertexBuffer);
@@ -733,6 +821,8 @@ void EngineSimApplication::loadScript() {
 }
 
 void EngineSimApplication::processEngineInput() {
+    m_rpmSync.update();
+
     if (m_iceEngine == nullptr) {
         return;
     }
@@ -897,7 +987,20 @@ void EngineSimApplication::processEngineInput() {
         m_infoCluster->setLogMessage(msg);
     }
 
-    if (m_simulator->m_dyno.m_enabled) {
+    if (m_rpmSync.hasTarget()) {
+        const double targetSpeed = units::rpm(m_rpmSync.getTargetRpm());
+        const double maxStep = units::rpm(20000.0) * dt;
+        m_dynoSpeed += clamp(targetSpeed - m_dynoSpeed, -maxStep, maxStep);
+        m_dynoSpeed = clamp(m_dynoSpeed, units::rpm(0), m_iceEngine->getRedline());
+
+        m_simulator->m_dyno.m_enabled = true;
+        m_simulator->m_dyno.m_hold = true;
+
+        m_targetSpeedSetting = 1.0;
+        m_speedSetting = 1.0;
+        m_iceEngine->setSpeedControl(m_speedSetting);
+    }
+    else if (m_simulator->m_dyno.m_enabled) {
         if (!m_simulator->m_dyno.m_hold) {
             if (m_simulator->getFilteredDynoTorque() > units::torque(1.0, units::ft_lb)) {
                 m_dynoSpeed += units::rpm(500) * dt;
@@ -918,7 +1021,12 @@ void EngineSimApplication::processEngineInput() {
         }
     }
 
-    m_dynoSpeed = clamp(m_dynoSpeed, m_iceEngine->getDynoMinSpeed(), m_iceEngine->getDynoMaxSpeed());
+    if (m_rpmSync.hasTarget()) {
+        m_dynoSpeed = clamp(m_dynoSpeed, units::rpm(0), m_iceEngine->getRedline());
+    }
+    else {
+        m_dynoSpeed = clamp(m_dynoSpeed, m_iceEngine->getDynoMinSpeed(), m_iceEngine->getDynoMaxSpeed());
+    }
     m_simulator->m_dyno.m_rotationSpeed = m_dynoSpeed;
 
     const bool prevStarterEnabled = m_simulator->m_starterMotor.m_enabled;
