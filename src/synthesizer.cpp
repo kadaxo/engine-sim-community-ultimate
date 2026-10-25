@@ -31,6 +31,7 @@ Synthesizer::Synthesizer() {
     m_inputBufferSize = 0;
     m_inputWriteOffset = 0.0;
     m_inputSamplesRead = 0;
+    m_latency = 0;
 
     m_audioBufferSize = 0;
 
@@ -60,6 +61,7 @@ void Synthesizer::initialize(const Parameters &p) {
     m_audioParameters = p.initialAudioParameters;
 
     m_inputSamplesRead = 0;
+    m_latency = 0;
 
     m_inputWriteOffset = 0;
     m_processed = true;

@@ -395,6 +395,8 @@ void PistonEngineSimulator::destroy() {
     m_transmission = nullptr;
     m_engine = nullptr;
     m_delayFilters = nullptr;
+
+    Simulator::destroy();
 }
 
 void PistonEngineSimulator::writeToSynthesizer() {
