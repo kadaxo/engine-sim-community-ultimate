@@ -1,0 +1,35 @@
+From 84d4e132e78df482d5229cd5377c1cae992e4c03 Mon Sep 17 00:00:00 2001
+From: kadaxo <105596590+kadaxo@users.noreply.github.com>
+Date: Mon, 26 Oct 2026 00:47:16 +0300
+Subject: [PATCH] Find the SDL2 headers for <SDL2/...> includes
+
+The SDL backend includes <SDL2/SDL.h> and friends, but FindSDL2 only exported
+the directory containing SDL.h (include/SDL2). That works on Linux because
+/usr/include is searched anyway, but not with vcpkg or the SDL development
+packages on Windows. Also export the parent directory when the headers live
+in an SDL2/ folder.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ cmake/FindSDL2.cmake | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/cmake/FindSDL2.cmake b/cmake/FindSDL2.cmake
+index 161b7bf8..9a941fc0 100644
+--- a/cmake/FindSDL2.cmake
++++ b/cmake/FindSDL2.cmake
+@@ -193,6 +193,14 @@ endif()
+ set(SDL2_LIBRARIES ${SDL2_LIBRARY} ${SDL2MAIN_LIBRARY})
+ set(SDL2_INCLUDE_DIRS ${SDL2_INCLUDE_DIR})
+ 
++# The SDL backend includes <SDL2/...>, which needs the directory above SDL2/
++# (vcpkg and the SDL development packages put the headers in include/SDL2)
++get_filename_component(_SDL2_INCLUDE_DIR_NAME "${SDL2_INCLUDE_DIR}" NAME)
++if(_SDL2_INCLUDE_DIR_NAME STREQUAL "SDL2")
++  get_filename_component(_SDL2_INCLUDE_PARENT "${SDL2_INCLUDE_DIR}" DIRECTORY)
++  list(APPEND SDL2_INCLUDE_DIRS "${_SDL2_INCLUDE_PARENT}")
++endif()
++
+ include(FindPackageHandleStandardArgs)
+ 
+ FIND_PACKAGE_HANDLE_STANDARD_ARGS(SDL2
