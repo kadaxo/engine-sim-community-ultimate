@@ -22,6 +22,7 @@ Pinned commit: `8daecd0` on
 | `0002` | Direct3D 10/11 input layouts after the `std::string` conversion (`SemanticName`) |
 | `0003` | `ysWindowsMonitor` calling the removed `InitializeDeviceName()` |
 | `0004` | Release builds importing the debug-only `d3dx10d_43.dll`, by Danniel-Porto ([Danniel-Porto/delta-studio](https://github.com/Danniel-Porto/delta-studio) `release-directx-linking`) |
+| `0005` | `ysSubclassRegistry` writing one pointer past the device table when the Vulkan device registers (global memory corruption on Windows at startup) |
 
 Without them the port only builds on Linux/macOS; with them it builds on
 Windows (Direct3D 11) as well.

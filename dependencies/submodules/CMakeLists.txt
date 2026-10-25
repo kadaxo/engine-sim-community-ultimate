@@ -4,8 +4,10 @@
 find_package(Git QUIET)
 
 function(engine_sim_apply_patches target_dir patch_dir)
-    file(GLOB patches "${patch_dir}/*.patch")
+    file(GLOB patches CONFIGURE_DEPENDS "${patch_dir}/*.patch")
     list(SORT patches)
+    # Re-run CMake (and so re-apply) when a patch changes
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${patches})
 
     # Patches go on in order, so the newest one that can be reversed marks
     # how far an earlier configure got. Checking each patch on its own fails

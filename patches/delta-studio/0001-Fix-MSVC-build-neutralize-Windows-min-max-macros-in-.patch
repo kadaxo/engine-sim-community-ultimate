@@ -1,7 +1,7 @@
 From 60487e13b107fbc509d98dda6ab44fe7284b894a Mon Sep 17 00:00:00 2001
 From: David <amegahurt@gmail.com>
 Date: Wed, 15 Jul 2026 14:14:37 -0400
-Subject: [PATCH 1/4] Fix MSVC build: neutralize Windows min/max macros in
+Subject: [PATCH] Fix MSVC build: neutralize Windows min/max macros in
  collision_detector
 
 The macOS port converted collision_detector.cpp's bare min()/max() calls to

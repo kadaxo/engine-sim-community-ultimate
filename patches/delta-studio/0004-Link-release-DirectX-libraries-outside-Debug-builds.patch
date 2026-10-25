@@ -1,7 +1,7 @@
 From 9619501e7f0c1ac26fe92862512a2b13c1d25cf9 Mon Sep 17 00:00:00 2001
 From: Danniel-Porto <danniel.porto@gmail.com>
 Date: Wed, 14 Oct 2026 00:53:44 -0300
-Subject: [PATCH 4/4] Link release DirectX libraries outside Debug builds.
+Subject: [PATCH] Link release DirectX libraries outside Debug builds.
 
 Release builds linked d3dx10d.lib before d3dx10.lib and so imported the
 debug-only d3dx10d_43.dll, which only ships with the DirectX SDK.

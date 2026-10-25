@@ -1,0 +1,31 @@
+From 2d8fe07df65eb83fa49af07f4120f0e94238439b Mon Sep 17 00:00:00 2001
+From: kadaxo <105596590+kadaxo@users.noreply.github.com>
+Date: Mon, 26 Oct 2026 00:20:21 +0300
+Subject: [PATCH] Fix out-of-bounds write in ysSubclassRegistry
+
+The constructor table had MAX_ENUM - 1 slots but is indexed by the raw enum
+value, so registering the last value (DeviceAPI::Vulkan, index 4) wrote one
+pointer past ysDevice::s_registry during static initialisation. On Windows,
+where the Vulkan device is compiled in, that clobbered whatever global the
+linker placed next to the registry (found with AddressSanitizer). Size the
+table with one slot per enum value.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ include/yds_subclass_registry.h | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/include/yds_subclass_registry.h b/include/yds_subclass_registry.h
+index 1537d130..069594e3 100644
+--- a/include/yds_subclass_registry.h
++++ b/include/yds_subclass_registry.h
+@@ -7,7 +7,8 @@ template<typename Subclass, typename... Args> struct ysRegisterSubclass;
+ template<typename Enum, typename AbstractClass, typename... Args>
+ class ysSubclassRegistry {
+     using ConstructorFn = AbstractClass*(Args...);
+-    static constexpr size_t num_subclasses = static_cast<size_t>(Enum::MAX_ENUM) - 1;
++    // Indexed by the enum value itself, so there is one slot per value below MAX_ENUM
++    static constexpr size_t num_subclasses = static_cast<size_t>(Enum::MAX_ENUM);
+ 
+     std::array<ConstructorFn*, num_subclasses> m_constructors;
+ 

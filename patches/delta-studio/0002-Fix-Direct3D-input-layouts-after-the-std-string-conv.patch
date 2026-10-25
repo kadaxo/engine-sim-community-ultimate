@@ -1,8 +1,7 @@
 From f9e2d1a4010d52f85b4e8e02771ae55d8525cc40 Mon Sep 17 00:00:00 2001
 From: kadaxo <105596590+kadaxo@users.noreply.github.com>
 Date: Mon, 26 Oct 2026 00:01:38 +0300
-Subject: [PATCH 2/4] Fix Direct3D input layouts after the std::string
- conversion
+Subject: [PATCH] Fix Direct3D input layouts after the std::string conversion
 
 ysRenderGeometryChannel::GetName() returns std::string since "Use std::string
 everywhere in yds_*", which no longer converts to the LPCSTR SemanticName of
