@@ -56,6 +56,7 @@ EngineSimApplication::EngineSimApplication() {
     m_geometryIndexBuffer = nullptr;
 
     m_paused = false;
+    m_fineThrottleControlUsed = false;
     m_recording = false;
     m_screenResolutionIndex = 0;
     for (int i = 0; i < ScreenResolutionHistoryLength; ++i) {
@@ -930,7 +931,7 @@ void EngineSimApplication::processEngineInput() {
     }
 
     const double prevTargetThrottle = m_iceEngine->getTargetSpeedControl();
-    if (!m_fineThrottleControlUsed && !m_simulator.getTransmission()->isShifting()) {
+    if (!m_fineThrottleControlUsed && !m_simulator->getTransmission()->isShifting()) {
         m_iceEngine->setTargetSpeedControl(0.0);
     }
     if (m_engine.IsKeyDown(ysKey::Code::Q)) {
@@ -1078,17 +1079,17 @@ void EngineSimApplication::processEngineInput() {
     }
 
     if (m_engine.IsKeyDown(ysKey::Code::T)) {
-        m_simulator.getTransmission()->setTargetClutchPressure(m_simulator.getTransmission()->getTargetClutchPressure() - 0.2 * dt);
+        m_simulator->getTransmission()->setTargetClutchPressure(m_simulator->getTransmission()->getTargetClutchPressure() - 0.2 * dt);
     }
     else if (m_engine.IsKeyDown(ysKey::Code::U)) {
-        m_simulator.getTransmission()->setTargetClutchPressure(m_simulator.getTransmission()->getTargetClutchPressure() + 0.2 * dt);
+        m_simulator->getTransmission()->setTargetClutchPressure(m_simulator->getTransmission()->getTargetClutchPressure() + 0.2 * dt);
     }
     else if (m_engine.IsKeyDown(ysKey::Code::Shift)) {
-        m_simulator.getTransmission()->setTargetClutchPressure(0.0);
+        m_simulator->getTransmission()->setTargetClutchPressure(0.0);
         m_infoCluster->setLogMessage("CLUTCH DEPRESSED");
     }
-    else if (!m_engine.IsKeyDown(ysKey::Code::Y) && !m_simulator.getTransmission()->isShifting()) {
-        m_simulator.getTransmission()->setTargetClutchPressure(1.0);
+    else if (!m_engine.IsKeyDown(ysKey::Code::Y) && !m_simulator->getTransmission()->isShifting()) {
+        m_simulator->getTransmission()->setTargetClutchPressure(1.0);
     }
 
     if (m_engine.ProcessKeyDown(ysKey::Code::P)) {

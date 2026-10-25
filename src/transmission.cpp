@@ -12,7 +12,11 @@ Transmission::Transmission() {
     m_maxClutchTorque = units::torque(1000.0, units::ft_lb);
     m_rotatingMass = nullptr;
     m_vehicle = nullptr;
+    m_engine = nullptr;
     m_clutchPressure = 0.0;
+    m_targetRPM = 0.0;
+    m_upshift = false;
+    m_downshift = false;
 }
 
 Transmission::~Transmission() {
@@ -124,6 +128,12 @@ void Transmission::changeGear(int newGear) {
 }
 
 void Transmission::recalculateTargetRPM() {
+    // Not attached to a vehicle yet (addToSystem() hasn't run)
+    if (m_vehicle == nullptr) {
+        m_targetRPM = 0.0;
+        return;
+    }
+
     double vs = units::convert(m_vehicle->getSpeed(), units::m / units::minute);
     double tr = units::convert(m_vehicle->getTireRadius(), units::m);
     double wheelRPM = (vs / tr) / (constants::pi * 2);
