@@ -6,6 +6,20 @@
 To get the newest releases of the game, [click here](https://github.com/Engine-Simulator/engine-sim-community-edition).
 ---
 
+## About this branch
+
+This branch collects work from the community forks of the original source code (which is no longer maintained) on top of the last upstream commit:
+
+- **Builds on Windows and Linux** (bobsayshilol's SDL port, with Windows fixes) and no longer needs Boost
+- **Forced induction**: superchargers and turbochargers ([docs/forced-induction.md](docs/forced-induction.md))
+- **Camshaft reduction ratio and intake atmosphere** for 2-stroke and steam engines and altitude/boost setups
+- **Smart gear shifting** (rev-matched up/down shifts), instant or average fuel consumption and an odometer
+- **Audio fixes** for underruns and a data race in the synthesizer, plus a UDP RPM input ([RPM_SYNC.md](RPM_SYNC.md))
+- **Bug fixes** to the physics, rendering and memory handling, and a test suite that passes
+- **75 community engine scripts** and 7 extra UI themes (metric variants, Catppuccin), each checked to compile and run
+
+See [COMMUNITY.md](COMMUNITY.md) for where every change came from.
+
 ## What is this?
 
 This is a real-time internal combustion engine simulation **designed specifically to produce engine audio and simulate engine response characteristics.** It is NOT a scientific tool and cannot be expected to provide accurate figures for the purposes of engineering or engine tuning.
@@ -30,8 +44,8 @@ The UI is extremely minimalistic and there are only a few controls used to inter
 | F | Enter fullscreen mode |
 | I | Display dyno stats in the information panel |
 | Shift | Clutch (hold spacebar at the same time to slowly engage/disengage) |
-| Up Arrow | Up Gear | 
-| Down Arrow | Down Gear | 
+| Up Arrow | Up Gear (the clutch and throttle are blipped to rev-match) | 
+| Down Arrow | Down Gear (the clutch and throttle are blipped to rev-match) | 
 | Z + Scroll | Volume |
 | X + Scroll | Convolution Level |
 | C + Scroll | High frequency gain |
@@ -56,33 +70,51 @@ The RPM hold feature will hold the engine at a specific RPM and also measure the
 I wrote this to demo in a [YouTube video](https://youtu.be/RKT-sKtR970), not as a real product. If you would like it to become a usable product please reach out to me or join my Discord (link can be found in the description of the aforementioned YouTube video). I use this codebase for my own purposes and so it might change frequently and without warning.
 
 ## How do I build it? (Ignore this section if you're not a developer!)
-**Note: this project currently only builds on Windows!**
+
+The project builds on Windows (Direct3D 11) and Linux (SDL2 + OpenGL). Boost is no longer needed.
 
 ### Step 1 - Clone the repository
-```git clone --recurse-submodules https://github.com/ange-yaghi/engine-sim```
+```git clone --recurse-submodules <url of this repository>```
 
-### Step 2 - Install CMake
-Install the latest version of CMake [here](https://cmake.org/) if it's not already installed.
+If you already cloned it, run `git submodule update --init`. A few fixes for the pinned delta-studio submodule are applied automatically when CMake configures the project, see [patches/README.md](patches/README.md).
 
-### Step 3 - Install Dependencies
-You will need to install the following dependencies and CMake will need to be able to locate them (ie. they need to be listed on your PATH):
+### Step 2 - Install the dependencies
 
-    1. SDL2
-    2. SDL2_image
-    3. Boost (make sure to build the optional dependencies)
-    4. Flex and Bison
+You need CMake, a C++17 compiler, SDL2, SDL2_image, Flex and Bison.
 
-### Step 4 - Build and Run
-From the root directory of the project, run the following commands:
+**Windows** (Visual Studio 2022): install SDL2 with [vcpkg](https://vcpkg.io) and Flex/Bison with [WinFlexBison](https://github.com/lexxmark/winflexbison) (for example `choco install winflexbison3`):
 
 ```
-mkdir build
-cd build
-cmake ..
-cmake --build .
+vcpkg install sdl2:x64-windows sdl2-image:x64-windows
 ```
 
-If these steps are successful, a Visual Studio solution will be generated in ```build```. You can open this project with Visual Studio and then run the ```engine-sim-app``` project. If you encounter an error telling you that you're missing DLLs, you will have to copy those DLLs to your EXE's directory.
+**Linux** (Debian/Ubuntu):
+
+```
+sudo apt install build-essential cmake libsdl2-dev libsdl2-image-dev flex bison
+```
+
+### Step 3 - Build and Run
+
+Windows, from the root directory of the project:
+
+```
+cmake -S . -B build -A x64 -DCMAKE_TOOLCHAIN_FILE=<vcpkg root>/scripts/buildsystems/vcpkg.cmake
+cmake --build build --config Release
+```
+
+Linux:
+
+```
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+```
+
+Run the app with the build directory as the working directory so that it finds `../assets`: `cd build`, then `./engine-sim-app` on Linux or `Release\engine-sim-app.exe` on Windows (Visual Studio's debugger already uses that directory). On Windows the vcpkg toolchain copies the SDL2 DLLs next to the executable. On Linux, scripts in `~/.local/share/engine-sim/assets` take priority over the bundled ones, and `ENGINE_SIM_DATA_ROOT` points the app at a different data directory.
+
+With CMake 4 add `-DCMAKE_POLICY_VERSION_MINIMUM=3.5`, since some submodules still declare a very old minimum version.
+
+`ctest --test-dir build -C Release` runs the unit tests, and `boost-probe <script.mr> [rpm ...]` runs an engine script headlessly on the dyno (handy for checking a new engine).
 
 ## Patreon Supporters
 
