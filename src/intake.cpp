@@ -17,6 +17,8 @@ Intake::Intake() {
     m_runnerLength = 0;
     m_atmospherePressure = units::pressure(1.0, units::atm);
     m_atmosphereTemperature = units::celcius(25.0);
+    m_sourcePressure = m_atmospherePressure;
+    m_sourceTemperature = m_atmosphereTemperature;
 }
 
 Intake::~Intake() {
@@ -55,6 +57,10 @@ void Intake::initialize(Parameters &params) {
     m_runnerFlowRate = params.RunnerFlowRate;
     m_atmospherePressure = params.AtmospherePressure;
     m_atmosphereTemperature = params.AtmosphereTemperature;
+
+    // Ambient air unless a compressor feeds this intake (see Compressor)
+    m_sourcePressure = m_atmospherePressure;
+    m_sourceTemperature = m_atmosphereTemperature;
 }
 
 void Intake::destroy() {
@@ -88,13 +94,13 @@ void Intake::process(double dt) {
     flowParams.direction_y = -1.0;
     flowParams.dt = dt;
 
-    m_atmosphere.reset(m_atmospherePressure, m_atmosphereTemperature, fuelAirMix);
+    m_atmosphere.reset(m_sourcePressure, m_sourceTemperature, fuelAirMix);
     flowParams.system_0 = &m_atmosphere;
     flowParams.system_1 = &m_system;
     flowParams.k_flow = flowAttenuation * m_inputFlowK;
     m_flow = m_system.flow(flowParams);
 
-    m_atmosphere.reset(m_atmospherePressure, m_atmosphereTemperature, fuelMix);
+    m_atmosphere.reset(m_sourcePressure, m_sourceTemperature, fuelMix);
     flowParams.system_0 = &m_atmosphere;
     flowParams.system_1 = &m_system;
     flowParams.k_flow = m_idleFlowK;

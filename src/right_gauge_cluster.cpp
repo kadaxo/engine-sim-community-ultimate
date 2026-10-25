@@ -94,7 +94,7 @@ void RightGaugeCluster::initialize(EngineSimApplication *app) {
     m_manifoldVacuumGauge->m_precision = 0;
     m_manifoldVacuumGauge->setLocalPosition({ 0, 0 });
     m_manifoldVacuumGauge->m_gauge->m_min = -30;
-    m_manifoldVacuumGauge->m_gauge->m_max = 5;
+    m_manifoldVacuumGauge->m_gauge->m_max = 30;
     m_manifoldVacuumGauge->m_gauge->m_minorStep = 1;
     m_manifoldVacuumGauge->m_gauge->m_majorStep = 5;
     m_manifoldVacuumGauge->m_gauge->m_maxMinorTick = 200;
@@ -251,7 +251,7 @@ void RightGaugeCluster::renderFuelAirCluster(const Bounds &bounds) {
         m_manifoldVacuumGauge->m_gauge->m_value = static_cast<float>(vacuumReading);
     }
     else {
-        m_manifoldVacuumGauge->m_gauge->m_value = (vacuumReading > -0.5)
+        m_manifoldVacuumGauge->m_gauge->m_value = (std::abs(vacuumReading) < 0.5)
             ? 0.0f
             : static_cast<float>(vacuumReading);
     }
@@ -281,7 +281,7 @@ void RightGaugeCluster::renderFuelAirCluster(const Bounds &bounds) {
 
 double RightGaugeCluster::getManifoldPressureWithUnits(double ambientPressure) {
     if (m_pressureUnits == "inHg") {
-        return units::convert(std::fmin(getManifoldPressure() - ambientPressure, 0.0), units::inHg);
+        return units::convert(getManifoldPressure() - ambientPressure, units::inHg);
     }
     else if (m_pressureUnits == "kPa") {
         return units::convert(getManifoldPressure(), units::kPa);
@@ -293,10 +293,10 @@ double RightGaugeCluster::getManifoldPressureWithUnits(double ambientPressure) {
         return units::convert(getManifoldPressure(), units::bar);
     }
     else if (m_pressureUnits == "psi") {
-        return units::convert(std::fmin(getManifoldPressure() - ambientPressure, 0.0), units::psi);
+        return units::convert(getManifoldPressure() - ambientPressure, units::psi);
     }
     else {
-        return units::convert(std::fmin(getManifoldPressure() - ambientPressure, 0.0), units::inHg);
+        return units::convert(getManifoldPressure() - ambientPressure, units::inHg);
     }
 }
 
@@ -415,7 +415,7 @@ void RightGaugeCluster::setUnits() {
 
         m_manifoldVacuumGauge->m_unit = "inHg";
         m_manifoldVacuumGauge->m_gauge->m_min = -30;
-        m_manifoldVacuumGauge->m_gauge->m_max = 5;
+        m_manifoldVacuumGauge->m_gauge->m_max = 30;
         m_manifoldVacuumGauge->m_gauge->m_minorStep = 1;
         m_manifoldVacuumGauge->m_gauge->m_majorStep = 5;
         m_manifoldVacuumGauge->m_gauge->setBand(
