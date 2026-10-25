@@ -230,9 +230,9 @@ public node volvo_i5_2_5L {
     )
 
     exhaust_system exhaust0(
-        es_params, volvoo_volume: 1.0 * 0.01, impulse_response: ir_lib.mild_exhaust_0)
+        es_params, audio_volume: 1.0 * 0.01, impulse_response: ir_lib.mild_exhaust_0)
     exhaust_system exhaust1(
-        es_params, volvoo_volume: 0.8 * 0.01, impulse_response: ir_lib.mild_exhaust_0)
+        es_params, audio_volume: 0.8 * 0.01, impulse_response: ir_lib.mild_exhaust_0)
 
     cylinder_bank b0(bank_params, angle: 0)
     b0
