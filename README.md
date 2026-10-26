@@ -44,7 +44,7 @@ The UI is extremely minimalistic and there are only a few controls used to inter
 | F | Enter fullscreen mode |
 | I | Display dyno stats in the information panel |
 | Shift | Clutch (hold spacebar at the same time to slowly engage/disengage) |
-| Up Arrow | Up Gear (the clutch and throttle are blipped to rev-match) | 
+| Up Arrow | Up Gear (the clutch is disengaged and the throttle lifted until the revs drop, at most half a second) | 
 | Down Arrow | Down Gear (the clutch and throttle are blipped to rev-match) | 
 | Z + Scroll | Volume |
 | X + Scroll | Convolution Level |
@@ -120,7 +120,7 @@ Run the app with the build directory as the working directory so that it finds `
 
 With CMake 4 add `-DCMAKE_POLICY_VERSION_MINIMUM=3.5`, since some submodules still declare a very old minimum version.
 
-`ctest --test-dir build -C Release` runs the unit tests, and `boost-probe <script.mr> [rpm ...]` runs an engine script headlessly on the dyno (handy for checking a new engine).
+`ctest --test-dir build -C Release` runs the unit tests, and `boost-probe <script.mr> [rpm ...]` runs an engine script headlessly on the dyno (handy for checking a new engine). `shift-probe <script.mr>` drives the car through a set of up- and downshifts and prints whether each one completes.
 
 ## Patreon Supporters
 

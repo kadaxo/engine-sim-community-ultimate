@@ -4,6 +4,17 @@
 
 #include <cmath>
 
+namespace {
+    // A shift that hasn't matched revs by then engages the clutch anyway, so
+    // it can't hang (e.g. throttle held through an upshift)
+    constexpr double MaxShiftTime = 0.5;
+
+    // Pulling away in first: the clutch starts slipping at this pressure and
+    // is fully in after LaunchTime
+    constexpr double LaunchClutchPressure = 0.1;
+    constexpr double LaunchTime = 1.5;
+}
+
 Transmission::Transmission() {
     m_gear = -1;
     m_newGear = -1;
@@ -17,6 +28,7 @@ Transmission::Transmission() {
     m_targetRPM = 0.0;
     m_upshift = false;
     m_downshift = false;
+    m_shiftTime = 0.0;
 }
 
 Transmission::~Transmission() {
@@ -35,6 +47,10 @@ void Transmission::initialize(const Parameters &params) {
 }
 
 void Transmission::update(double dt) {
+    if (isShifting()) {
+        m_shiftTime += dt;
+    }
+
     if (m_gear == -1) {
         m_clutchConstraint.m_minTorque = 0;
         m_clutchConstraint.m_maxTorque = 0;
@@ -61,44 +77,60 @@ void Transmission::addToSystem(
     system->addConstraint(&m_clutchConstraint);
 }
 
+bool Transmission::getShiftThrottle(double *throttle) const {
+    if (m_upshift && m_gear > 0) {
+        // Lift off so the revs drop to the new gear
+        *throttle = 0.0;
+        return true;
+    }
+    else if (m_downshift) {
+        // Blip to raise the revs, unless the new gear would over-rev the engine
+        *throttle = wouldOverrev() ? 0.0 : 1.0;
+        return true;
+    }
+
+    return false;
+}
+
 void Transmission::upshift() {
-    int oldGear = m_gear;
-
-    changeGear(m_gear + 1);
-
     // can't shift further
-    if (oldGear == m_gearCount - 1) {
+    if (m_gear == m_gearCount - 1) {
         return;
     }
 
-    if (!isShifting()) {
-        m_storedThrottle = m_engine->getTargetSpeedControl();
-    }
+    changeGear(m_gear + 1);
+
     m_upshift = true;
+    m_downshift = false;
+    m_shiftTime = 0.0;
 
     // to actually start moving, clutch needs to be a bit engaged to prevent engine stall
-    if (m_gear == 0) {
-        m_targetClutchPressure = 0.1;
-    } else {
-        m_targetClutchPressure = 0.0;
-        m_engine->setTargetSpeedControl(0.0);
-    }
+    m_targetClutchPressure = (m_gear == 0) ? LaunchClutchPressure : 0.0;
 }
 
 void Transmission::downshift() {
-    changeGear(m_gear - 1);
-
-    // neutral
     if (m_gear == -1) {
         return;
     }
 
-    if (!isShifting()) {
-        m_storedThrottle = m_engine->getTargetSpeedControl();
-    }
-    m_downshift = true;
-    m_targetClutchPressure = 0.0;
-    m_engine->setTargetSpeedControl(1.0);
+    changeGear(m_gear - 1);
+
+    m_upshift = false;
+    m_shiftTime = 0.0;
+
+    // neutral, nothing to match
+    m_downshift = (m_gear != -1);
+    m_targetClutchPressure = m_downshift ? 0.0 : 1.0;
+}
+
+void Transmission::finishShift() {
+    m_upshift = false;
+    m_downshift = false;
+    m_targetClutchPressure = 1.0;
+}
+
+bool Transmission::wouldOverrev() const {
+    return m_targetRPM > units::toRpm(m_engine->getRedline());
 }
 
 void Transmission::changeGear(int newGear) {
@@ -145,23 +177,30 @@ void Transmission::updateClutchPressure(double clutch_s) {
 
     recalculateTargetRPM();
 
-    if (m_upshift && m_engine->getRpm() < m_targetRPM) {
-        m_upshift = false;
-        m_engine->setTargetSpeedControl(m_storedThrottle);
-        m_targetClutchPressure = 1.0;
+    const double rpm = m_engine->getRpm();
+    if (m_upshift && m_gear == 0) {
+        // Pulling away: let the clutch in gradually
+        if (rpm < m_targetRPM || m_shiftTime >= LaunchTime) {
+            finishShift();
+        }
+        else {
+            m_targetClutchPressure = LaunchClutchPressure
+                + (1.0 - LaunchClutchPressure) * (m_shiftTime / LaunchTime);
+        }
     }
-
-    if (m_downshift && m_engine->getRpm() > m_targetRPM) {
-        m_downshift = false;
-        m_engine->setTargetSpeedControl(m_storedThrottle);
-        m_targetClutchPressure = 1.0;
+    else if (m_upshift) {
+        if (rpm < m_targetRPM || m_shiftTime >= MaxShiftTime) {
+            finishShift();
+        }
     }
-
-    if (m_downshift && m_targetRPM > units::toRpm(m_engine->getRedline())) {
-        m_targetClutchPressure = 0.1;
-        m_engine->setTargetSpeedControl(0.0);
-    } else if (m_downshift && m_targetRPM < units::toRpm(m_engine->getRedline())) {
-        m_targetClutchPressure = 0.0;
-        m_engine->setTargetSpeedControl(1.0);
+    else if (m_downshift) {
+        if (rpm > m_targetRPM || m_shiftTime >= MaxShiftTime) {
+            finishShift();
+        }
+        else {
+            // When the new gear would over-rev, slip the clutch to bring the
+            // revs up gently instead of blipping
+            m_targetClutchPressure = wouldOverrev() ? 0.1 : 0.0;
+        }
     }
 }

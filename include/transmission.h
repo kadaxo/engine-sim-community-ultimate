@@ -33,6 +33,10 @@ class Transmission {
         void updateClutchPressure(double clutch_s);
         inline bool isShifting() const { return m_upshift || m_downshift; }
 
+        // Throttle the engine should run at while a shift is matching revs,
+        // in place of the driver's; false when the driver's throttle applies
+        bool getShiftThrottle(double *throttle) const;
+
         void upshift();
         void downshift();
         void recalculateTargetRPM();
@@ -54,9 +58,11 @@ class Transmission {
 
         bool m_upshift;
         bool m_downshift;
-        double m_storedThrottle = 0.0;
+        double m_shiftTime;
 
         void changeGear(int newGear);
+        void finishShift();
+        bool wouldOverrev() const;
 };
 
 #endif /* ATG_ENGINE_SIM_TRANSMISSION_H */

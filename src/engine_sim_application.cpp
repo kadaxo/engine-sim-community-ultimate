@@ -1156,7 +1156,7 @@ void EngineSimApplication::processEngineInput() {
     }
 
     const double prevTargetThrottle = m_iceEngine->getTargetSpeedControl();
-    if (!m_fineThrottleControlUsed && !m_simulator->getTransmission()->isShifting()) {
+    if (!m_fineThrottleControlUsed) {
         m_iceEngine->setTargetSpeedControl(0.0);
     }
     if (m_engine.IsKeyDown(ysKey::Code::Q)) {
@@ -1184,7 +1184,14 @@ void EngineSimApplication::processEngineInput() {
         m_infoCluster->setLogMessage("Speed control set to " + std::to_string(m_iceEngine->getTargetSpeedControl()));
     }
 
-    m_iceEngine->updateSpeedControl();
+    // A shift in progress drives the throttle without changing the driver's setting
+    double shiftThrottle;
+    if (m_simulator->getTransmission()->getShiftThrottle(&shiftThrottle)) {
+        m_iceEngine->setSpeedControl(shiftThrottle * 0.5 + 0.5 * m_iceEngine->getSpeedControl());
+    }
+    else {
+        m_iceEngine->updateSpeedControl();
+    }
     if (m_engine.ProcessKeyDown(ysKey::Code::M)) {
         const int currentLayer = getViewParameters().Layer0;
         if (currentLayer + 1 < m_iceEngine->getMaxDepth()) {

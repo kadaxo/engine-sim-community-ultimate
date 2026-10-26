@@ -21,7 +21,7 @@ Merged work keeps its authors. Fork branches are merged as they are, single comm
 
 Added on top: LOAD ENGINE / RELOAD / LOAD THEME / EXIT buttons in the header, modelled on the closed-source v0.1.14a release. Loading engines uses a native file picker (zenity on Linux, as in [Fraxoor/engine-sim-linux](https://github.com/Fraxoor/engine-sim-linux)) and includes Fraxoor's finding that the script compiler's static output must be cleared between loads.
 
-Fixes made while merging: Direct3D and Win32 build errors in the SDL port of delta-studio, a global buffer overflow in its device registry (found with AddressSanitizer), SDL2 header discovery with vcpkg, a Winsock version of the RPM sync receiver, the boost-probe tool on the port's compiler API, smart shifting after the simulator refactor, and a test suite that passes. See `patches/README.md` for the delta-studio patches.
+Fixes made while merging: Direct3D and Win32 build errors in the SDL port of delta-studio, a global buffer overflow in its device registry (found with AddressSanitizer), SDL2 header discovery with vcpkg, a Winsock version of the RPM sync receiver, the boost-probe tool on the port's compiler API, smart shifting after the simulator refactor (and shifts that never finished when the throttle was held, which left the clutch open and the throttle latched), and a test suite that passes. See `patches/README.md` for the delta-studio patches.
 
 ### Simulation
 

@@ -357,4 +357,9 @@ if (PIRANHA_ENABLED)
     add_executable(boost-probe tools/boost_probe.cpp)
     target_link_libraries(boost-probe engine-sim engine-sim-script-interpreter)
     target_include_directories(boost-probe PUBLIC dependencies/submodules)
+
+    # Headless gear shift probe
+    add_executable(shift-probe tools/shift_probe.cpp)
+    target_link_libraries(shift-probe engine-sim engine-sim-script-interpreter)
+    target_include_directories(shift-probe PUBLIC dependencies/submodules)
 endif (PIRANHA_ENABLED)
