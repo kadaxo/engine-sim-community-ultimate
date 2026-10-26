@@ -31,6 +31,9 @@ Input
                            assets/engines
   --es-dir <dir>           engine-sim script library (default: auto-detected)
   --sim-frequency <hz>     Physics rate (default: the engine's own setting)
+  --starter-rpm <rpm>      Starter cranking speed (default: the engine's own;
+                           real starters crank at about 200-300 rpm)
+  --crank-throttle <0-1>   Throttle held while cranking (default: 0)
 
 Output
   --out <dir>              Output root (default: ./engine-audio-export)
@@ -193,6 +196,8 @@ Misc
             else if (arg == "--es-dir") *esDir = value;
             else if (arg == "--out") o->outputDirectory = value;
             else if (arg == "--sim-frequency") ok = number(&o->session.simulationFrequency);
+            else if (arg == "--starter-rpm") ok = number(&o->session.starterRpm);
+            else if (arg == "--crank-throttle") ok = number(&o->session.crankThrottle);
             else if (arg == "--rpm-min") ok = number(&o->rpmMin);
             else if (arg == "--rpm-max") ok = number(&o->rpmMax);
             else if (arg == "--rpm-step") ok = number(&o->rpmStep);

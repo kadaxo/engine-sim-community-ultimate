@@ -218,6 +218,8 @@ Run `engine-sim-export --help` for the full list. The most useful ones:
 | `--crossfade` | 80 ms | At least one engine cycle is always used |
 | `--normalize` / `--loudness` / `--peak-db` | `loudness` / -18 LUFS / -1 dBFS | See *Levels* |
 | `--sim-frequency` | engine's own | Raise it (e.g. 40000) for cleaner high-RPM audio; render time scales with it |
+| `--starter-rpm` | engine's own | Starter cranking speed. Real starters crank at about 200–300 rpm; scripts that crank near idle speed give a startup clip that sounds already running |
+| `--crank-throttle` | 0 | Throttle held while cranking, released when the engine catches. Lets engines that only start at high cranking speed start at a realistic one (the Fiat 1.8 HGT starts with `--starter-rpm 250 --crank-throttle 0.1`) |
 | `--jobs` | all cores | |
 | `--seed` | 1 | Renders are reproducible for a given seed |
 

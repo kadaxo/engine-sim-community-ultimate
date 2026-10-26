@@ -227,6 +227,11 @@ std::unique_ptr<game_audio::EngineSession> game_audio::EngineSession::create(
     assert(session->m_transmission->getGear() == -1);
     session->m_transmission->setClutchPressure(1.0);
 
+    if (config.starterRpm > 0) {
+        simulator->m_starterMotor.m_rotationSpeed = -units::rpm(config.starterRpm);
+    }
+    session->m_crankThrottle = std::clamp(config.crankThrottle, 0.0, 1.0);
+
     Info &info = session->m_info;
     info.name = engine->getName();
     info.cylinderCount = engine->getCylinderCount();
@@ -235,7 +240,7 @@ std::unique_ptr<game_audio::EngineSession> game_audio::EngineSession::create(
     info.redlineRpm = units::toRpm(engine->getRedline());
     info.dynoMinRpm = units::toRpm(engine->getDynoMinSpeed());
     info.dynoMaxRpm = units::toRpm(engine->getDynoMaxSpeed());
-    info.starterRpm = units::toRpm(engine->getStarterSpeed());
+    info.starterRpm = units::toRpm(std::abs(simulator->m_starterMotor.m_rotationSpeed));
     info.simulationFrequency = simulator->getSimulationFrequency();
 
     return session;

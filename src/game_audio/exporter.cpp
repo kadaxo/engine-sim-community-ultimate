@@ -151,7 +151,7 @@ namespace {
         constexpr double SustainSeconds = 0.2;
 
         session.setIgnition(true);
-        session.setThrottleImmediate(0.0);
+        session.setThrottleImmediate(session.crankThrottle());
         session.setStarter(true);
 
         double aboveSince = -1.0;
@@ -166,6 +166,7 @@ namespace {
             },
             8.0, audio, telemetry);
         session.setStarter(false);
+        session.setThrottle(0.0);
         const double crankedRpm = session.rpm();
 
         // Confirm it keeps running without the starter; a non-firing engine
@@ -728,6 +729,8 @@ std::string game_audio::validateOptions(const ExportOptions &o) {
     if (o.session.simulationFrequency != 0 && o.session.simulationFrequency < 1000) {
         return "--sim-frequency must be at least 1000 Hz";
     }
+    if (o.session.starterRpm < 0) return "--starter-rpm must not be negative";
+    if (o.session.crankThrottle < 0 || o.session.crankThrottle > 1) return "--crank-throttle must be within [0, 1]";
     return {};
 }
 

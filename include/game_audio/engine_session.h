@@ -24,6 +24,16 @@ namespace game_audio {
         // Physics steps per second. 0 uses the value set by the engine script.
         // Higher values reduce aliasing at high RPM at the cost of render time.
         double simulationFrequency = 0.0;
+
+        // Cranking speed of the starter motor in RPM. 0 uses the value set by
+        // the engine script; some scripts crank at idle speed, which makes the
+        // startup clip sound like an engine that is already running.
+        double starterRpm = 0.0;
+
+        // Throttle (0-1) held while cranking, like an ECU opening the idle
+        // valve for a start; some scripts only start at high cranking speed
+        // with the throttle closed.
+        double crankThrottle = 0.0;
     };
 
     struct TelemetrySample {
@@ -68,6 +78,7 @@ namespace game_audio {
             const SessionConfig &config, std::string *error);
 
         const Info &info() const { return m_info; }
+        double crankThrottle() const { return m_crankThrottle; }
 
         // Target throttle (speed control) in [0, 1]. The applied value follows
         // the target with a short time constant, as in the interactive app.
@@ -118,6 +129,7 @@ namespace game_audio {
         double m_time = 0.0;
         double m_throttle = 0.0;
         double m_targetThrottle = 0.0;
+        double m_crankThrottle = 0.0;
 
         std::vector<float> m_scratch;
     };
