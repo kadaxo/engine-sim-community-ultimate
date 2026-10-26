@@ -25,8 +25,9 @@ class Synthesizer {
             float inputSampleNoiseFrequencyCutoff = 10000.0f;
             float airNoise = 1.0f;
             float airNoiseFrequencyCutoff = 2000.0f;
-            float levelerTarget = 30000.0f;
-            float levelerMaxGain = 1.9f;
+            float levelerTarget = 30000.0f;             // peak ceiling
+            float levelerLoudnessTarget = 10000.0f;     // RMS level the leveler aims for
+            float levelerMaxGain = 10.0f;
             float levelerMinGain = 0.00001f;
         };
 

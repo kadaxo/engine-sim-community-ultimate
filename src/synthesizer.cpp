@@ -91,7 +91,9 @@ void Synthesizer::initialize(const Parameters &p) {
         m_filters[i].antialiasing.setCutoffFrequency(1900.0f, m_audioSampleRate);
     }
 
+    m_levelingFilter.setSampleRate(m_audioSampleRate);
     m_levelingFilter.p_target = m_audioParameters.levelerTarget;
+    m_levelingFilter.p_loudnessTarget = m_audioParameters.levelerLoudnessTarget;
     m_levelingFilter.p_maxLevel = m_audioParameters.levelerMaxGain;
     m_levelingFilter.p_minLevel = m_audioParameters.levelerMinGain;
     m_antialiasing.setCutoffFrequency(m_audioSampleRate * 0.45f, m_audioSampleRate);
@@ -388,6 +390,7 @@ int16_t Synthesizer::renderAudio(int inputSample) {
     signal = m_antialiasing.fast_f(signal);
 
     m_levelingFilter.p_target = m_audioParameters.levelerTarget;
+    m_levelingFilter.p_loudnessTarget = m_audioParameters.levelerLoudnessTarget;
     const float v_leveled = m_levelingFilter.f(signal) * m_audioParameters.volume;
     int r_int = std::lround(v_leveled);
     if (r_int > INT16_MAX) {
