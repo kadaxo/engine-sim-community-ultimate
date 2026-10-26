@@ -25,7 +25,6 @@ Pinned commit: `8daecd0` on
 | `0005` | `ysSubclassRegistry` writing one pointer past the device table when the Vulkan device registers (global memory corruption on Windows at startup) |
 | `0006` | `FindSDL2` not exporting the directory above `SDL2/`, so `<SDL2/SDL.h>` couldn't be found with vcpkg or the SDL development packages |
 | `0007` | `ysWindowsWindow` no longer overriding the `std::string` window methods, so no Win32 window was created and the app crashed at startup on Windows |
-| `0008` | Keys sticking on Windows after pressing two at once: keyboards with more than one HID interface (boot + NKRO) can report a press on one and the release on the other, and key state was tracked per interface |
 
 Without them the port only builds on Linux/macOS; with them it builds on
 Windows (Direct3D 11) as well.
