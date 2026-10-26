@@ -363,3 +363,86 @@ if (PIRANHA_ENABLED)
     target_link_libraries(shift-probe engine-sim engine-sim-script-interpreter)
     target_include_directories(shift-probe PUBLIC dependencies/submodules)
 endif (PIRANHA_ENABLED)
+
+# ========================================================
+# GAME AUDIO EXPORT
+#
+# engine-sim-export renders seamless RPM loops, transients and sweeps for use
+# in games (see docs/game-audio-export.md). WAV is always written; Ogg Vorbis
+# and MP3 need libvorbis and LAME, found through their CMake packages (e.g.
+# from vcpkg, via CMAKE_PREFIX_PATH or a vcpkg toolchain).
+
+cmake_dependent_option(GAME_AUDIO_EXPORT "Build the game audio exporter (engine-sim-export)" ON
+    "PIRANHA_ENABLED" OFF)
+
+if (GAME_AUDIO_EXPORT)
+    add_library(engine-sim-game-audio STATIC
+        # Source files
+        src/game_audio/audio_encoders.cpp
+        src/game_audio/engine_session.cpp
+        src/game_audio/exporter.cpp
+        src/game_audio/json_writer.cpp
+        src/game_audio/loop_builder.cpp
+        src/game_audio/loudness.cpp
+        src/game_audio/wav_file.cpp
+
+        # Include files
+        include/game_audio/audio_encoders.h
+        include/game_audio/engine_session.h
+        include/game_audio/exporter.h
+        include/game_audio/json_writer.h
+        include/game_audio/loop_builder.h
+        include/game_audio/loudness.h
+        include/game_audio/wav_file.h
+    )
+
+    target_link_libraries(engine-sim-game-audio
+        PUBLIC
+            engine-sim
+            engine-sim-script-interpreter)
+
+    target_include_directories(engine-sim-game-audio
+        PUBLIC dependencies/submodules)
+
+    find_package(Ogg CONFIG QUIET)
+    find_package(Vorbis CONFIG QUIET)
+    if (TARGET Vorbis::vorbisenc AND TARGET Ogg::ogg)
+        target_compile_definitions(engine-sim-game-audio PUBLIC ENGINE_SIM_EXPORT_VORBIS)
+        target_link_libraries(engine-sim-game-audio PUBLIC Vorbis::vorbisenc Vorbis::vorbis Ogg::ogg)
+        message(STATUS "engine-sim-export: Ogg Vorbis enabled")
+    else ()
+        message(STATUS "engine-sim-export: libvorbis not found, Ogg Vorbis disabled")
+    endif ()
+
+    find_package(mp3lame CONFIG QUIET)
+    if (TARGET mp3lame::mp3lame)
+        target_compile_definitions(engine-sim-game-audio PUBLIC ENGINE_SIM_EXPORT_MP3)
+        target_link_libraries(engine-sim-game-audio PRIVATE mp3lame::mp3lame)
+        message(STATUS "engine-sim-export: MP3 enabled")
+    else ()
+        message(STATUS "engine-sim-export: LAME not found, MP3 disabled")
+    endif ()
+
+    add_executable(engine-sim-export
+        src/game_audio/export_main.cpp)
+
+    target_link_libraries(engine-sim-export
+        engine-sim-game-audio)
+
+    add_executable(engine-sim-game-audio-test
+        test/game_audio_tests.cpp)
+
+    target_link_libraries(engine-sim-game-audio-test
+        gtest_main
+        engine-sim-game-audio)
+
+    if (TARGET Vorbis::vorbisfile)
+        target_link_libraries(engine-sim-game-audio-test Vorbis::vorbisfile)
+    endif ()
+
+    # The integration tests load the bundled engine scripts.
+    target_compile_definitions(engine-sim-game-audio-test
+        PRIVATE ENGINE_SIM_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+
+    gtest_discover_tests(engine-sim-game-audio-test DISCOVERY_MODE PRE_TEST)
+endif (GAME_AUDIO_EXPORT)

@@ -350,15 +350,13 @@ void Synthesizer::setInputSampleRate(double sampleRate) {
     }
 }
 
-int16_t Synthesizer::renderAudio(int inputSample) {
+float Synthesizer::renderRawSample(int inputSample) {
     const float airNoise = m_audioParameters.airNoise;
     const float dF_F_mix = m_audioParameters.dF_F_mix;
     const float convAmount = m_audioParameters.convolution;
 
     float signal = 0;
     for (int i = 0; i < m_inputChannelCount; ++i) {
-        const float r_0 = 2.0 * ((double)rand() / RAND_MAX) - 1.0;
-
         const float jitteredSample =
             m_filters[i].jitterFilter.fast_f(m_inputChannels[i].transferBuffer[inputSample]);
 
@@ -387,7 +385,11 @@ int16_t Synthesizer::renderAudio(int inputSample) {
         signal += v;
     }
 
-    signal = m_antialiasing.fast_f(signal);
+    return m_antialiasing.fast_f(signal);
+}
+
+int16_t Synthesizer::renderAudio(int inputSample) {
+    const float signal = renderRawSample(inputSample);
 
     m_levelingFilter.p_target = m_audioParameters.levelerTarget;
     m_levelingFilter.p_loudnessTarget = m_audioParameters.levelerLoudnessTarget;
@@ -402,6 +404,43 @@ int16_t Synthesizer::renderAudio(int inputSample) {
     }
 
     return static_cast<int16_t>(r_int);
+}
+
+int Synthesizer::renderOffline(std::vector<float> &output) {
+    assert(m_thread == nullptr);
+    if (m_inputChannelCount == 0) return 0;
+
+    std::lock_guard<std::mutex> lock(m_inputLock);
+
+    for (int i = 0; i < m_inputChannelCount; ++i) {
+        m_filters[i].airNoiseLowPass.setCutoffFrequency(
+            static_cast<float>(m_audioParameters.airNoiseFrequencyCutoff), m_audioSampleRate);
+        m_filters[i].jitterFilter.setJitterScale(m_audioParameters.inputSampleNoise);
+    }
+
+    int total = 0;
+    while (m_inputChannels[0].data.size() > 0) {
+        const int n = std::min(
+            m_inputBufferSize,
+            static_cast<int>(m_inputChannels[0].data.size()));
+
+        for (int i = 0; i < m_inputChannelCount; ++i) {
+            m_inputChannels[i].data.read(n, m_inputChannels[i].transferBuffer);
+            m_inputChannels[i].data.removeBeginning(n);
+        }
+
+        output.reserve(output.size() + n);
+        for (int i = 0; i < n; ++i) {
+            output.push_back(renderRawSample(i));
+        }
+
+        total += n;
+    }
+
+    m_inputSamplesRead = 0;
+    m_latency = 0;
+
+    return total;
 }
 
 double Synthesizer::getLevelerGain() {

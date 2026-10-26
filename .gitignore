@@ -26,3 +26,9 @@ intake_stroke.csv
 
 # Additional build directories (build-debug/, build-asan/, ...)
 build-*/
+
+# Game audio exporter output
+engine-audio-export/
+
+# Script compiler diagnostics (written to the working directory)
+error_log.log

@@ -16,6 +16,7 @@ This branch collects work from the community forks of the original source code (
 - **Smart gear shifting** (rev-matched up/down shifts, toggled with `K`), instant or average fuel consumption and an odometer
 - **Audio fixes** for underruns and a data race in the synthesizer, plus a UDP RPM input ([RPM_SYNC.md](RPM_SYNC.md))
 - **Bug fixes** to the physics, rendering and memory handling, and a test suite that passes
+- **Game audio export**: `engine-sim-export` renders seamless RPM loops, one-shots and RPM sweeps as Ogg, WAV and MP3 with a JSON manifest, ready for Unity, Unreal, Godot, FMOD or Wwise ([docs/game-audio-export.md](docs/game-audio-export.md))
 - **75 community engine scripts** and 7 extra UI themes (metric variants, Catppuccin), each checked to compile and run
 
 See [COMMUNITY.md](COMMUNITY.md) for where every change came from.
@@ -93,7 +94,7 @@ You need CMake, a C++17 compiler, SDL2, SDL2_image, Flex and Bison.
 **Windows** (Visual Studio 2022): install SDL2 with [vcpkg](https://vcpkg.io) and Flex/Bison with [WinFlexBison](https://github.com/lexxmark/winflexbison) (for example `choco install winflexbison3`):
 
 ```
-vcpkg install sdl2:x64-windows sdl2-image:x64-windows
+vcpkg install sdl2:x64-windows sdl2-image:x64-windows libvorbis:x64-windows mp3lame:x64-windows
 ```
 
 **Linux** (Debian/Ubuntu):
@@ -101,6 +102,8 @@ vcpkg install sdl2:x64-windows sdl2-image:x64-windows
 ```
 sudo apt install build-essential cmake libsdl2-dev libsdl2-image-dev flex bison
 ```
+
+libvorbis and LAME are optional: they let `engine-sim-export` write Ogg Vorbis and MP3 (WAV always works). CMake looks for their CMake packages (`Vorbis`, `Ogg`, `mp3lame`), which vcpkg provides; on Linux use `vcpkg install libvorbis mp3lame` and pass vcpkg's toolchain file to CMake. The configure output says which formats were enabled.
 
 ### Step 3 - Build and Run
 
@@ -122,7 +125,7 @@ Run the app with the build directory as the working directory so that it finds `
 
 With CMake 4 add `-DCMAKE_POLICY_VERSION_MINIMUM=3.5`, since some submodules still declare a very old minimum version.
 
-`ctest --test-dir build -C Release` runs the unit tests, and `boost-probe <script.mr> [rpm ...]` runs an engine script headlessly on the dyno (handy for checking a new engine). `shift-probe <script.mr>` drives the car through a set of up- and downshifts and prints whether each one completes.
+`ctest --test-dir build -C Release` runs the unit tests, `engine-sim-export --out <dir>` exports a game audio set for the engine in `assets/main.mr` (or `--script <file.mr>`, see [docs/game-audio-export.md](docs/game-audio-export.md)), and `boost-probe <script.mr> [rpm ...]` runs an engine script headlessly on the dyno (handy for checking a new engine). `shift-probe <script.mr>` drives the car through a set of up- and downshifts and prints whether each one completes.
 
 ## Patreon Supporters
 
