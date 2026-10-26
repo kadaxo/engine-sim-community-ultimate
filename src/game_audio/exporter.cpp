@@ -166,20 +166,20 @@ namespace {
             },
             8.0, audio, telemetry);
         session.setStarter(false);
-
-        if (!caught) {
-            *error = "engine did not start within 8 s of cranking (reached "
-                + std::to_string(std::lround(session.rpm())) + " rpm, starter speed "
-                + std::to_string(std::lround(starterRpm)) + " rpm)";
-            return false;
-        }
+        const double crankedRpm = session.rpm();
 
         // Confirm it keeps running without the starter; a non-firing engine
-        // spins down well below cranking speed within a second.
+        // spins down well below cranking speed within a second. An engine that
+        // idles close to its starter speed never gets clearly above it, so the
+        // timeout above isn't a failure on its own: this check decides.
         session.advance(1.0, audio, telemetry);
         if (session.rpm() < 0.75 * starterRpm) {
-            *error = "engine stalled after the starter was released ("
-                + std::to_string(std::lround(session.rpm())) + " rpm)";
+            *error = caught
+                ? "engine stalled after the starter was released ("
+                    + std::to_string(std::lround(session.rpm())) + " rpm)"
+                : "engine did not start within 8 s of cranking (reached "
+                    + std::to_string(std::lround(crankedRpm)) + " rpm, starter speed "
+                    + std::to_string(std::lround(starterRpm)) + " rpm)";
             return false;
         }
 
