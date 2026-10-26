@@ -28,7 +28,7 @@ Fixes made while merging: Direct3D and Win32 build errors in the SDL port of del
 | Superchargers and turbochargers (`docs/forced-induction.md`), `units.psi` fix, `boost-probe` headless tool | [Oblongy/engine-sim](https://github.com/Oblongy/engine-sim) |
 | Camshaft `reduction_ratio` (2-stroke and steam engines) and intake `atmosphere_pressure`/`atmosphere_temperature` | Alexey Egorov ([Evil-Spirit/engine-sim](https://github.com/Evil-Spirit/engine-sim), upstream PR #309) |
 | Smart (rev-matched) shifting, instant/average fuel consumption (`P`), odometer, clutch and throttle logic moved out of the UI | Oleg Solovyov ([Mc-Pain/engine-sim](https://github.com/Mc-Pain/engine-sim)) |
-| Articulated-rod geometry, road drag when reversing, ignition events at the crank-angle wrap, crank-side rod damping, wrist pin offsets, frame-rate independent UI smoothing and controls, rendering guards | Samuel ([Samzax/engine-sim](https://github.com/Samzax/engine-sim), 13 commits) |
+| Articulated-rod geometry, road drag when reversing, ignition events at the crank-angle wrap, crank-side rod damping, frame-rate independent UI smoothing and controls, rendering guards | Samuel ([Samzax/engine-sim](https://github.com/Samzax/engine-sim), 12 commits) |
 | GaussianFilter out-of-bounds read, ConvolutionFilter null dereference, Gaussian test | [danieljsinclair/engine-sim](https://github.com/danieljsinclair/engine-sim) |
 | Simulator teardown leak, uninitialized synthesizer latency | 4FX ([forfex/engine-sim](https://github.com/forfex/engine-sim)) |
 | `checkForDiscontinuity` typo, simpler `modularDistance` | wardio (upstream PR #216) |
