@@ -32,7 +32,7 @@ Fixes made while merging: Direct3D and Win32 build errors in the SDL port of del
 | Smart (rev-matched) shifting (behind the `K` toggle, off by default), instant/average fuel consumption (`P`), odometer, clutch and throttle logic moved out of the UI | Oleg Solovyov ([Mc-Pain/engine-sim](https://github.com/Mc-Pain/engine-sim)) |
 | Articulated-rod geometry, road drag when reversing, ignition events at the crank-angle wrap, crank-side rod damping, frame-rate independent UI smoothing and controls, rendering guards | Samuel ([Samzax/engine-sim](https://github.com/Samzax/engine-sim), 12 commits) |
 | GaussianFilter out-of-bounds read, ConvolutionFilter null dereference, Gaussian test | [danieljsinclair/engine-sim](https://github.com/danieljsinclair/engine-sim) |
-| Simulator teardown leak, uninitialized synthesizer latency | 4FX ([forfex/engine-sim](https://github.com/forfex/engine-sim)) |
+| Simulator teardown leak, uninitialized synthesizer latency, and `engine-sim-export`, a headless exporter that renders seamless RPM loops, one-shots and RPM sweeps as Ogg Vorbis, WAV and MP3 with a JSON manifest for games ([docs/game-audio-export.md](docs/game-audio-export.md)). Ported with optional encoders (WAV-only without libvorbis/LAME) and support for engine files from `assets/engines` | 4FX ([forfex/engine-sim](https://github.com/forfex/engine-sim)) |
 | `checkForDiscontinuity` typo, simpler `modularDistance` | wardio (upstream PR #216) |
 
 Already covered by the port, so not merged separately: Ange's own dyno torque index fix (still only in a PR ref), KeesTucker's stale-assert removal, and the earlier Linux/compiler fixes by xorgy (PR #220), yangosoft, Pinim04, Fraxoor, LukasACH, Beacroxx and arf20.

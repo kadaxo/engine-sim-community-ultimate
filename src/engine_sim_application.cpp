@@ -14,6 +14,7 @@
 #include "../include/feedback_comb_filter.h"
 #include "../include/utilities.h"
 #include "../include/file_dialog.h"
+#include "../include/engine_script.h"
 
 #include "../scripting/include/compiler.h"
 
@@ -883,24 +884,6 @@ namespace {
         return filePath.generic_string();
     }
 
-    // Newer engine scripts define main(); older ones only define an engine
-    // node that main.mr passed to set_engine()
-    std::string engineCall(const std::string &script) {
-        if (std::regex_search(script, std::regex(R"(public\s+node\s+main\b)"))) {
-            return "main()";
-        }
-
-        std::string lastNode;
-        const std::regex node(R"(public\s+node\s+(\w+))");
-        for (auto it = std::sregex_iterator(script.begin(), script.end(), node);
-            it != std::sregex_iterator(); ++it)
-        {
-            lastNode = (*it)[1];
-        }
-
-        return lastNode.empty() ? std::string() : "set_engine(" + lastNode + "())";
-    }
-
     std::string themeCall(const std::string &script) {
         std::smatch match;
         return std::regex_search(script, match, std::regex(R"(public\s+node\s+(use_\w+))"))
@@ -992,7 +975,7 @@ void EngineSimApplication::chooseEngineScript() {
         getNativeWindowHandle(),
         &path);
 
-    const std::string call = picked ? engineCall(readTextFile(path)) : std::string();
+    const std::string call = picked ? engineScriptCall(readTextFile(path)) : std::string();
     if (picked && call.empty()) {
         m_infoCluster->setLogMessage("No engine found in " + path);
     }

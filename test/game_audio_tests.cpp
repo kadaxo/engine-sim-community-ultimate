@@ -535,3 +535,31 @@ TEST(EngineSessionTests, MissingScriptReportsError) {
     EXPECT_FALSE(EngineSession::create(config, &error));
     EXPECT_FALSE(error.empty());
 }
+
+TEST(EngineSessionTests, EngineFilesLoadDirectly) {
+    const fs::path engines = fs::path(ENGINE_SIM_SOURCE_DIR) / "assets" / "engines";
+
+    // One engine file that defines main() and an older one that only defines
+    // its engine node
+    for (const fs::path &file : {
+        engines / "atg-video-2" / "07_gm_ls.mr",
+        engines / "bmw" / "s54.mr" })
+    {
+        SessionConfig config = defaultEngineConfig();
+        config.scriptPath = file.generic_string();
+
+        std::string error;
+        std::unique_ptr<EngineSession> session = EngineSession::create(config, &error);
+        ASSERT_TRUE(session) << file << ": " << error;
+        EXPECT_GT(session->info().cylinderCount, 0) << file;
+    }
+}
+
+TEST(EngineSessionTests, ScriptWithoutEngineReportsError) {
+    SessionConfig config = defaultEngineConfig();
+    config.scriptPath = (fs::path(ENGINE_SIM_SOURCE_DIR) / "assets" / "themes" / "default.mr").generic_string();
+
+    std::string error;
+    EXPECT_FALSE(EngineSession::create(config, &error));
+    EXPECT_NE(error.find("default.mr"), std::string::npos) << error;
+}

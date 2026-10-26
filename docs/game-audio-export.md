@@ -210,7 +210,7 @@ Run `engine-sim-export --help` for the full list. The most useful ones:
 
 | Option | Default | |
 | --- | --- | --- |
-| `--script <file.mr>` | `assets/main.mr` | Any engine-sim script that calls `set_engine` |
+| `--script <file.mr>` | `assets/main.mr` | A script that calls `set_engine` (like `main.mr`), or an engine file from `assets/engines`, which is run the way LOAD ENGINE runs it |
 | `--rpm-min/--rpm-max/--rpm-step` | dyno minimum / redline / 500 | Loop grid; the top of the range is always included |
 | `--clips` | all | `idle,onload,offload,limiter,startup,shutdown,revs,sweeps` |
 | `--formats` | `ogg,mp3,wav` | |

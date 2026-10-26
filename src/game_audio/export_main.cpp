@@ -26,7 +26,9 @@ namespace {
 Renders an engine sound set for games from an engine-sim script.
 
 Input
-  --script <file.mr>       Engine script (default: <repo>/assets/main.mr)
+  --script <file.mr>       Engine script: a main script like assets/main.mr
+                           (the default) or an engine file from
+                           assets/engines
   --es-dir <dir>           engine-sim script library (default: auto-detected)
   --sim-frequency <hz>     Physics rate (default: the engine's own setting)
 
