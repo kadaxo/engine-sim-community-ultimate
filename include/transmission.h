@@ -33,6 +33,11 @@ class Transmission {
         void updateClutchPressure(double clutch_s);
         inline bool isShifting() const { return m_upshift || m_downshift; }
 
+        // Smart shifting works the clutch and throttle to match revs on each
+        // shift; without it a shift changes gear immediately
+        void setSmartShifting(bool enabled);
+        inline bool isSmartShifting() const { return m_smartShifting; }
+
         // Throttle the engine should run at while a shift is matching revs,
         // in place of the driver's; false when the driver's throttle applies
         bool getShiftThrottle(double *throttle) const;
@@ -56,6 +61,7 @@ class Transmission {
         double m_targetClutchPressure = 1.0;
         double m_targetRPM;
 
+        bool m_smartShifting;
         bool m_upshift;
         bool m_downshift;
         double m_shiftTime;

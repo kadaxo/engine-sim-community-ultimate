@@ -26,6 +26,7 @@ Transmission::Transmission() {
     m_engine = nullptr;
     m_clutchPressure = 0.0;
     m_targetRPM = 0.0;
+    m_smartShifting = false;
     m_upshift = false;
     m_downshift = false;
     m_shiftTime = 0.0;
@@ -92,6 +93,14 @@ bool Transmission::getShiftThrottle(double *throttle) const {
     return false;
 }
 
+void Transmission::setSmartShifting(bool enabled) {
+    if (!enabled && isShifting()) {
+        finishShift();
+    }
+
+    m_smartShifting = enabled;
+}
+
 void Transmission::upshift() {
     // can't shift further
     if (m_gear == m_gearCount - 1) {
@@ -99,6 +108,10 @@ void Transmission::upshift() {
     }
 
     changeGear(m_gear + 1);
+
+    if (!m_smartShifting) {
+        return;
+    }
 
     m_upshift = true;
     m_downshift = false;
@@ -114,6 +127,10 @@ void Transmission::downshift() {
     }
 
     changeGear(m_gear - 1);
+
+    if (!m_smartShifting) {
+        return;
+    }
 
     m_upshift = false;
     m_shiftTime = 0.0;

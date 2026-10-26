@@ -65,6 +65,7 @@ EngineSimApplication::EngineSimApplication() {
 
     m_paused = false;
     m_fineThrottleControlUsed = false;
+    m_smartShifting = false;
     m_requestedAction = UserAction::None;
     m_scriptSelectionActive = false;
     m_recording = false;
@@ -1291,6 +1292,14 @@ void EngineSimApplication::processEngineInput() {
             : "IGNITION DISABLED";
         m_infoCluster->setLogMessage(msg);
     }
+
+    if (m_engine.ProcessKeyDown(ysKey::Code::K)) {
+        m_smartShifting = !m_smartShifting;
+        m_infoCluster->setLogMessage(m_smartShifting ? "SMART SHIFTING ON" : "SMART SHIFTING OFF");
+    }
+
+    // Set every frame so a newly loaded script's transmission follows it too
+    m_simulator->getTransmission()->setSmartShifting(m_smartShifting);
 
     if (m_engine.ProcessKeyDown(ysKey::Code::Up)) {
         m_simulator->getTransmission()->upshift();

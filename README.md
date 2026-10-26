@@ -13,7 +13,7 @@ This branch collects work from the community forks of the original source code (
 - **Builds on Windows and Linux** (bobsayshilol's SDL port, with Windows fixes) and no longer needs Boost
 - **Forced induction**: superchargers and turbochargers ([docs/forced-induction.md](docs/forced-induction.md))
 - **Camshaft reduction ratio and intake atmosphere** for 2-stroke and steam engines and altitude/boost setups
-- **Smart gear shifting** (rev-matched up/down shifts), instant or average fuel consumption and an odometer
+- **Smart gear shifting** (rev-matched up/down shifts, toggled with `K`), instant or average fuel consumption and an odometer
 - **Audio fixes** for underruns and a data race in the synthesizer, plus a UDP RPM input ([RPM_SYNC.md](RPM_SYNC.md))
 - **Bug fixes** to the physics, rendering and memory handling, and a test suite that passes
 - **75 community engine scripts** and 7 extra UI themes (metric variants, Catppuccin), each checked to compile and run
@@ -44,8 +44,9 @@ The UI is extremely minimalistic and there are only a few controls used to inter
 | F | Enter fullscreen mode |
 | I | Display dyno stats in the information panel |
 | Shift | Clutch (hold spacebar at the same time to slowly engage/disengage) |
-| Up Arrow | Up Gear (the clutch is disengaged and the throttle lifted until the revs drop, at most half a second) | 
-| Down Arrow | Down Gear (the clutch and throttle are blipped to rev-match) | 
+| Up Arrow | Up Gear |
+| Down Arrow | Down Gear |
+| K | Toggle smart shifting (off by default): the clutch and throttle are worked for you to rev-match each shift, at most half a second |
 | Z + Scroll | Volume |
 | X + Scroll | Convolution Level |
 | C + Scroll | High frequency gain |

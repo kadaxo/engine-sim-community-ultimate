@@ -2,7 +2,7 @@
 // throttle and clutch the way EngineSimApplication does for the keyboard and
 // runs a few shift scenarios, printing whether each shift finishes.
 //
-//   shift-probe <main.mr>
+//   shift-probe <main.mr> [off]   (off: smart shifting disabled)
 #include "../scripting/include/compiler.h"
 #include "../include/transmission.h"
 #include "../include/units.h"
@@ -10,6 +10,7 @@
 
 #include <cstdio>
 #include <iostream>
+#include <string>
 
 namespace {
     struct Keys {
@@ -90,7 +91,7 @@ namespace {
 
 int main(int argc, char **argv) {
     if (argc < 2) {
-        std::fprintf(stderr, "usage: shift-probe <main.mr>\n");
+        std::fprintf(stderr, "usage: shift-probe <main.mr> [off]\n");
         return 2;
     }
 
@@ -152,6 +153,9 @@ int main(int argc, char **argv) {
     sim->startAudioRenderingThread();
 
     std::printf("engine \"%s\"\n", engine->getName().c_str());
+
+    transmission->setSmartShifting(!(argc > 2 && std::string(argv[2]) == "off"));
+    std::printf("smart shifting %s\n", transmission->isSmartShifting() ? "on" : "off");
 
     Driver driver(sim, engine, transmission);
     engine->getIgnitionModule()->m_enabled = true;

@@ -179,6 +179,7 @@ class EngineSimApplication {
 
         bool m_paused;
         bool m_fineThrottleControlUsed;
+        bool m_smartShifting;
 
     protected:
         void startRecording();
