@@ -16,6 +16,7 @@ namespace {
         double throttle = -1.0; // Q/W/E/R value held, or -1 for none
         bool up = false;
         bool down = false;
+        bool clutch = false; // Shift held
     };
 
     class Driver {
@@ -40,7 +41,10 @@ namespace {
             if (keys.up) m_transmission->upshift();
             else if (keys.down) m_transmission->downshift();
 
-            if (!m_transmission->isShifting()) {
+            if (keys.clutch) {
+                m_transmission->setTargetClutchPressure(0.0);
+            }
+            else if (!m_transmission->isShifting()) {
                 m_transmission->setTargetClutchPressure(1.0);
             }
 
@@ -192,6 +196,14 @@ int main(int argc, char **argv) {
     driver.run(0.05, Keys());
     driver.tap(true, -1.0);
     for (int i = 0; i < 4; ++i) { driver.run(0.5, Keys()); driver.print("no keys"); }
+
+    std::printf("Clutch tapped for 0.1 s with R held\n");
+    Keys clutch = full;
+    clutch.clutch = true;
+    driver.run(0.1, clutch);
+    driver.print("Shift + R held");
+    for (int i = 0; i < 8; ++i) { driver.run(1.0 / 60.0, full); driver.print("R held"); }
+    for (int i = 0; i < 4; ++i) { driver.run(0.25, full); driver.print("R held"); }
 
     std::printf("Shift to neutral in the middle of an upshift\n");
     driver.tap(true, 1.0);
