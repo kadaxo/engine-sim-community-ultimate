@@ -236,6 +236,7 @@ add_executable(engine-sim-app WIN32
     src/mixer_cluster.cpp
     src/info_cluster.cpp
     src/rpm_sync.cpp
+    src/file_dialog.cpp
 
     # Include files
     include/delta.h
@@ -272,6 +273,7 @@ add_executable(engine-sim-app WIN32
     include/mixer_cluster.h
     include/info_cluster.h
     include/rpm_sync.h
+    include/file_dialog.h
 )
 
 if (DTV)
@@ -306,10 +308,11 @@ target_link_libraries(engine-sim-app
     engine-sim
 )
 
-# Winsock for the UDP RPM sync receiver
+# Winsock for the UDP RPM sync receiver, comdlg32 for the file dialogs
 if (WIN32)
     target_link_libraries(engine-sim-app
         ws2_32
+        comdlg32
     )
 endif (WIN32)
 

@@ -61,6 +61,12 @@ The UI is extremely minimalistic and there are only a few controls used to inter
 | 1, 2, 3, 4, 5 | Simulation time warp |
 | Tab | Change screen |
 | P | Toggle Average/Instant fuel consumption |
+| LOAD ENGINE button | Pick an engine script (`.mr`) to run instead of the one in `main.mr` |
+| LOAD THEME button | Pick a theme script (`assets/themes`) |
+| RELOAD button | Reload the current script (same as Enter) |
+| EXIT button | Exit the program (same as Escape) |
+
+An engine or theme picked with the buttons lasts until the app is closed; edit `assets/main.mr` to change the default. If a script has an error, the current engine keeps running and the message panel points to `error_log.log`.
 
 ### Using the RPM hold
 The RPM hold feature will hold the engine at a specific RPM and also measure the engine's horsepower and torque at that RPM. You can enable RPM hold by pressing the `H` key. **You must then enable the dynomometer** (press the `D` key) in order for the RPM hold to take effect. To change the hold speed, hold the `G` key and scroll with the mouse wheel. The RPM hold will be shown on the `DYNO. SPEED` gauge in the lower left of the screen.

@@ -89,8 +89,25 @@ class EngineSimApplication {
         InfoCluster *getInfoCluster() { return m_infoCluster; }
         ApplicationSettings* getAppSettings() { return &m_applicationSettings; }
 
+        // Actions from the UI buttons, carried out at the start of the next frame
+        enum class UserAction {
+            None,
+            LoadEngine,
+            LoadTheme,
+            Reload,
+            Exit
+        };
+
+        void requestAction(UserAction action) { m_requestedAction = action; }
+
     protected:
         void loadScript();
+        void reloadScript();
+        void chooseEngineScript();
+        void chooseThemeScript();
+        void initializeScriptSelection();
+        bool writeSelectionScript();
+        void *getNativeWindowHandle();
         void processEngineInput();
         void renderScene();
 
@@ -122,6 +139,16 @@ class EngineSimApplication {
         dbasic::Path m_outputPath;
 
         std::string m_assetPath;
+
+        UserAction m_requestedAction;
+
+        // Engine and theme picked with LOAD ENGINE / LOAD THEME. They're written
+        // to a generated script in m_outputPath that's loaded instead of
+        // assets/main.mr until the app is restarted.
+        bool m_scriptSelectionActive;
+        std::string m_selectionThemeImport;
+        std::string m_selectionThemeCall;
+        std::vector<std::string> m_selectionEngineLines;
 
         ysRenderTarget *m_mainRenderTarget;
         ysGPUBuffer *m_geometryVertexBuffer;

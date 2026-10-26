@@ -19,6 +19,13 @@ es_script::Compiler::Output *es_script::Compiler::output() {
 }
 
 void es_script::Compiler::initialize(const std::vector<piranha::IrPath> &searchPaths) {
+    // Start every compile from an empty output. It holds raw pointers to the
+    // engine, vehicle and transmission of the previous script, which the
+    // application deletes when it loads a new one; a script that doesn't set
+    // all of them would otherwise hand those deleted objects back.
+    delete s_output;
+    s_output = nullptr;
+
     m_compiler = new piranha::Compiler(&m_rules);
     m_compiler->setFileExtension(".mr");
 

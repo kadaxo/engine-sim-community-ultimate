@@ -13,6 +13,7 @@
 #include "../include/exhaust_system.h"
 #include "../include/feedback_comb_filter.h"
 #include "../include/utilities.h"
+#include "../include/file_dialog.h"
 
 #include "../scripting/include/compiler.h"
 
@@ -22,8 +23,15 @@
 
 #include <chrono>
 #include <cstdio>
+#include <filesystem>
+#include <fstream>
+#include <regex>
 #include <stdlib.h>
 #include <sstream>
+
+#if PLATFORM_WIN32
+#include <delta-studio/include/yds_windows_window.h>
+#endif
 
 #if ATG_ENGINE_SIM_DISCORD_ENABLED
 #include "../include/discord.h"
@@ -57,6 +65,8 @@ EngineSimApplication::EngineSimApplication() {
 
     m_paused = false;
     m_fineThrottleControlUsed = false;
+    m_requestedAction = UserAction::None;
+    m_scriptSelectionActive = false;
     m_recording = false;
     m_screenResolutionIndex = 0;
     for (int i = 0; i < ScreenResolutionHistoryLength; ++i) {
@@ -481,16 +491,22 @@ void EngineSimApplication::run() {
         m_engine.StartFrame();
 
         if (!m_engine.IsOpen()) break;
-        if (m_engine.ProcessKeyDown(ysKey::Code::Escape)) {
+
+        const UserAction action = m_requestedAction;
+        m_requestedAction = UserAction::None;
+
+        if (m_engine.ProcessKeyDown(ysKey::Code::Escape) || action == UserAction::Exit) {
             break;
         }
 
-        if (m_engine.ProcessKeyDown(ysKey::Code::Return)) {
-            m_audioSource->SetMode(ysAudioSource::Mode::Stop);
-            loadScript();
-            if (m_simulator->getEngine() != nullptr) {
-                m_audioSource->SetMode(ysAudioSource::Mode::Loop);
-            }
+        if (m_engine.ProcessKeyDown(ysKey::Code::Return) || action == UserAction::Reload) {
+            reloadScript();
+        }
+        else if (action == UserAction::LoadEngine) {
+            chooseEngineScript();
+        }
+        else if (action == UserAction::LoadTheme) {
+            chooseThemeScript();
         }
 
         if (m_engine.ProcessKeyDown(ysKey::Code::Tab)) {
@@ -763,14 +779,19 @@ void EngineSimApplication::loadScript() {
     searchPaths.push_back(m_dataRoot.Append("assets").ToString());
     searchPaths.push_back(m_dataRoot.Append("es").ToString());
 
-    // Try and load the local version first, if not fallback to the default one in data
-    std::vector<piranha::IrPath> dataPaths;
-    dataPaths.push_back(m_userData.ToString());
-    dataPaths.push_back(m_dataRoot.ToString());
+    // An engine or theme picked in the UI replaces main.mr. Otherwise try the
+    // local version first, then fall back to the default one in data.
+    std::vector<piranha::IrPath> scripts;
+    if (m_scriptSelectionActive) {
+        scripts.push_back(m_outputPath.Append("engine_selection.mr").ToString());
+    }
+    else {
+        scripts.push_back(m_userData.Append("assets/main.mr").ToString());
+        scripts.push_back(m_dataRoot.Append("assets/main.mr").ToString());
+    }
 
-    for (const auto &dataPath : dataPaths) {
+    for (const auto &script : scripts) {
         // Skip this path if the script doesn't exist
-        const auto script = dataPath.append("assets/main.mr");
         if (!script.exists()) {
             continue;
         }
@@ -797,6 +818,17 @@ void EngineSimApplication::loadScript() {
     }
 #endif /* ATG_ENGINE_SIM_PIRANHA_ENABLED */
 
+    // Keep the running engine if the new script didn't produce one, instead
+    // of tearing the simulation down
+    if (engine == nullptr && m_iceEngine != nullptr) {
+        delete vehicle;
+        delete transmission;
+
+        m_infoCluster->setLogMessage(
+            "Script failed, see " + m_outputPath.Append("error_log.log").ToString());
+        return;
+    }
+
     if (vehicle == nullptr) {
         Vehicle::Parameters vehParams;
         vehParams.mass = units::mass(1597, units::kg);
@@ -821,6 +853,196 @@ void EngineSimApplication::loadScript() {
 
     loadEngine(engine, vehicle, transmission);
     refreshUserInterface();
+}
+
+namespace {
+    std::string readTextFile(const std::string &path) {
+        std::ifstream file(path, std::ios::in | std::ios::binary);
+        std::stringstream contents;
+        contents << file.rdbuf();
+        return contents.str();
+    }
+
+    // Path for an import statement: relative to the assets directory when the
+    // file is inside it, absolute otherwise
+    std::string importPath(const std::string &file, const std::string &assetsDirectory) {
+        namespace fs = std::filesystem;
+
+        std::error_code ec;
+        const fs::path filePath = fs::weakly_canonical(fs::absolute(file, ec), ec);
+        const fs::path assets = fs::weakly_canonical(fs::absolute(assetsDirectory, ec), ec);
+        const fs::path relative = filePath.lexically_relative(assets);
+
+        if (!relative.empty() && *relative.begin() != "..") {
+            return relative.generic_string();
+        }
+
+        return filePath.generic_string();
+    }
+
+    // Newer engine scripts define main(); older ones only define an engine
+    // node that main.mr passed to set_engine()
+    std::string engineCall(const std::string &script) {
+        if (std::regex_search(script, std::regex(R"(public\s+node\s+main\b)"))) {
+            return "main()";
+        }
+
+        std::string lastNode;
+        const std::regex node(R"(public\s+node\s+(\w+))");
+        for (auto it = std::sregex_iterator(script.begin(), script.end(), node);
+            it != std::sregex_iterator(); ++it)
+        {
+            lastNode = (*it)[1];
+        }
+
+        return lastNode.empty() ? std::string() : "set_engine(" + lastNode + "())";
+    }
+
+    std::string themeCall(const std::string &script) {
+        std::smatch match;
+        return std::regex_search(script, match, std::regex(R"(public\s+node\s+(use_\w+))"))
+            ? match[1].str() + "()"
+            : std::string();
+    }
+}
+
+void EngineSimApplication::reloadScript() {
+    m_audioSource->SetMode(ysAudioSource::Mode::Stop);
+    loadScript();
+    if (m_simulator->getEngine() != nullptr) {
+        m_audioSource->SetMode(ysAudioSource::Mode::Loop);
+    }
+}
+
+void EngineSimApplication::initializeScriptSelection() {
+    if (m_scriptSelectionActive) return;
+
+    // Start from the script that's loaded now: keep its theme and its engine
+    // until the user replaces one of them
+    std::string mainScript = m_userData.Append("assets/main.mr").ToString();
+    if (!dbasic::Path(mainScript).Exists()) {
+        mainScript = m_dataRoot.Append("assets/main.mr").ToString();
+    }
+
+    m_selectionThemeImport = "themes/default.mr";
+    m_selectionThemeCall = "use_default_theme()";
+    m_selectionEngineLines.clear();
+
+    const std::regex engineSimImport(R"re(^\s*import\s+"engine_sim\.mr")re");
+    const std::regex themeImport(R"re(^\s*import\s+"(themes/[^"]+)")re");
+    const std::regex themeUse(R"(^\s*(use_\w+)\s*\(\s*\))");
+
+    std::stringstream lines(readTextFile(mainScript));
+    std::string line;
+    while (std::getline(lines, line)) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+
+        std::smatch match;
+        if (std::regex_search(line, engineSimImport)) continue;
+        else if (std::regex_search(line, match, themeImport)) m_selectionThemeImport = match[1];
+        else if (std::regex_search(line, match, themeUse)) m_selectionThemeCall = match[1].str() + "()";
+        else m_selectionEngineLines.push_back(line);
+    }
+}
+
+bool EngineSimApplication::writeSelectionScript() {
+    std::ofstream script(m_outputPath.Append("engine_selection.mr").ToString(), std::ios::out);
+    if (!script.is_open()) return false;
+
+    const std::regex importLine(R"(^\s*import\s)");
+
+    script << "// Written by LOAD ENGINE / LOAD THEME; replaces assets/main.mr until restart\n";
+    script << "import \"engine_sim.mr\"\n";
+    script << "import \"" << m_selectionThemeImport << "\"\n";
+    for (const std::string &line : m_selectionEngineLines) {
+        if (std::regex_search(line, importLine)) script << line << "\n";
+    }
+
+    script << "\n" << m_selectionThemeCall << "\n";
+    for (const std::string &line : m_selectionEngineLines) {
+        if (!std::regex_search(line, importLine)) script << line << "\n";
+    }
+
+    m_scriptSelectionActive = true;
+    return true;
+}
+
+void *EngineSimApplication::getNativeWindowHandle() {
+#if PLATFORM_WIN32
+    if (m_engine.GetGameWindow()->GetPlatform() == ysWindowSystemObject::Platform::Windows) {
+        return static_cast<ysWindowsWindow *>(m_engine.GetGameWindow())->GetWindowHandle();
+    }
+#endif
+
+    return nullptr;
+}
+
+void EngineSimApplication::chooseEngineScript() {
+    // The dialog blocks the frame loop, so don't loop stale audio meanwhile
+    m_audioSource->SetMode(ysAudioSource::Mode::Stop);
+
+    const std::string assets = m_dataRoot.Append("assets").ToString();
+    std::string path;
+    const bool picked = openScriptFileDialog(
+        "Load engine",
+        std::filesystem::absolute(assets + "/engines").string(),
+        getNativeWindowHandle(),
+        &path);
+
+    const std::string call = picked ? engineCall(readTextFile(path)) : std::string();
+    if (picked && call.empty()) {
+        m_infoCluster->setLogMessage("No engine found in " + path);
+    }
+
+    if (call.empty()) {
+        if (m_simulator->getEngine() != nullptr) {
+            m_audioSource->SetMode(ysAudioSource::Mode::Loop);
+        }
+        return;
+    }
+
+    initializeScriptSelection();
+    m_selectionEngineLines = { "import \"" + importPath(path, assets) + "\"", call };
+
+    if (!writeSelectionScript()) {
+        m_infoCluster->setLogMessage("Couldn't write " + m_outputPath.Append("engine_selection.mr").ToString());
+    }
+
+    reloadScript();
+}
+
+void EngineSimApplication::chooseThemeScript() {
+    m_audioSource->SetMode(ysAudioSource::Mode::Stop);
+
+    const std::string assets = m_dataRoot.Append("assets").ToString();
+    std::string path;
+    const bool picked = openScriptFileDialog(
+        "Load theme",
+        std::filesystem::absolute(assets + "/themes").string(),
+        getNativeWindowHandle(),
+        &path);
+
+    const std::string call = picked ? themeCall(readTextFile(path)) : std::string();
+    if (picked && call.empty()) {
+        m_infoCluster->setLogMessage("No use_..._theme node found in " + path);
+    }
+
+    if (call.empty()) {
+        if (m_simulator->getEngine() != nullptr) {
+            m_audioSource->SetMode(ysAudioSource::Mode::Loop);
+        }
+        return;
+    }
+
+    initializeScriptSelection();
+    m_selectionThemeImport = importPath(path, assets);
+    m_selectionThemeCall = call;
+
+    if (!writeSelectionScript()) {
+        m_infoCluster->setLogMessage("Couldn't write " + m_outputPath.Append("engine_selection.mr").ToString());
+    }
+
+    reloadScript();
 }
 
 void EngineSimApplication::processEngineInput() {
