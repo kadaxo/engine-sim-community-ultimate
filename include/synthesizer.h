@@ -29,6 +29,7 @@ class Synthesizer {
             float levelerLoudnessTarget = 10000.0f;     // RMS level the leveler aims for
             float levelerMaxGain = 10.0f;
             float levelerMinGain = 0.00001f;
+            LevelingFilter::Mode levelerMode = LevelingFilter::Mode::Loudness;
         };
 
         struct Parameters {

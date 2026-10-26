@@ -5,10 +5,21 @@
 
 #include "function.h"
 
-// Keeps the output at a steady loudness: a slow gain follows the signal's RMS
-// level towards p_loudnessTarget (within p_minLevel..p_maxLevel), and a peak
-// limiter keeps every sample within p_target.
 class LevelingFilter : public Filter {
+    public:
+        enum class Mode {
+            // Steady loudness: a slow gain follows the signal's RMS level
+            // towards p_loudnessTarget (within p_minLevel..p_maxLevel), and a
+            // peak limiter keeps every sample within p_target
+            Loudness,
+
+            // The original leveler: scales the recent peak to p_target
+            Peak,
+
+            // Fixed unity gain, peak limiter only
+            Off
+        };
+
     public:
         LevelingFilter();
         virtual ~LevelingFilter();
@@ -17,6 +28,10 @@ class LevelingFilter : public Filter {
 
         virtual float f(float sample);
         float getAttenuation() const { return m_attenuation; }
+
+    protected:
+        float peakLevel(float sample);
+        float limit(float sample);
 
     protected:
         // Loudness is the mean square over a sliding window of short blocks,
@@ -30,14 +45,19 @@ class LevelingFilter : public Filter {
         float m_meanSquare;
 
         float m_gain;
-        float m_peak;
+        float m_limiterPeak;
         float m_attenuation;
 
         float m_attackCoefficient;
         float m_releaseCoefficient;
         float m_limiterReleaseCoefficient;
 
+        // Mode::Peak
+        float m_peak;
+        float m_peakAttenuation;
+
     public:
+        Mode p_mode;
         float p_maxLevel;
         float p_minLevel;
         float p_target;

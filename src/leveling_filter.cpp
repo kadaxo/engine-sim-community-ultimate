@@ -16,6 +16,9 @@ namespace {
     // How fast the limiter lets go after a peak
     constexpr float LimiterReleaseTime = 0.05f;
 
+    // Mode::Peak keeps the original leveler's gain limit
+    constexpr float PeakModeMaxGain = 1.9f;
+
     float smoothingCoefficient(float timeConstant, float sampleRate) {
         return 1.0f - std::exp(-1.0f / (timeConstant * sampleRate));
     }
@@ -29,8 +32,13 @@ LevelingFilter::LevelingFilter() {
     m_meanSquare = 0.0f;
 
     m_gain = 1.0f;
-    m_peak = 0.0f;
+    m_limiterPeak = 0.0f;
     m_attenuation = 1.0f;
+
+    m_peak = 30000.0f;
+    m_peakAttenuation = 1.0f;
+
+    p_mode = Mode::Loudness;
     p_target = 30000.0f;
     p_loudnessTarget = 10000.0f;
     p_minLevel = 0.0f;
@@ -51,6 +59,8 @@ void LevelingFilter::setSampleRate(float sampleRate) {
 }
 
 float LevelingFilter::f(float sample) {
+    // Measured in every mode so switching back to Loudness starts from the
+    // current level
     m_currentBlockEnergy += sample * sample;
     if (++m_currentBlockSamples >= m_blockLength) {
         m_blockEnergy[m_block] = m_currentBlockEnergy;
@@ -63,6 +73,14 @@ float LevelingFilter::f(float sample) {
         m_meanSquare = energy / (LoudnessBlocks * m_blockLength);
     }
 
+    if (p_mode == Mode::Peak) {
+        return peakLevel(sample);
+    }
+    else if (p_mode == Mode::Off) {
+        m_gain = 1.0f;
+        return limit(sample);
+    }
+
     float gain = p_maxLevel;
     if (m_meanSquare > 0) {
         gain = p_loudnessTarget / std::sqrt(m_meanSquare);
@@ -72,11 +90,32 @@ float LevelingFilter::f(float sample) {
     const float k = (gain < m_gain) ? m_attackCoefficient : m_releaseCoefficient;
     m_gain += k * (gain - m_gain);
 
-    // Peak limiter
-    const float leveled = sample * m_gain;
-    m_peak = std::max(std::abs(leveled), m_peak * m_limiterReleaseCoefficient);
-    const float limiter = (m_peak > p_target) ? p_target / m_peak : 1.0f;
+    return limit(sample * m_gain);
+}
+
+float LevelingFilter::peakLevel(float sample) {
+    m_peak = 0.999f * m_peak;
+    if (std::abs(sample) > m_peak) {
+        m_peak = std::abs(sample);
+    }
+
+    if (m_peak == 0) return 0;
+
+    const float maxLevel = std::min(p_maxLevel, PeakModeMaxGain);
+    float attenuation = p_target / m_peak;
+    if (attenuation < p_minLevel) attenuation = p_minLevel;
+    else if (attenuation > maxLevel) attenuation = maxLevel;
+
+    m_peakAttenuation = 0.9f * m_peakAttenuation + 0.1f * attenuation;
+    m_attenuation = m_peakAttenuation;
+
+    return sample * m_peakAttenuation;
+}
+
+float LevelingFilter::limit(float sample) {
+    m_limiterPeak = std::max(std::abs(sample), m_limiterPeak * m_limiterReleaseCoefficient);
+    const float limiter = (m_limiterPeak > p_target) ? p_target / m_limiterPeak : 1.0f;
 
     m_attenuation = m_gain * limiter;
-    return leveled * limiter;
+    return sample * limiter;
 }

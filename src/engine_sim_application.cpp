@@ -66,6 +66,7 @@ EngineSimApplication::EngineSimApplication() {
     m_paused = false;
     m_fineThrottleControlUsed = false;
     m_smartShifting = false;
+    m_levelerMode = LevelingFilter::Mode::Peak;
     m_requestedAction = UserAction::None;
     m_scriptSelectionActive = false;
     m_recording = false;
@@ -638,6 +639,7 @@ void EngineSimApplication::loadEngine(
     audioParams.inputSampleNoise = static_cast<float>(engine->getInitialJitter());
     audioParams.airNoise = static_cast<float>(engine->getInitialNoise());
     audioParams.dF_F_mix = static_cast<float>(engine->getInitialHighFrequencyGain());
+    audioParams.levelerMode = m_levelerMode;
     m_simulator->synthesizer().setAudioParameters(audioParams);
 
     for (int i = 0; i < engine->getExhaustSystemCount(); ++i) {
@@ -1061,6 +1063,29 @@ void EngineSimApplication::processEngineInput() {
     m_lastMouseWheel = mouseWheel;
     // Wheel deltas are discrete input. Preserve the old 60 FPS sensitivity.
     const double wheelControlDelta = mouseWheelDelta / 60.0;
+
+    if (m_engine.ProcessKeyDown(ysKey::Code::L)) {
+        std::string msg;
+        switch (m_levelerMode) {
+            case LevelingFilter::Mode::Loudness:
+                m_levelerMode = LevelingFilter::Mode::Peak;
+                msg = "LEVELER: ORIGINAL (PEAK)";
+                break;
+            case LevelingFilter::Mode::Peak:
+                m_levelerMode = LevelingFilter::Mode::Off;
+                msg = "LEVELER: OFF";
+                break;
+            default:
+                m_levelerMode = LevelingFilter::Mode::Loudness;
+                msg = "LEVELER: LOUDNESS";
+                break;
+        }
+
+        Synthesizer::AudioParameters audioParams = m_simulator->synthesizer().getAudioParameters();
+        audioParams.levelerMode = m_levelerMode;
+        m_simulator->synthesizer().setAudioParameters(audioParams);
+        m_infoCluster->setLogMessage(msg);
+    }
 
     bool fineControlInUse = false;
     if (m_engine.IsKeyDown(ysKey::Code::Z)) {

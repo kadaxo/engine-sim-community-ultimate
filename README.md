@@ -47,6 +47,7 @@ The UI is extremely minimalistic and there are only a few controls used to inter
 | Up Arrow | Up Gear |
 | Down Arrow | Down Gear |
 | K | Toggle smart shifting (off by default): the clutch and throttle are worked for you to rev-match each shift, at most half a second |
+| L | Cycle the volume leveler: ORIGINAL (default, the original peak leveler), OFF (fixed gain with only a limiter, so revving gets squashed hard) and LOUDNESS (steady loudness from idle to full revs) |
 | Z + Scroll | Volume |
 | X + Scroll | Convolution Level |
 | C + Scroll | High frequency gain |

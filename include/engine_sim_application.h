@@ -180,6 +180,7 @@ class EngineSimApplication {
         bool m_paused;
         bool m_fineThrottleControlUsed;
         bool m_smartShifting;
+        LevelingFilter::Mode m_levelerMode;
 
     protected:
         void startRecording();
