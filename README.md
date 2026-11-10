@@ -12,12 +12,12 @@ This branch collects work from the community forks of the original source code (
 
 - **Builds on Windows and Linux** (bobsayshilol's SDL port, with Windows fixes) and no longer needs Boost
 - **Forced induction**: superchargers and turbochargers ([docs/forced-induction.md](docs/forced-induction.md))
-- **Camshaft reduction ratio and intake atmosphere** for 2-stroke and steam engines and altitude/boost setups
+- **Camshaft reduction ratio, `sparks_per_cycle` and intake atmosphere** for 2-stroke and steam engines and altitude/boost setups
 - **Smart gear shifting** (rev-matched up/down shifts, toggled with `K`), brakes (`.`), instant or average fuel consumption and an odometer
 - **Audio fixes** for underruns and a data race in the synthesizer, plus a UDP RPM input ([RPM_SYNC.md](RPM_SYNC.md))
 - **Bug fixes** to the physics, rendering and memory handling, and a test suite that passes
 - **Game audio export**: `engine-sim-export` renders seamless RPM loops, one-shots and RPM sweeps as Ogg, WAV and MP3 with a JSON manifest, ready for Unity, Unreal, Godot, FMOD or Wwise ([docs/game-audio-export.md](docs/game-audio-export.md))
-- **75 community engine scripts** and 7 extra UI themes (metric variants, Catppuccin), each checked to compile and run
+- **76 community engine scripts** and 7 extra UI themes (metric variants, Catppuccin), each checked to compile and run
 
 See [COMMUNITY.md](COMMUNITY.md) for where every change came from.
 

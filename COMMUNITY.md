@@ -2,7 +2,7 @@
 
 The original repository stopped receiving updates in 2024. This branch collects the work people published in their forks so it isn't lost.
 
-In October 2026 every repository in the fork network was checked: 951 forks, including forks of forks, with all of their branches, tags and pull request refs, plus the open pull requests on the original repository. 116 of them contain commits that aren't upstream, about 1,700 commits in all. The sections below list what was merged.
+In October 2026 every repository in the fork network was checked: 951 forks, including forks of forks, with all of their branches, tags and pull request refs, plus the open pull requests on the original repository. 116 of them contain commits that aren't upstream, about 1,700 commits in all. In November 2026 the network was checked again for forks created or pushed to since then (eight, with about 70 new commits). The sections below list what was merged.
 
 Merged work keeps its authors. Fork branches are merged as they are, single commits are cherry-picked with `-x`, and files taken out of larger commits are committed under the original author with the source commit noted in the message. `git log --format='%an %s'` shows who wrote what.
 
@@ -34,8 +34,10 @@ Fixes made while merging: Direct3D and Win32 build errors in the SDL port of del
 | GaussianFilter out-of-bounds read, ConvolutionFilter null dereference, Gaussian test | [danieljsinclair/engine-sim](https://github.com/danieljsinclair/engine-sim) |
 | Simulator teardown leak, uninitialized synthesizer latency, and `engine-sim-export`, a headless exporter that renders seamless RPM loops, one-shots and RPM sweeps as Ogg Vorbis, WAV and MP3 with a JSON manifest for games ([docs/game-audio-export.md](docs/game-audio-export.md)). Ported with optional encoders (WAV-only without libvorbis/LAME) and support for engine files from `assets/engines` | 4FX ([forfex/engine-sim](https://github.com/forfex/engine-sim)) |
 | `checkForDiscontinuity` typo, simpler `modularDistance` | wardio (upstream PR #216) |
+| Brakes (hold `.`, `max_brake_force` on vehicles), and the full `smooth_01`–`smooth_49` series in the impulse response library | barolig ([Sness00/engine-sim](https://github.com/Sness00/engine-sim)) |
+| `sparks_per_cycle` for two-stroke ignition, and leaks of the displacement scratch arrays, jitter history and crankshaft links on every engine load | [karpuzikov](https://github.com/karpuzikov/engine-sim) |
 
-Already covered by the port, so not merged separately: Ange's own dyno torque index fix (still only in a PR ref), KeesTucker's stale-assert removal, and the earlier Linux/compiler fixes by xorgy (PR #220), yangosoft, Pinim04, Fraxoor, LukasACH, Beacroxx and arf20.
+Already covered by the port, so not merged separately: Ange's own dyno torque index fix (still only in a PR ref), KeesTucker's stale-assert removal, the earlier Linux/compiler fixes by xorgy (PR #220), yangosoft, Pinim04, Fraxoor, LukasACH, Beacroxx and arf20, and Hochmah's teardown, RingBuffer and clang fixes.
 
 ### Engines and themes
 
@@ -62,6 +64,7 @@ Each script was compiled and run headlessly (cranks, idles and holds 1500 rpm on
 | Porsche 992 GT3 | csaba.hegedus ([csabigee](https://github.com/csabigee/engine-sim)) |
 | Subaru EJ25 street exhaust | [Samzax](https://github.com/Samzax/engine-sim) |
 | GM LS supercharged, Subaru EJ25 twin-scroll turbo | [Oblongy](https://github.com/Oblongy/engine-sim) |
+| MTU MB 871 Ka-501 tank diesel (by pilot01 and LTSP6.1.1 on Archangel Motors' template) | barolig ([Sness00/engine-sim](https://github.com/Sness00/engine-sim)) |
 
 Themes: metric versions of the stock themes (`themes/*_metric.mr`) by Abdullah-Ajeebi (upstream PR #376), and Catppuccin by StanTheAwesomeMan (Beacroxx).
 
