@@ -31,6 +31,7 @@ PistonEngineSimulator::~PistonEngineSimulator() {
     assert(m_crankConstraints == nullptr);
     assert(m_cylinderWallConstraints == nullptr);
     assert(m_linkConstraints == nullptr);
+    assert(m_crankshaftLinks == nullptr);
     assert(m_crankshaftFrictionConstraints == nullptr);
     assert(m_compressorLoads == nullptr);
     assert(m_exhaustFlowStagingBuffer == nullptr);
@@ -377,6 +378,7 @@ void PistonEngineSimulator::destroy() {
     if (m_crankConstraints != nullptr) delete[] m_crankConstraints;
     if (m_cylinderWallConstraints != nullptr) delete[] m_cylinderWallConstraints;
     if (m_linkConstraints != nullptr) delete[] m_linkConstraints;
+    if (m_crankshaftLinks != nullptr) delete[] m_crankshaftLinks;
     if (m_crankshaftFrictionConstraints != nullptr) delete[] m_crankshaftFrictionConstraints;
     if (m_compressorLoads != nullptr) delete[] m_compressorLoads;
     if (m_exhaustFlowStagingBuffer != nullptr) delete[] m_exhaustFlowStagingBuffer;
@@ -386,6 +388,7 @@ void PistonEngineSimulator::destroy() {
     m_crankConstraints = nullptr;
     m_cylinderWallConstraints = nullptr;
     m_linkConstraints = nullptr;
+    m_crankshaftLinks = nullptr;
     m_crankshaftFrictionConstraints = nullptr;
     m_compressorLoads = nullptr;
     m_exhaustFlowStagingBuffer = nullptr;
