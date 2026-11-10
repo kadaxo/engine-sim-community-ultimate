@@ -1,0 +1,28 @@
+From 9775951b162c282fb0adbdfae73a0069c72adebe Mon Sep 17 00:00:00 2001
+From: kadaxo <105596590+kadaxo@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 01:59:01 +0300
+Subject: [PATCH] Map the period key in the SDL keyboard
+
+The Windows key map has both OEM_Comma and OEM_Period, but the SDL map only
+had the comma, so the period key did nothing on Linux and macOS.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/yds_sdl_key_maps.cpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/yds_sdl_key_maps.cpp b/src/yds_sdl_key_maps.cpp
+index 243b06d3..d34375de 100644
+--- a/src/yds_sdl_key_maps.cpp
++++ b/src/yds_sdl_key_maps.cpp
+@@ -60,6 +60,7 @@ const ysKey::Code *ysKeyMaps::GetSdlKeyMap() {
+         m_sdlKeyMap[SDL_SCANCODE_RSHIFT] = ysKey::Code::Shift;
+ 
+         m_sdlKeyMap[SDL_SCANCODE_COMMA] = ysKey::Code::OEM_Comma;
++        m_sdlKeyMap[SDL_SCANCODE_PERIOD] = ysKey::Code::OEM_Period;
+     }
+ 
+     return m_sdlKeyMap;
+-- 
+2.56.0.windows.2
+
