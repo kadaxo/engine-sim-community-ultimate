@@ -1,6 +1,7 @@
 // Headless probe for gear shifting. Compiles an engine script, drives the
 // throttle and clutch the way EngineSimApplication does for the keyboard and
-// runs a few shift scenarios, printing whether each shift finishes.
+// runs a few shift scenarios, printing whether each shift finishes, then
+// brakes to a stop and prints the deceleration.
 //
 //   shift-probe <main.mr> [off]   (off: smart shifting disabled)
 #include "../scripting/include/compiler.h"
@@ -18,6 +19,7 @@ namespace {
         bool up = false;
         bool down = false;
         bool clutch = false; // Shift held
+        bool brake = false; // . held
     };
 
     class Driver {
@@ -52,6 +54,10 @@ namespace {
             const double clutchRC = 0.001;
             m_transmission->updateClutchPressure(dt / (dt + clutchRC));
 
+            const double brakeRC = keys.brake ? 0.08 : 0.04;
+            m_brakePressure += ((keys.brake ? 1.0 : 0.0) - m_brakePressure) * dt / (dt + brakeRC);
+            m_sim->getVehicle()->setBrakePressure(m_brakePressure);
+
             m_sim->startFrame(dt);
             while (m_sim->simulateStep()) { /* run */ }
             m_sim->endFrame();
@@ -80,11 +86,15 @@ namespace {
                 units::convert(m_sim->getVehicle()->getSpeed(), units::km / units::hour));
         }
 
+        double time() const { return m_time; }
+        double speed() const { return m_sim->getVehicle()->getSpeed(); }
+
     private:
         Simulator *m_sim;
         Engine *m_engine;
         Transmission *m_transmission;
         double m_time = 0.0;
+        double m_brakePressure = 0.0;
         int16_t m_audio[4096];
     };
 }
@@ -215,6 +225,27 @@ int main(int argc, char **argv) {
     for (int i = 0; i < 2; ++i) { driver.run(0.5, Keys()); driver.print("no keys"); }
     driver.tap(true, -1.0);
     for (int i = 0; i < 4; ++i) { driver.run(0.5, full); driver.print("R held"); }
+
+    std::printf("Coast with the clutch in, then brake to a stop\n");
+    Keys coast;
+    coast.clutch = true;
+    double v0 = driver.speed();
+    driver.run(1.0, coast);
+    driver.print("Shift held");
+    std::printf("  coasting: %.3f g\n", (v0 - driver.speed()) / 1.0 / 9.81);
+    Keys brake = coast;
+    brake.brake = true;
+    v0 = driver.speed();
+    const double t0 = driver.time();
+    double v1 = -1.0;
+    for (int i = 0; i < 20 && driver.speed() > 0.1; ++i) {
+        driver.run(0.25, brake);
+        driver.print("Shift + . held");
+        if (driver.time() - t0 > 0.99 && v1 < 0) v1 = driver.speed();
+    }
+    if (v1 >= 0) std::printf("  braking (first second, incl. pressure build-up): %.3f g\n", (v0 - v1) / 9.81);
+    driver.run(1.0, brake);
+    driver.print("standstill, Shift + . held");
 
     sim->endAudioRenderingThread();
     sim->destroy();

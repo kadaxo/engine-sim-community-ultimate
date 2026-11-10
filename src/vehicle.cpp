@@ -11,6 +11,8 @@ Vehicle::Vehicle() {
     m_tireRadius = 0;
     m_travelledDistance = 0;
     m_rollingResistance = 0;
+    m_brakePressure = 0;
+    m_maxBrakeForce = 0;
 }
 
 Vehicle::~Vehicle() {
@@ -24,6 +26,14 @@ void Vehicle::initialize(const Parameters &params) {
     m_diffRatio = params.diffRatio;
     m_tireRadius = params.tireRadius;
     m_rollingResistance = params.rollingResistance;
+    m_maxBrakeForce = (params.maxBrakeForce > 0)
+        ? params.maxBrakeForce
+        : m_mass * 9.81;
+    m_brakePressure = 0;
+}
+
+void Vehicle::setBrakePressure(double pressure) {
+    m_brakePressure = std::fmin(std::fmax(pressure, 0.0), 1.0);
 }
 
 void Vehicle::update(double dt) {

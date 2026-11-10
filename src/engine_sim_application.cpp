@@ -67,6 +67,7 @@ EngineSimApplication::EngineSimApplication() {
     m_paused = false;
     m_fineThrottleControlUsed = false;
     m_smartShifting = false;
+    m_brakePressure = 0.0;
     m_levelerMode = LevelingFilter::Mode::Peak;
     m_requestedAction = UserAction::None;
     m_scriptSelectionActive = false;
@@ -1343,6 +1344,15 @@ void EngineSimApplication::processEngineInput() {
 
     if (m_engine.ProcessKeyDown(ysKey::Code::P)) {
         m_rightGaugeCluster->toggleInstantConsumption();
+    }
+
+    // Brakes: the pressure builds up over ~80 ms and releases over ~40 ms.
+    const bool braking = m_engine.IsKeyDown(ysKey::Code::OEM_Period);
+    const double brakeRC = braking ? 0.08 : 0.04;
+    const double brake_s = dt / (dt + brakeRC);
+    m_brakePressure += ((braking ? 1.0 : 0.0) - m_brakePressure) * brake_s;
+    if (m_vehicle != nullptr) {
+        m_vehicle->setBrakePressure(m_brakePressure);
     }
 
     double clutchRC = 0.001;

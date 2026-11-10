@@ -12,6 +12,9 @@ class Vehicle {
             double diffRatio;
             double tireRadius;
             double rollingResistance;
+
+            // 0 gives brakes of about 1 g for the vehicle's mass
+            double maxBrakeForce = 0.0;
         };
 
     public:
@@ -27,6 +30,9 @@ class Vehicle {
         inline double getCrossSectionArea() const { return m_crossSectionArea; }
         inline double getDiffRatio() const { return m_diffRatio; }
         inline double getTireRadius() const { return m_tireRadius; }
+        inline double getBrakePressure() const { return m_brakePressure; }
+        inline double getMaxBrakeForce() const { return m_maxBrakeForce; }
+        void setBrakePressure(double pressure);
         double getSpeed() const;
         inline double getTravelledDistance() const { return m_travelledDistance; }
         inline void resetTravelledDistance() { m_travelledDistance = 0; }
@@ -42,6 +48,8 @@ class Vehicle {
         double m_tireRadius;
         double m_travelledDistance;
         double m_rollingResistance;
+        double m_brakePressure;
+        double m_maxBrakeForce;
 };
 
 #endif /* ATG_ENGINE_SIM_VEHICLE_H */

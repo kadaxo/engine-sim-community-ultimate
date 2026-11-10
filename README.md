@@ -13,7 +13,7 @@ This branch collects work from the community forks of the original source code (
 - **Builds on Windows and Linux** (bobsayshilol's SDL port, with Windows fixes) and no longer needs Boost
 - **Forced induction**: superchargers and turbochargers ([docs/forced-induction.md](docs/forced-induction.md))
 - **Camshaft reduction ratio and intake atmosphere** for 2-stroke and steam engines and altitude/boost setups
-- **Smart gear shifting** (rev-matched up/down shifts, toggled with `K`), instant or average fuel consumption and an odometer
+- **Smart gear shifting** (rev-matched up/down shifts, toggled with `K`), brakes (`.`), instant or average fuel consumption and an odometer
 - **Audio fixes** for underruns and a data race in the synthesizer, plus a UDP RPM input ([RPM_SYNC.md](RPM_SYNC.md))
 - **Bug fixes** to the physics, rendering and memory handling, and a test suite that passes
 - **Game audio export**: `engine-sim-export` renders seamless RPM loops, one-shots and RPM sweeps as Ogg, WAV and MP3 with a JSON manifest, ready for Unity, Unreal, Godot, FMOD or Wwise ([docs/game-audio-export.md](docs/game-audio-export.md))
@@ -47,6 +47,7 @@ The UI is extremely minimalistic and there are only a few controls used to inter
 | Shift | Clutch (hold spacebar at the same time to slowly engage/disengage) |
 | Up Arrow | Up Gear |
 | Down Arrow | Down Gear |
+| . | Brake (hold) |
 | K | Toggle smart shifting (off by default): the clutch and throttle are worked for you to rev-match each shift, at most half a second |
 | L | Cycle the volume leveler: ORIGINAL (default, the original peak leveler), OFF (fixed gain with only a limiter, so revving gets squashed hard) and LOUDNESS (steady loudness from idle to full revs) |
 | Z + Scroll | Volume |
