@@ -1,0 +1,50 @@
+From 4253a5e03b2cdf5796b3b3f50b51ccc41ec18b73 Mon Sep 17 00:00:00 2001
+From: kadaxo <105596590+kadaxo@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 02:43:27 +0300
+Subject: [PATCH] Accept keyboard and mouse input injected by software on
+ Windows
+
+Raw input that software generates (on-screen keyboards, voice control,
+screen readers passing keys through, key remappers, automated tests) has
+no device handle, and ProcessInputMessage() dropped it. Route it to a
+device of its own, registered with the keyboard and mouse aggregators like
+any other.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/yds_windows_input_system.cpp | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
+
+diff --git a/src/yds_windows_input_system.cpp b/src/yds_windows_input_system.cpp
+index da7e2a07..23537e8a 100644
+--- a/src/yds_windows_input_system.cpp
++++ b/src/yds_windows_input_system.cpp
+@@ -252,6 +252,25 @@ int ysWindowsInputSystem::ProcessInputMessage(HRAWINPUT lparam) {
+             device = AddDevice(raw);
+         }
+     }
++    else if (raw->header.dwType == RIM_TYPEKEYBOARD || raw->header.dwType == RIM_TYPEMOUSE) {
++        // Input injected by software (on-screen keyboards, voice control,
++        // screen readers passing keys through, key remappers) has no device
++        // handle. Give it a device of its own instead of dropping it.
++        char systemName[256];
++        strcpy_s(systemName, 256,
++            raw->header.dwType == RIM_TYPEKEYBOARD ? "injected-keyboard" : "injected-mouse");
++
++        ysWindowsInputDevice *injected = SystemNameDeviceLookup(systemName);
++        if (injected == nullptr) {
++            injected = static_cast<ysWindowsInputDevice *>(
++                CreateDevice(TranslateType(raw->header.dwType), -1));
++            injected->SetGeneric(false);
++            strcpy_s(injected->m_systemName, 256, systemName);
++        }
++
++        injected->SetConnected(true);
++        device = injected;
++    }
+ 
+     if (device != nullptr) {
+         if (raw->header.dwType == RIM_TYPEKEYBOARD) {
+-- 
+2.56.0.windows.2
+
