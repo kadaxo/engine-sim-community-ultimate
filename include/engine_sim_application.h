@@ -23,6 +23,7 @@
 #include "application_settings.h"
 #include "transmission.h"
 #include "rpm_sync.h"
+#include "accessibility.h"
 
 #include "delta.h"
 #include "dtv.h"
@@ -88,6 +89,8 @@ class EngineSimApplication {
         Simulator *getSimulator() { return m_simulator; }
         InfoCluster *getInfoCluster() { return m_infoCluster; }
         ApplicationSettings* getAppSettings() { return &m_applicationSettings; }
+        dbasic::Path getDataRoot() const { return m_dataRoot; }
+        dbasic::Path getOutputPath() const { return m_outputPath; }
 
         // Actions from the UI buttons, carried out at the start of the next frame
         enum class UserAction {
@@ -182,6 +185,8 @@ class EngineSimApplication {
         bool m_smartShifting;
         LevelingFilter::Mode m_levelerMode;
         double m_brakePressure;
+
+        Accessibility m_accessibility;
 
     protected:
         void startRecording();

@@ -16,6 +16,7 @@ This branch collects work from the community forks of the original source code (
 - **Smart gear shifting** (rev-matched up/down shifts, toggled with `K`), brakes (`.`), instant or average fuel consumption and an odometer
 - **Audio fixes** for underruns and a data race in the synthesizer, plus a UDP RPM input ([RPM_SYNC.md](RPM_SYNC.md))
 - **Bug fixes** to the physics, rendering and memory handling, and a test suite that passes
+- **Screen reader support**: speech and braille through NVDA, JAWS, Narrator and others, keys that read out every gauge, and keyboard alternatives for everything the mouse did ([docs/accessibility.html](docs/accessibility.html))
 - **Game audio export**: `engine-sim-export` renders seamless RPM loops, one-shots and RPM sweeps as Ogg, WAV and MP3 with a JSON manifest, ready for Unity, Unreal, Godot, FMOD or Wwise ([docs/game-audio-export.md](docs/game-audio-export.md))
 - **76 community engine scripts** and 7 extra UI themes (metric variants, Catppuccin), each checked to compile and run
 
@@ -65,6 +66,12 @@ The UI is extremely minimalistic and there are only a few controls used to inter
 | 1, 2, 3, 4, 5 | Simulation time warp |
 | Tab | Change screen |
 | P | Toggle Average/Instant fuel consumption |
+| Page Up / Page Down | Same as one step of the mouse wheel, with any of the keys above that use Scroll |
+| O | Open an engine script (same as the LOAD ENGINE button) |
+| F5, F6, F7, F8, F9, F11, F12 | Screen reader: read out the engine, vehicle, dyno, air, fuel, engine info and sound settings |
+| Home | Screen reader: repeat the last announcement |
+| J | Screen reader: change how much is announced, or turn speech off (also turns on the Windows voice without a screen reader) |
+| F4 | Open the accessibility guide |
 | LOAD ENGINE button | Pick an engine script (`.mr`) to run instead of the one in `main.mr` |
 | LOAD THEME button | Pick a theme script (`assets/themes`) |
 | RELOAD button | Reload the current script (same as Enter) |
@@ -105,6 +112,8 @@ sudo apt install build-essential cmake libsdl2-dev libsdl2-image-dev flex bison
 ```
 
 libvorbis and LAME are optional: they let `engine-sim-export` write Ogg Vorbis and MP3 (WAV always works). CMake looks for their CMake packages (`Vorbis`, `Ogg`, `mp3lame`), which vcpkg provides; on Linux use `vcpkg install libvorbis mp3lame` and pass vcpkg's toolchain file to CMake. The configure output says which formats were enabled.
+
+[Prism](https://github.com/ethindp/prism) is optional too: it gives the simulator speech and braille output through screen readers (`vcpkg install ethindp-prism:x64-windows-static-md`). Without it the screen reader keys stay silent. Its port needs CMake 4 for MSVC; with an older vcpkg (such as the one bundled with Visual Studio) add `--overlay-ports=cmake/vcpkg-overlay-ports`, which builds it as C17. The configure output says whether screen reader output is enabled.
 
 ### Step 3 - Build and Run
 

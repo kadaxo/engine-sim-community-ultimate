@@ -235,6 +235,8 @@ void EngineSimApplication::initialize() {
     m_textRenderer.SetRenderer(m_engine.GetUiRenderer());
     m_textRenderer.SetFont(m_engine.GetConsole()->GetFont());
 
+    m_accessibility.initialize(this);
+
     loadScript();
 
     m_audioBuffer.initialize(44100, 44100);
@@ -506,7 +508,7 @@ void EngineSimApplication::run() {
         if (m_engine.ProcessKeyDown(ysKey::Code::Return) || action == UserAction::Reload) {
             reloadScript();
         }
-        else if (action == UserAction::LoadEngine) {
+        else if (action == UserAction::LoadEngine || m_engine.ProcessKeyDown(ysKey::Code::O)) {
             chooseEngineScript();
         }
         else if (action == UserAction::LoadTheme) {
@@ -536,6 +538,7 @@ void EngineSimApplication::run() {
         updateScreenSizeStability();
 
         processEngineInput();
+        m_accessibility.update(m_engine.GetFrameLength());
 
         if (m_engine.ProcessKeyDown(ysKey::Code::Insert) &&
             m_engine.GetGameWindow()->IsActive()) {
@@ -575,6 +578,7 @@ void EngineSimApplication::run() {
 
 void EngineSimApplication::destroy() {
     m_rpmSync.destroy();
+    m_accessibility.destroy();
 
     m_shaderSet.Destroy();
 
@@ -818,6 +822,11 @@ void EngineSimApplication::loadScript() {
 
         compiler.destroy();
 
+        if (engine == nullptr) {
+            outputLog.close();
+            m_accessibility.onScriptFailed(outputLogPath);
+        }
+
         // Don't try any other scripts or we'd nuke the error log
         break;
     }
@@ -858,6 +867,7 @@ void EngineSimApplication::loadScript() {
 
     loadEngine(engine, vehicle, transmission);
     refreshUserInterface();
+    m_accessibility.onScriptLoaded();
 }
 
 namespace {
@@ -1042,8 +1052,15 @@ void EngineSimApplication::processEngineInput() {
     const float dt = m_engine.GetFrameLength();
     const bool fineControlMode = m_engine.IsKeyDown(ysKey::Code::Space);
 
+    // PageUp and PageDown step like one notch of the mouse wheel, so every
+    // wheel adjustment also works from the keyboard
+    constexpr int WheelNotch = 120;
+    int keyWheelDelta = 0;
+    if (m_engine.ProcessKeyDown(ysKey::Code::PageUp)) keyWheelDelta += WheelNotch;
+    if (m_engine.ProcessKeyDown(ysKey::Code::PageDown)) keyWheelDelta -= WheelNotch;
+
     const int mouseWheel = m_engine.GetMouseWheel();
-    const int mouseWheelDelta = mouseWheel - m_lastMouseWheel;
+    const int mouseWheelDelta = mouseWheel - m_lastMouseWheel + keyWheelDelta;
     m_lastMouseWheel = mouseWheel;
     // Wheel deltas are discrete input. Preserve the old 60 FPS sensitivity.
     const double wheelControlDelta = mouseWheelDelta / 60.0;
@@ -1260,6 +1277,7 @@ void EngineSimApplication::processEngineInput() {
             if (m_dynoSpeed > m_iceEngine->getRedline()) {
                 m_simulator->m_dyno.m_enabled = false;
                 m_dynoSpeed = units::rpm(0);
+                m_accessibility.onDynoRunFinished();
             }
         }
     }
@@ -1500,6 +1518,8 @@ void EngineSimApplication::refreshUserInterface() {
     m_mixerCluster = m_uiManager.getRoot()->addElement<MixerCluster>();
     m_infoCluster = m_uiManager.getRoot()->addElement<InfoCluster>();
 
+    m_infoCluster->setLogListener(
+        [this](const std::string &message) { m_accessibility.onLogMessage(message); });
     m_infoCluster->setEngine(m_iceEngine);
     m_rightGaugeCluster->m_simulator = m_simulator;
     m_rightGaugeCluster->setEngine(m_iceEngine);

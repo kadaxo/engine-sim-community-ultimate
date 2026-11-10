@@ -1,0 +1,13 @@
+diff --git a/cmake/PrismOptions.cmake b/cmake/PrismOptions.cmake
+index 269c927..a09e01b 100644
+--- a/cmake/PrismOptions.cmake
++++ b/cmake/PrismOptions.cmake
+@@ -48,7 +48,7 @@ prism_require_enum(PRISM_BACKEND_DEFAULT AUTO ON OFF)
+ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+ set(CMAKE_CXX_STANDARD 23)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+-set(CMAKE_C_STANDARD 23)
++set(CMAKE_C_STANDARD 17)
+ set(CMAKE_C_STANDARD_REQUIRED ON)
+ if(NOT EMSCRIPTEN)
+   set(BUILD_SHARED_LIBS

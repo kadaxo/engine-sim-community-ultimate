@@ -5,6 +5,7 @@
 
 #include "engine.h"
 
+#include <functional>
 #include <string>
 
 class UiButton;
@@ -23,8 +24,16 @@ public:
     virtual void signal(UiElement *element, Event event);
 
     void setEngine(Engine *engine) { m_engine = engine; }
-    void setLogMessage(const std::string &logMessage) { m_logMessage = logMessage; }
+    void setLogMessage(const std::string &logMessage) {
+        m_logMessage = logMessage;
+        if (m_logListener) m_logListener(logMessage);
+    }
     std::string getLogMessage() const { return m_logMessage; }
+
+    // Called with every log message (the screen reader support speaks them)
+    void setLogListener(std::function<void(const std::string &)> listener) {
+        m_logListener = std::move(listener);
+    }
 
 protected:
     Bounds getTitleBounds() const;
@@ -32,6 +41,7 @@ protected:
     Engine *m_engine;
 
     std::string m_logMessage;
+    std::function<void(const std::string &)> m_logListener;
 
     UiButton *m_loadEngineButton;
     UiButton *m_reloadButton;

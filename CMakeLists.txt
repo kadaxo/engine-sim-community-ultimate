@@ -85,6 +85,7 @@ add_library(engine-sim STATIC
     src/piston.cpp
     src/piston_engine_simulator.cpp
     src/simulator.cpp
+    src/spoken_text.cpp
     src/standard_valvetrain.cpp
     src/starter_motor.cpp
     src/synthesizer.cpp
@@ -130,6 +131,7 @@ add_library(engine-sim STATIC
     include/piston.h
     include/piston_engine_simulator.h
     include/simulator.h
+    include/spoken_text.h
     include/standard_valvetrain.h
     include/starter_motor.h
     include/synthesizer.h
@@ -237,6 +239,7 @@ add_executable(engine-sim-app WIN32
     src/info_cluster.cpp
     src/rpm_sync.cpp
     src/file_dialog.cpp
+    src/accessibility.cpp
 
     # Include files
     include/delta.h
@@ -274,6 +277,7 @@ add_executable(engine-sim-app WIN32
     include/info_cluster.h
     include/rpm_sync.h
     include/file_dialog.h
+    include/accessibility.h
 )
 
 if (DTV)
@@ -308,6 +312,31 @@ target_link_libraries(engine-sim-app
     engine-sim
 )
 
+# ========================================================
+# SCREEN READER OUTPUT
+#
+# Speech and braille through the user's screen reader (docs/accessibility.html)
+# use Prism, found through its CMake package (e.g. from vcpkg, via
+# CMAKE_PREFIX_PATH). Without it the application builds with speech disabled.
+
+add_library(engine-sim-speech STATIC
+    src/screen_reader.cpp
+    include/screen_reader.h
+)
+
+find_package(prism CONFIG QUIET)
+if (TARGET prism::prism)
+    target_compile_definitions(engine-sim-speech PRIVATE ENGINE_SIM_SPEECH)
+    target_link_libraries(engine-sim-speech PRIVATE prism::prism)
+    message(STATUS "Screen reader output: enabled (Prism)")
+else ()
+    message(STATUS "Screen reader output: Prism not found, disabled")
+endif ()
+
+target_link_libraries(engine-sim-app
+    engine-sim-speech
+)
+
 # Winsock for the UDP RPM sync receiver, comdlg32 for the file dialogs
 if (WIN32)
     target_link_libraries(engine-sim-app
@@ -340,6 +369,7 @@ add_executable(engine-sim-test
     test/gas_system_tests.cpp
     test/function_test.cpp
     test/synthesizer_tests.cpp
+    test/spoken_text_tests.cpp
 )
 
 target_link_libraries(engine-sim-test

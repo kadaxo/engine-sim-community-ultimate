@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Engine Simulator accessibility guide</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --text: #1a1a1a;
+    --muted: #4a4a4a;
+    --line: #c8c8c8;
+    --head: #f2f2f2;
+    --link: #0645ad;
+    --code: #f4f4f4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121212;
+      --text: #ececec;
+      --muted: #bdbdbd;
+      --line: #4a4a4a;
+      --head: #1f1f1f;
+      --link: #8ab4f8;
+      --code: #222222;
+    }
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 1.05rem/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+    margin: 0 auto;
+    max-width: 52rem;
+    padding: 1rem;
+  }
+  a { color: var(--link); }
+  a:focus, a:hover { outline: 2px solid var(--link); outline-offset: 2px; }
+  table { border-collapse: collapse; width: 100%; margin: 0.5rem 0 1.5rem; }
+  caption { text-align: left; font-weight: 600; padding: 0.25rem 0; }
+  th, td { border: 1px solid var(--line); padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+  thead th { background: var(--head); }
+  code, kbd { background: var(--code); border-radius: 3px; padding: 0 0.25em; font-family: Consolas, monospace; }
+  .skip { position: absolute; left: -999px; }
+  .skip:focus { position: static; }
+  .note { color: var(--muted); }
+</style>
+</head>
+<body>
+<a class="skip" href="#keys">Skip to the key list</a>
+
+<header>
+  <h1>Engine Simulator accessibility guide</h1>
+  <p>This guide is for people who use Engine Simulator with a screen reader. The simulator speaks through your own screen reader, so you hear it with your usual voice and settings, and anything it says also appears on a braille display.</p>
+</header>
+
+<main>
+<section>
+  <h2 id="start">Getting started</h2>
+  <ul>
+    <li>Speech starts by itself when a screen reader is running: NVDA, JAWS, Narrator, ZoomText, System Access and several others are supported.</li>
+    <li>Without a screen reader, press <kbd>J</kbd> once and the Windows voice is used instead.</li>
+    <li>When the simulator opens it says the name of the engine it loaded, for example "Loaded Subaru EJ25".</li>
+    <li>The simulator window has no buttons or menus to move through. Everything is done with single keys, listed below, and the simulator answers out loud.</li>
+    <li>To start an engine: press <kbd>A</kbd> to turn the ignition on, then hold <kbd>S</kbd> for the starter until you hear "Engine running".</li>
+  </ul>
+</section>
+
+<section>
+  <h2 id="keys">Keys</h2>
+
+  <table>
+    <caption>Hearing what the gauges show</caption>
+    <thead><tr><th scope="col">Key</th><th scope="col">What it reads</th></tr></thead>
+    <tbody>
+      <tr><td><kbd>F5</kbd></td><td>Engine: rpm, throttle, ignition and starter</td></tr>
+      <tr><td><kbd>F6</kbd></td><td>Vehicle: speed, gear, clutch and brake</td></tr>
+      <tr><td><kbd>F7</kbd></td><td>Dyno: whether it is on, the speed it holds, torque and power</td></tr>
+      <tr><td><kbd>F8</kbd></td><td>Air: manifold vacuum or pressure, air flow, volumetric efficiency, air-fuel ratio and turbo or supercharger boost</td></tr>
+      <tr><td><kbd>F9</kbd></td><td>Fuel: fuel used per hour, fuel used so far, distance driven and average consumption</td></tr>
+      <tr><td><kbd>F11</kbd></td><td>Engine information: name, number of cylinders, displacement and redline</td></tr>
+      <tr><td><kbd>F12</kbd></td><td>Sound and simulation settings: volume, convolution, volume leveler and simulation frequency</td></tr>
+      <tr><td><kbd>I</kbd></td><td>Peak power and peak torque since the engine was loaded, with their rpm</td></tr>
+      <tr><td><kbd>Home</kbd></td><td>Repeat the last thing that was said</td></tr>
+      <tr><td><kbd>J</kbd></td><td>Change how much is announced: normal, all (also every throttle change), readout keys only, or off. When speech is off, <kbd>J</kbd> turns it back on at normal</td></tr>
+      <tr><td><kbd>F4</kbd></td><td>Open this guide in your web browser</td></tr>
+    </tbody>
+  </table>
+
+  <table>
+    <caption>Engine</caption>
+    <thead><tr><th scope="col">Key</th><th scope="col">Action</th></tr></thead>
+    <tbody>
+      <tr><td><kbd>A</kbd></td><td>Ignition on or off</td></tr>
+      <tr><td><kbd>S</kbd> (hold)</td><td>Starter motor</td></tr>
+      <tr><td><kbd>Q</kbd>, <kbd>W</kbd>, <kbd>E</kbd>, <kbd>R</kbd> (hold)</td><td>Throttle at 1, 10, 20 and 100 percent while held</td></tr>
+      <tr><td><kbd>Space</kbd> + <kbd>Page Up</kbd> or <kbd>Page Down</kbd></td><td>Fine throttle: each press opens or closes the throttle a little and it stays there</td></tr>
+      <tr><td><kbd>1</kbd> to <kbd>5</kbd> (hold)</td><td>Slow motion, from 10 to 1000 times slower</td></tr>
+    </tbody>
+  </table>
+
+  <table>
+    <caption>Driving</caption>
+    <thead><tr><th scope="col">Key</th><th scope="col">Action</th></tr></thead>
+    <tbody>
+      <tr><td><kbd>Up Arrow</kbd>, <kbd>Down Arrow</kbd></td><td>Shift up or down. Below first gear is neutral.</td></tr>
+      <tr><td><kbd>Shift</kbd> (hold)</td><td>Clutch pedal down. Hold <kbd>Space</kbd> as well to let the clutch out slowly.</td></tr>
+      <tr><td><kbd>T</kbd>, <kbd>U</kbd> (hold)</td><td>Let the clutch slip more or less, a little at a time</td></tr>
+      <tr><td><kbd>Y</kbd> (hold)</td><td>Keep the clutch where it is</td></tr>
+      <tr><td><kbd>.</kbd> (period, hold)</td><td>Brake</td></tr>
+      <tr><td><kbd>K</kbd></td><td>Smart shifting on or off: the clutch and throttle are worked for you on each shift</td></tr>
+      <tr><td><kbd>P</kbd></td><td>Switch the fuel display between average and instant consumption</td></tr>
+    </tbody>
+  </table>
+
+  <table>
+    <caption>Dyno</caption>
+    <thead><tr><th scope="col">Key</th><th scope="col">Action</th></tr></thead>
+    <tbody>
+      <tr><td><kbd>D</kbd></td><td>Dyno on or off. On its own the dyno sweeps the engine up to redline: hold <kbd>R</kbd> for full throttle during the run.</td></tr>
+      <tr><td><kbd>H</kbd></td><td>Hold mode on or off: the dyno keeps the engine at one speed</td></tr>
+      <tr><td><kbd>G</kbd> + <kbd>Page Up</kbd> or <kbd>Page Down</kbd></td><td>Raise or lower the hold speed one step</td></tr>
+    </tbody>
+  </table>
+
+  <table>
+    <caption>Sound</caption>
+    <thead><tr><th scope="col">Key</th><th scope="col">Action</th></tr></thead>
+    <tbody>
+      <tr><td><kbd>Z</kbd> + <kbd>Page Up</kbd> or <kbd>Page Down</kbd></td><td>Volume</td></tr>
+      <tr><td><kbd>X</kbd> + <kbd>Page Up</kbd> or <kbd>Page Down</kbd></td><td>Convolution level (how much of the exhaust and room character is added)</td></tr>
+      <tr><td><kbd>C</kbd> + <kbd>Page Up</kbd> or <kbd>Page Down</kbd></td><td>High frequency gain</td></tr>
+      <tr><td><kbd>V</kbd> + <kbd>Page Up</kbd> or <kbd>Page Down</kbd></td><td>Low frequency noise</td></tr>
+      <tr><td><kbd>B</kbd> + <kbd>Page Up</kbd> or <kbd>Page Down</kbd></td><td>High frequency noise</td></tr>
+      <tr><td><kbd>N</kbd> + <kbd>Page Up</kbd> or <kbd>Page Down</kbd></td><td>Simulation frequency (higher is cleaner at high rpm but needs a faster computer)</td></tr>
+      <tr><td><kbd>L</kbd></td><td>Volume leveler: original (the default), off, or loudness (steady volume from idle to full revs)</td></tr>
+    </tbody>
+  </table>
+  <p class="note">Hold the letter key, then press <kbd>Page Up</kbd> or <kbd>Page Down</kbd> as many times as you like. The new value is spoken when you stop. The mouse wheel does the same thing.</p>
+
+  <table>
+    <caption>Files</caption>
+    <thead><tr><th scope="col">Key</th><th scope="col">Action</th></tr></thead>
+    <tbody>
+      <tr><td><kbd>O</kbd></td><td>Open an engine file with the standard Windows Open dialog. It starts in the engines folder.</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>Reload the current engine, for example after editing its file</td></tr>
+      <tr><td><kbd>Escape</kbd></td><td>Exit the simulator</td></tr>
+    </tbody>
+  </table>
+
+  <p class="note">Keys that only change the picture: <kbd>F</kbd> (full screen), <kbd>Tab</kbd> (switch screen), <kbd>M</kbd> and <kbd>,</kbd> (view layer), <kbd>F1</kbd> to <kbd>F3</kbd> (turn the engine view). <kbd>Insert</kbd> records video; your screen reader probably uses that key for itself.</p>
+</section>
+
+<section>
+  <h2 id="announcements">What is announced on its own</h2>
+  <ul>
+    <li>Ignition, starter, dyno, hold, smart shifting and leveler switching on or off</li>
+    <li>Gear changes, neutral and the clutch going down</li>
+    <li>"Engine running" once the engine catches, and "Engine stalled" or "Engine stopped"</li>
+    <li>The new value after you adjust volume, dyno hold speed or another setting</li>
+    <li>"Loaded" and the engine name after opening or reloading an engine</li>
+    <li>When an engine file has a mistake: the file, the line number and what is wrong. The engine that was running keeps running.</li>
+    <li>When a dyno run reaches redline: peak power and peak torque with their rpm</li>
+  </ul>
+</section>
+
+<section>
+  <h2 id="dyno">Dyno runs and reports</h2>
+  <p>Press <kbd>A</kbd> and hold <kbd>S</kbd> to start the engine, stay in neutral, press <kbd>D</kbd> and hold <kbd>R</kbd>. The dyno raises the engine speed until redline and then switches itself off. You hear the peak power and torque, and a report is saved as a spreadsheet file (CSV) named after the engine and the time, for example <code>dyno_Subaru_EJ25_20261111-142233.csv</code>. It has one row every 50 rpm with torque and power, and opens in Excel or any text editor. It is saved in the simulator's output folder, which is the folder that holds <code>engine-sim-app.exe</code> unless you have changed it.</p>
+</section>
+
+<section>
+  <h2 id="editing">Changing an engine</h2>
+  <p>Every engine is a plain text file ending in <code>.mr</code> in the <code>assets\engines</code> folder. They can be read and edited in Notepad or any other text editor.</p>
+  <ol>
+    <li>Make a copy of the engine file you want to change, so the original stays as it was.</li>
+    <li>Open the copy in a text editor. Many community engines keep their main settings near the top, one per line, each with a comment saying what it does, for example <code>label E_B(170.0) // Cylinder bore diameter. Units: millimeters.</code></li>
+    <li>Change a value and save the file.</li>
+    <li>In the simulator, press <kbd>O</kbd> and open the copy, or press <kbd>Enter</kbd> if it is already loaded.</li>
+    <li>If you hear "Script error", the message gives the file name, the line number and the problem. Fix it, save and press <kbd>Enter</kbd> again. The full list of errors is in <code>error_log.log</code> in the output folder.</li>
+  </ol>
+  <p>The exhaust sound is shaped by the exhaust settings (pipe lengths and diameters) and by the impulse response, a recording that gives the exhaust its character. In an engine file the impulse response is chosen on the line that contains <code>impulse_response</code>, for example <code>ir_lib.mild_exhaust_0</code> or one of <code>ir_lib.smooth_01</code> to <code>ir_lib.smooth_49</code>.</p>
+</section>
+
+<section>
+  <h2 id="limits">What the simulator does not model</h2>
+  <p>Oil pressure, oil temperature and coolant temperature are not simulated, so there is nothing to read for them. The sound is the exhaust only: intake roar, turbo whistle, gear whine, tyres and wind are not part of it.</p>
+</section>
+
+<section>
+  <h2 id="trouble">If nothing is spoken</h2>
+  <ol>
+    <li>Make sure the simulator window has focus: press <kbd>Alt</kbd> + <kbd>Tab</kbd> to it, then press <kbd>F5</kbd>.</li>
+    <li>Press <kbd>J</kbd>. If you then hear the Windows voice but not your screen reader, the screen reader was not recognized.</li>
+    <li>To help find the problem, start the simulator from a Command Prompt with a speech log:
+      <pre><code>set ENGINE_SIM_SPEECH_LOG=%USERPROFILE%\Desktop\engine-sim-speech.txt
+engine-sim-app.exe</code></pre>
+      The first line of the log says which screen reader was found, and every announcement is written below it. Please send that file along with your report.</li>
+  </ol>
+</section>
+</main>
+</body>
+</html>
