@@ -17,6 +17,7 @@ This branch collects work from the community forks of the original source code (
 - **Audio fixes** for underruns and a data race in the synthesizer, plus a UDP RPM input ([RPM_SYNC.md](RPM_SYNC.md))
 - **Bug fixes** to the physics, rendering and memory handling, and a test suite that passes
 - **Screen reader support**: speech and braille through NVDA, JAWS, Narrator and others, keys that read out every gauge, and keyboard alternatives for everything the mouse did ([docs/accessibility.html](docs/accessibility.html))
+- **Engine builder**: a web form ([tools/engine-builder/index.html](tools/engine-builder/index.html), works offline and with screen readers) that writes engine scripts from plain values, for 14 layouts from singles to V12s, and reopens them for editing
 - **Game audio export**: `engine-sim-export` renders seamless RPM loops, one-shots and RPM sweeps as Ogg, WAV and MP3 with a JSON manifest, ready for Unity, Unreal, Godot, FMOD or Wwise ([docs/game-audio-export.md](docs/game-audio-export.md))
 - **76 community engine scripts** and 7 extra UI themes (metric variants, Catppuccin), each checked to compile and run
 

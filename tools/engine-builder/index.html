@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Engine Simulator engine builder</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --text: #1a1a1a;
+    --muted: #4a4a4a;
+    --line: #8a8a8a;
+    --panel: #f4f4f4;
+    --accent: #0645ad;
+    --error: #b00020;
+    --focus: #0645ad;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121212;
+      --text: #ececec;
+      --muted: #c4c4c4;
+      --line: #8a8a8a;
+      --panel: #1e1e1e;
+      --accent: #8ab4f8;
+      --error: #ff8a80;
+      --focus: #8ab4f8;
+    }
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 1.05rem/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+    margin: 0 auto;
+    max-width: 48rem;
+    padding: 1rem;
+  }
+  a { color: var(--accent); }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  fieldset { border: 1px solid var(--line); border-radius: 6px; margin: 1.5rem 0; padding: 0.5rem 1rem 1rem; }
+  legend h2 { font-size: 1.3rem; margin: 0; padding: 0 0.25rem; }
+  .field { margin: 1rem 0; }
+  label { display: block; font-weight: 600; }
+  input, select, textarea, button {
+    font: inherit;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 0.35rem 0.5rem;
+  }
+  input, select { width: 100%; max-width: 28rem; box-sizing: border-box; }
+  input[type="file"] { border: none; padding-left: 0; }
+  button { cursor: pointer; background: var(--panel); margin: 0.25rem 0.5rem 0.25rem 0; }
+  .help { color: var(--muted); margin: 0.2rem 0 0; font-size: 0.95rem; }
+  .error { color: var(--error); font-weight: 600; margin: 0.2rem 0 0; }
+  [aria-invalid="true"] { border: 2px solid var(--error); }
+  #errors { border: 2px solid var(--error); border-radius: 6px; padding: 0.5rem 1rem; margin: 1rem 0; }
+  #errors h2 { color: var(--error); margin: 0.25rem 0; font-size: 1.2rem; }
+  #status:not(:empty) { background: var(--panel); border-left: 4px solid var(--accent); padding: 0.5rem 1rem; margin: 1rem 0; }
+  textarea { width: 100%; box-sizing: border-box; font-family: Consolas, monospace; font-size: 0.9rem; }
+  .actions { position: sticky; bottom: 0; background: var(--bg); padding: 0.5rem 0; border-top: 1px solid var(--line); }
+  .skip { position: absolute; left: -999px; }
+  .skip:focus { position: static; }
+</style>
+</head>
+<body>
+<a class="skip" href="#preset">Skip to the engine settings</a>
+
+<header>
+  <h1>Engine builder</h1>
+  <p>Make your own engine for Engine Simulator by filling in plain values: cylinders, bore and stroke, cams, intake, exhaust, ignition, the car it sits in and its gearbox. The builder writes the engine file for you.</p>
+</header>
+
+<main>
+<section aria-labelledby="how-heading">
+  <h2 id="how-heading">How it works</h2>
+  <ol>
+    <li>Pick a preset to start from and press "Use this preset", or keep the one that is filled in.</li>
+    <li>Change any values you like. Each field says what it does and which values are allowed.</li>
+    <li>Press "Save engine file". The file goes to your Downloads folder.</li>
+    <li>In the simulator, press <kbd>O</kbd> and open the file. After saving a changed version, open it again with <kbd>O</kbd>.</li>
+    <li>To change an engine later, use "Open an engine made with this builder" below; all of its values come back into the form.</li>
+  </ol>
+</section>
+
+<section aria-labelledby="start-heading">
+  <h2 id="start-heading">Start from a preset</h2>
+  <label for="preset">Preset</label>
+  <select id="preset" aria-describedby="preset-help"></select>
+  <p id="preset-help" class="help">Using a preset replaces every value in the form.</p>
+  <button type="button" id="use-preset">Use this preset</button>
+
+  <div class="field">
+    <label for="open">Open an engine made with this builder</label>
+    <input type="file" id="open" accept=".mr,text/plain" aria-describedby="open-help">
+    <p id="open-help" class="help">Engine files made by other people can't be opened here, but they can be changed in a text editor.</p>
+  </div>
+</section>
+
+<div id="errors" tabindex="-1" hidden aria-labelledby="errors-heading"></div>
+<div id="status" role="status" aria-live="polite"></div>
+
+<form id="engine-form" novalidate aria-label="Engine settings">
+</form>
+
+<div class="actions">
+  <button type="button" id="check">Check engine</button>
+  <button type="submit" form="engine-form" id="save">Save engine file</button>
+</div>
+
+<details>
+  <summary>Show the engine script</summary>
+  <label for="script">Engine script (read only; it updates when you check or save)</label>
+  <textarea id="script" rows="20" readonly spellcheck="false"></textarea>
+</details>
+</main>
+
+<script src="generator.js"></script>
+<script src="builder.js"></script>
+</body>
+</html>

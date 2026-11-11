@@ -476,3 +476,27 @@ if (GAME_AUDIO_EXPORT)
 
     gtest_discover_tests(engine-sim-game-audio-test DISCOVERY_MODE PRE_TEST)
 endif (GAME_AUDIO_EXPORT)
+
+# ========================================================
+# ENGINE BUILDER
+#
+# tools/engine-builder writes engine scripts from a form. If Node is
+# installed, test its generator; the slow test (skip with ctest -LE slow) also
+# runs every preset on the dyno and through engine-sim-export.
+
+find_program(NODE_EXECUTABLE node)
+if (NODE_EXECUTABLE)
+    add_test(NAME engine-builder-generator
+        COMMAND ${NODE_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/engine-builder/test/generate-presets.mjs
+            --out ${CMAKE_CURRENT_BINARY_DIR}/engine-builder-test)
+
+    if (PIRANHA_ENABLED AND TARGET engine-sim-export)
+        add_test(NAME engine-builder-engines
+            COMMAND ${NODE_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/engine-builder/test/generate-presets.mjs
+                --out ${CMAKE_CURRENT_BINARY_DIR}/engine-builder-engines
+                --probe $<TARGET_FILE:boost-probe>
+                --export $<TARGET_FILE:engine-sim-export>
+            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+        set_tests_properties(engine-builder-engines PROPERTIES LABELS slow TIMEOUT 1200)
+    endif ()
+endif ()
