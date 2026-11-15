@@ -69,4 +69,3 @@ Each script was compiled and run headlessly (cranks, idles and holds 1500 rpm on
 | 2005 Toyota Corolla XRS 2ZZ-GE (lift switch at 6000 rpm) | [sillysigmabollocks](https://github.com/sillysigmabollocks/engine-sim-test) |
 
 Themes: metric versions of the stock themes (`themes/*_metric.mr`) by Abdullah-Ajeebi (upstream PR #376), and Catppuccin by StanTheAwesomeMan (Beacroxx).
-
