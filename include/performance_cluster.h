@@ -27,6 +27,10 @@ class PerformanceCluster : public UiElement {
         void addAudioLatencySample(double sample);
         void addInputBufferUsageSample(double sample);
 
+        // The RT/dT gauge as a fraction: real time spent per simulation step
+        // over the time the step stands for. Above 1 the computer can't keep up.
+        double getSimulationLoad() const { return m_timePerTimestep * m_filteredSimulationFrequency; }
+
         LabeledGauge *m_timePerTimestepGauge;
         LabeledGauge *m_fpsGauge;
         LabeledGauge *m_simSpeedGauge;

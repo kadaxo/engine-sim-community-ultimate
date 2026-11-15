@@ -127,6 +127,8 @@ namespace spoken_text {
         double convolution = 0.0;
         std::string leveler;
         double simulationFrequency = 0.0;
+        double frameRate = 0.0;         // 0 when unknown: performance left out
+        double simulationLoad = 0.0;    // fraction of real time; above 1 can't keep up
     };
 
     std::string engineReadout(const Readings &r, const Units &units);
@@ -136,6 +138,9 @@ namespace spoken_text {
     std::string fuelReadout(const Readings &r, const Units &units);
     std::string infoReadout(const Readings &r, const Units &units);
     std::string audioReadout(const Readings &r, const Units &units);
+
+    // "Simulation load 45 percent", with a warning near or over the limit
+    std::string simulationLoad(double load);
 
     struct DynoPoint {
         double rpm;

@@ -61,6 +61,7 @@ TEST(SpokenTextTests, EventsAreReworded) {
     EXPECT_EQ(fromLogMessage("SMART SHIFTING ON").text, "Smart shifting on");
     EXPECT_EQ(fromLogMessage("Entered fullscreen mode").text, "Entered fullscreen mode");
     EXPECT_EQ(fromLogMessage("Script failed, see error_log.log").category, Category::Silent);
+    EXPECT_EQ(fromLogMessage("RPM sync listening on UDP 127.0.0.1:8765").category, Category::Silent);
 }
 
 TEST(SpokenTextTests, PeaksAreSpokenInFull) {
@@ -211,6 +212,27 @@ TEST(SpokenTextTests, Readouts) {
     r.torque = units::torque(150, units::ft_lb);
     r.power = 90 * units::hp;
     EXPECT_EQ(dynoReadout(r, imperialUnits()), "Dyno holding 3000 rpm, 150 pound-feet, 90 horsepower");
+}
+
+TEST(SpokenTextTests, SimulationLoadWarnsNearTheLimit) {
+    EXPECT_EQ(simulationLoad(0.453), "Simulation load 45 percent");
+    EXPECT_EQ(simulationLoad(0.85), "Simulation load 85 percent, close to the limit");
+    EXPECT_EQ(simulationLoad(1.004), "Simulation load 100 percent, close to the limit");
+    EXPECT_EQ(simulationLoad(1.3), "Simulation load 130 percent, too high for this computer");
+
+    Readings r;
+    r.volume = 0.5;
+    r.convolution = 1.0;
+    r.leveler = "loudness";
+    r.simulationFrequency = 10000;
+    EXPECT_EQ(audioReadout(r, metricUnits()),
+        "Volume 0.5, convolution 1, leveler loudness, simulation frequency 10000 hertz");
+
+    r.frameRate = 59.8;
+    r.simulationLoad = 0.45;
+    EXPECT_EQ(audioReadout(r, metricUnits()),
+        "Volume 0.5, convolution 1, leveler loudness, simulation frequency 10000 hertz, "
+        "load 45 percent, 60 frames per second");
 }
 
 TEST(SpokenTextTests, ManifoldPressureFollowsTheGaugeUnits) {

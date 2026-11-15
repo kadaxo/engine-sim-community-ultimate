@@ -46,6 +46,16 @@ namespace {
         text += part;
     }
 
+    // "load 45 percent". The step time excludes drawing, so warn a little
+    // before the simulation falls behind and the sound breaks up.
+    std::string load(double load) {
+        const double percent = std::round(100.0 * load);
+        std::string text = "load " + spoken_text::number(percent) + " percent";
+        if (percent > 100) text += ", too high for this computer";
+        else if (percent >= 80) text += ", close to the limit";
+        return text;
+    }
+
     struct Adjustment {
         const char *logName;
         const char *spokenName;
@@ -172,6 +182,12 @@ spoken_text::Message spoken_text::fromLogMessage(const std::string &logMessage) 
     }
     else if (logMessage.rfind("Script failed", 0) == 0) {
         // The error itself is read from the log, see scriptError()
+        message.category = Category::Silent;
+        return message;
+    }
+    else if (logMessage.rfind("RPM sync", 0) == 0) {
+        // Status for tools that drive the simulator over the network, shown
+        // on every start: not worth hearing an IP address read out each time
         message.category = Category::Silent;
         return message;
     }
@@ -437,6 +453,14 @@ std::string spoken_text::audioReadout(const Readings &r, const Units &) {
     join(text, "convolution " + number(r.convolution, 2));
     if (!r.leveler.empty()) join(text, "leveler " + r.leveler);
     join(text, "simulation frequency " + number(r.simulationFrequency) + " hertz");
+    if (r.frameRate > 0) {
+        join(text, load(r.simulationLoad));
+        join(text, count(number(r.frameRate), "frame", "frames") + " per second");
+    }
 
     return text;
+}
+
+std::string spoken_text::simulationLoad(double simulationLoad) {
+    return "Simulation " + load(simulationLoad);
 }

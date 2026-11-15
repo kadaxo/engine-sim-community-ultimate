@@ -88,6 +88,7 @@ class EngineSimApplication {
 
         Simulator *getSimulator() { return m_simulator; }
         InfoCluster *getInfoCluster() { return m_infoCluster; }
+        PerformanceCluster *getPerformanceCluster() { return m_performanceCluster; }
         ApplicationSettings* getAppSettings() { return &m_applicationSettings; }
         dbasic::Path getDataRoot() const { return m_dataRoot; }
         dbasic::Path getOutputPath() const { return m_outputPath; }

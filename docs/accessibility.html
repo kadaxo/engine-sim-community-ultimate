@@ -78,7 +78,7 @@
       <tr><td><kbd>F8</kbd></td><td>Air: manifold vacuum or pressure, air flow, volumetric efficiency, air-fuel ratio and turbo or supercharger boost</td></tr>
       <tr><td><kbd>F9</kbd></td><td>Fuel: fuel used per hour, fuel used so far, distance driven and average consumption</td></tr>
       <tr><td><kbd>F11</kbd></td><td>Engine information: name, number of cylinders, displacement and redline</td></tr>
-      <tr><td><kbd>F12</kbd></td><td>Sound and simulation settings: volume, convolution, volume leveler and simulation frequency</td></tr>
+      <tr><td><kbd>F12</kbd></td><td>Sound and simulation settings: volume, convolution, volume leveler, simulation frequency, how hard the computer is working (load) and frames per second</td></tr>
       <tr><td><kbd>I</kbd></td><td>Peak power and peak torque since the engine was loaded, with their rpm</td></tr>
       <tr><td><kbd>Home</kbd></td><td>Repeat the last thing that was said</td></tr>
       <tr><td><kbd>J</kbd></td><td>Change how much is announced: normal, all (also every throttle change), readout keys only, or off. When speech is off, <kbd>J</kbd> turns it back on at normal</td></tr>
@@ -131,11 +131,11 @@
       <tr><td><kbd>C</kbd> + <kbd>Page Up</kbd> or <kbd>Page Down</kbd></td><td>High frequency gain</td></tr>
       <tr><td><kbd>V</kbd> + <kbd>Page Up</kbd> or <kbd>Page Down</kbd></td><td>Low frequency noise</td></tr>
       <tr><td><kbd>B</kbd> + <kbd>Page Up</kbd> or <kbd>Page Down</kbd></td><td>High frequency noise</td></tr>
-      <tr><td><kbd>N</kbd> + <kbd>Page Up</kbd> or <kbd>Page Down</kbd></td><td>Simulation frequency (higher is cleaner at high rpm but needs a faster computer)</td></tr>
+      <tr><td><kbd>N</kbd> + <kbd>Page Up</kbd> or <kbd>Page Down</kbd></td><td>Simulation frequency, the simulator's frame rate (higher is cleaner at high rpm but needs a faster computer). See <a href="#performance">If the sound stutters</a>.</td></tr>
       <tr><td><kbd>L</kbd></td><td>Volume leveler: original (the default), off, or loudness (steady volume from idle to full revs)</td></tr>
     </tbody>
   </table>
-  <p class="note">Hold the letter key, then press <kbd>Page Up</kbd> or <kbd>Page Down</kbd> as many times as you like. The new value is spoken when you stop. The mouse wheel does the same thing.</p>
+  <p class="note">Hold the letter key, then press <kbd>Page Up</kbd> or <kbd>Page Down</kbd> as many times as you like, or hold it down to keep going. The new value is spoken when you stop. Holding the letter key alone tells you the current value. The mouse wheel does the same thing.</p>
 
   <table>
     <caption>Files</caption>
@@ -157,6 +157,7 @@
     <li>Gear changes, neutral and the clutch going down</li>
     <li>"Engine running" once the engine catches, and "Engine stalled" or "Engine stopped"</li>
     <li>The new value after you adjust volume, dyno hold speed or another setting</li>
+    <li>About a second after you change the simulation frequency: how hard the computer is working at the new setting</li>
     <li>"Loaded" and the engine name after opening or reloading an engine</li>
     <li>When an engine file has a mistake: the file, the line number and what is wrong. The engine that was running keeps running.</li>
     <li>When a dyno run reaches redline: peak power and peak torque with their rpm</li>
@@ -185,6 +186,17 @@
     <li>If you hear "Script error", the message gives the file name, the line number and the problem. Fix it, save and press <kbd>Enter</kbd> again. The full list of errors is in <code>error_log.log</code> in the output folder.</li>
   </ol>
   <p>The exhaust sound is shaped by the exhaust settings (pipe lengths and diameters) and by the impulse response, a recording that gives the exhaust its character. In an engine file the impulse response is chosen on the line that contains <code>impulse_response</code>, for example <code>ir_lib.mild_exhaust_0</code> or one of <code>ir_lib.smooth_01</code> to <code>ir_lib.smooth_49</code>.</p>
+</section>
+
+<section>
+  <h2 id="performance">If the sound stutters</h2>
+  <p>The simulator works out the engine thousands of times a second. This is the simulation frequency, its frame rate. Most engines start at 10000 hertz. A higher frequency sounds cleaner at high rpm, but if the computer can't keep up, the sound crackles or breaks up.</p>
+  <ol>
+    <li>Hold <kbd>N</kbd> and press <kbd>Page Down</kbd> to lower the frequency by 200 hertz, or hold <kbd>Page Down</kbd> to keep lowering it. <kbd>Page Up</kbd> raises it. Hold <kbd>Space</kbd> as well for steps of 20 hertz.</li>
+    <li>When you let go, you hear the new frequency. About a second later you hear the load: how much of the available time the simulation uses. Below 80 percent is comfortable. At 80 percent or more you hear "close to the limit", and above 100 percent "too high for this computer".</li>
+    <li>Press <kbd>F12</kbd> at any time to hear the frequency, the load and the frames per second.</li>
+  </ol>
+  <p>The frequency goes back to the engine's own setting when you load or reload an engine. To keep a different one, change the <code>simulation_frequency</code> line in the engine file.</p>
 </section>
 
 <section>

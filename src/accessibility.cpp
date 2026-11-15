@@ -29,6 +29,10 @@ namespace {
     // Spacing of the dyno report rows
     constexpr double DynoSampleSpacingRpm = 50.0;
 
+    // After the simulation frequency stops changing, wait this long for the
+    // load measurement to settle before reporting it
+    constexpr double LoadReportDelay = 1.5;
+
     std::string readFile(const std::string &path) {
         std::ifstream file(path, std::ios::in | std::ios::binary);
         std::stringstream contents;
@@ -75,6 +79,8 @@ Accessibility::Accessibility() {
     m_dynoSweeping = false;
     m_dynoTorque = 0.0;
     m_dynoPower = 0.0;
+    m_lastSimulationFrequency = 0.0;
+    m_loadReportTimer = 0.0;
 }
 
 Accessibility::~Accessibility() {
@@ -106,12 +112,12 @@ bool Accessibility::isActive() {
     return m_log.is_open() || m_forced || m_screenReader.isScreenReaderRunning();
 }
 
-void Accessibility::announce(const std::string &text) {
+void Accessibility::announce(const std::string &text, bool queue) {
     if (text.empty() || !isActive()) return;
 
     // Several announcements in one frame queue up instead of cutting each
     // other off
-    const bool interrupt = (m_time != m_lastAnnouncementTime);
+    const bool interrupt = !queue && (m_time != m_lastAnnouncementTime);
     m_lastAnnouncementTime = m_time;
     m_lastAnnouncement = text;
 
@@ -122,9 +128,9 @@ void Accessibility::announce(const std::string &text) {
     m_screenReader.output(text, interrupt, m_forced);
 }
 
-void Accessibility::event(const std::string &text) {
+void Accessibility::event(const std::string &text, bool queue) {
     if (m_announcer.announcesEvents()) {
-        announce(text);
+        announce(text, queue);
     }
 }
 
@@ -135,6 +141,7 @@ void Accessibility::update(float dt) {
     detectEngineState(dt);
     sampleFuel();
     recordDynoRun(dt);
+    watchSimulationFrequency(dt);
 
     announce(m_announcer.poll(m_time));
 }
@@ -151,6 +158,10 @@ void Accessibility::onScriptLoaded() {
     m_fuelRate = 0.0;
     m_dynoRun.clear();
     m_dynoSweeping = false;
+
+    // The engine sets its own frequency: not a change worth reporting
+    m_lastSimulationFrequency = m_app->getSimulator()->getSimulationFrequency();
+    m_loadReportTimer = 0.0;
 
     Engine *engine = m_app->getSimulator()->getEngine();
     if (engine != nullptr) {
@@ -324,6 +335,27 @@ void Accessibility::recordDynoRun(float dt) {
     m_dynoRun.push_back({ std::abs(engine->getRpm()), m_dynoTorque, m_dynoPower });
 }
 
+void Accessibility::watchSimulationFrequency(float dt) {
+    const double frequency = m_app->getSimulator()->getSimulationFrequency();
+    if (frequency != m_lastSimulationFrequency) {
+        // Changed with N: tell whether the computer keeps up once the
+        // frequency has stayed put long enough to measure it
+        if (m_lastSimulationFrequency > 0) m_loadReportTimer = LoadReportDelay;
+        m_lastSimulationFrequency = frequency;
+        return;
+    }
+
+    if (m_loadReportTimer <= 0) return;
+    m_loadReportTimer -= dt;
+    if (m_loadReportTimer > 0) return;
+
+    // Queued behind the new frequency if that is still being spoken
+    const PerformanceCluster *performance = m_app->getPerformanceCluster();
+    if (performance != nullptr) {
+        event(spoken_text::simulationLoad(performance->getSimulationLoad()), true);
+    }
+}
+
 void Accessibility::openGuide() {
     // The data root can be relative to the working directory
     std::error_code ec;
@@ -425,6 +457,10 @@ spoken_text::Readings Accessibility::read() {
     }
 
     r.simulationFrequency = simulator->getSimulationFrequency();
+    if (m_app->getPerformanceCluster() != nullptr) {
+        r.frameRate = m_app->getEngine()->GetAverageFramerate();
+        r.simulationLoad = m_app->getPerformanceCluster()->getSimulationLoad();
+    }
 
     return r;
 }

@@ -36,12 +36,14 @@ public:
     bool isActive();
 
 private:
-    void announce(const std::string &text);
-    void event(const std::string &text);
+    // A queued announcement waits for the current one to finish
+    void announce(const std::string &text, bool queue = false);
+    void event(const std::string &text, bool queue = false);
     void processKeys();
     void detectEngineState(float dt);
     void sampleFuel();
     void recordDynoRun(float dt);
+    void watchSimulationFrequency(float dt);
     bool writeDynoReport(std::string *fileName);
     void openGuide();
 
@@ -71,6 +73,9 @@ private:
     bool m_dynoSweeping;
     double m_dynoTorque;
     double m_dynoPower;
+
+    double m_lastSimulationFrequency;
+    double m_loadReportTimer;
 };
 
 #endif /* ATG_ENGINE_SIM_ACCESSIBILITY_H */
