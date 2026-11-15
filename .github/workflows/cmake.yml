@@ -85,7 +85,7 @@ jobs:
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
 
       - name: Build
-        run: cmake --build build --parallel
+        run: cmake --build build --parallel 4
 
       - name: Test
         run: ctest --test-dir build -LE slow --output-on-failure
@@ -106,15 +106,18 @@ jobs:
           brew install sdl2 sdl2_image bison flex
           echo "BISON_EXECUTABLE=$(brew --prefix bison)/bin/bison" >> "$GITHUB_ENV"
           echo "FLEX_EXECUTABLE=$(brew --prefix flex)/bin/flex" >> "$GITHUB_ENV"
+          echo "HOMEBREW_PREFIX=$(brew --prefix)" >> "$GITHUB_ENV"
 
+      # SDL2 is under Homebrew's prefix (/opt/homebrew on Apple Silicon)
       - name: Configure
         run: >-
           cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+          "-DCMAKE_PREFIX_PATH=$HOMEBREW_PREFIX"
           "-DBISON_EXECUTABLE=$BISON_EXECUTABLE"
           "-DFLEX_EXECUTABLE=$FLEX_EXECUTABLE"
 
       - name: Build
-        run: cmake --build build --parallel
+        run: cmake --build build --parallel 4
 
       - name: Test
         run: ctest --test-dir build -LE slow --output-on-failure
@@ -150,26 +153,53 @@ jobs:
           brew install sdl2 sdl2_image bison flex autoconf autoconf-archive automake libtool pkg-config
           echo "BISON_EXECUTABLE=$(brew --prefix bison)/bin/bison" >> "$GITHUB_ENV"
           echo "FLEX_EXECUTABLE=$(brew --prefix flex)/bin/flex" >> "$GITHUB_ENV"
+          echo "HOMEBREW_PREFIX=$(brew --prefix)" >> "$GITHUB_ENV"
 
+      # Restored here and saved right after vcpkg (not at the end of the job),
+      # so a failure later in the job doesn't throw away an hour of glib
       - name: Restore built vcpkg packages
-        uses: actions/cache@v4
+        id: vcpkg-cache
+        uses: actions/cache/restore@v4
         with:
           path: ~/.cache/vcpkg/archives
           key: vcpkg-prism-${{ runner.os }}-${{ runner.arch }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('cmake/vcpkg-overlay-ports/**') }}
 
       - name: Build Prism with vcpkg
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           git clone https://github.com/microsoft/vcpkg.git "$RUNNER_TEMP/vcpkg"
           git -C "$RUNNER_TEMP/vcpkg" checkout "$VCPKG_COMMIT"
           "$RUNNER_TEMP/vcpkg/bootstrap-vcpkg.sh" -disableMetrics
+          # glib's pcre2 fetches one small file from api.github.com without
+          # signing in, which shared runners often get refused (403). Fetch it
+          # with the workflow's token first; vcpkg still checks its hash. 10.49 is
+          # the pcre2 version vcpkg builds at VCPKG_COMMIT.
+          if [ "$RUNNER_OS" = Linux ]; then
+            mkdir -p "$RUNNER_TEMP/vcpkg/downloads"
+            curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -o "$RUNNER_TEMP/vcpkg/downloads/pcre2-pcre2-10.49-sljit-gitlink.json" \
+              "https://api.github.com/repos/PCRE2Project/pcre2/contents/deps/sljit?ref=pcre2-10.49"
+          fi
           "$RUNNER_TEMP/vcpkg/vcpkg" install ethindp-prism \
             --overlay-ports="$GITHUB_WORKSPACE/cmake/vcpkg-overlay-ports"
 
+      - name: Save built vcpkg packages
+        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/vcpkg/archives
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
+
       - name: Configure
         run: |
+          # The default shell doesn't fail a pipeline, so a CMake error would
+          # be hidden by tee
+          set -o pipefail
           args=()
           if [ -n "$BISON_EXECUTABLE" ]; then
             args+=("-DBISON_EXECUTABLE=$BISON_EXECUTABLE" "-DFLEX_EXECUTABLE=$FLEX_EXECUTABLE")
+            args+=("-DCMAKE_PREFIX_PATH=$HOMEBREW_PREFIX")
           fi
           cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
             "-DCMAKE_TOOLCHAIN_FILE=$RUNNER_TEMP/vcpkg/scripts/buildsystems/vcpkg.cmake" \
@@ -178,7 +208,7 @@ jobs:
           grep -q "Screen reader output: enabled (Prism)" configure.log
 
       - name: Build
-        run: cmake --build build --parallel
+        run: cmake --build build --parallel 4
 
       - name: Test
         run: ctest --test-dir build -LE slow --output-on-failure

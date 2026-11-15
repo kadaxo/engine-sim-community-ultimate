@@ -142,7 +142,7 @@ cmake --build build -j
 macOS (untested). The script compiler needs Bison 3.2 or newer and macOS ships 2.3, so point CMake at Homebrew's Bison and Flex:
 
 ```
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBISON_EXECUTABLE=$(brew --prefix bison)/bin/bison -DFLEX_EXECUTABLE=$(brew --prefix flex)/bin/flex
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=$(brew --prefix) -DBISON_EXECUTABLE=$(brew --prefix bison)/bin/bison -DFLEX_EXECUTABLE=$(brew --prefix flex)/bin/flex
 cmake --build build -j
 ```
 
