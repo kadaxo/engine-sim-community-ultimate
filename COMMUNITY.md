@@ -36,6 +36,7 @@ Fixes made while merging: Direct3D and Win32 build errors in the SDL port of del
 | `checkForDiscontinuity` typo, simpler `modularDistance` | wardio (upstream PR #216) |
 | Brakes (hold `.`, `max_brake_force` on vehicles), and the full `smooth_01`–`smooth_49` series in the impulse response library | barolig ([Sness00/engine-sim](https://github.com/Sness00/engine-sim)) |
 | `sparks_per_cycle` for two-stroke ignition, and leaks of the displacement scratch arrays, jitter history and crankshaft links on every engine load | [karpuzikov](https://github.com/karpuzikov/engine-sim) |
+| VTEC switches each valve between cams only while it is closed, so the lift no longer jumps mid-opening | [sillysigmabollocks](https://github.com/sillysigmabollocks/engine-sim-test) |
 
 Already covered by the port, so not merged separately: Ange's own dyno torque index fix (still only in a PR ref), KeesTucker's stale-assert removal, the earlier Linux/compiler fixes by xorgy (PR #220), yangosoft, Pinim04, Fraxoor, LukasACH, Beacroxx and arf20, and Hochmah's teardown, RingBuffer and clang fixes.
 
@@ -65,6 +66,7 @@ Each script was compiled and run headlessly (cranks, idles and holds 1500 rpm on
 | Subaru EJ25 street exhaust | [Samzax](https://github.com/Samzax/engine-sim) |
 | GM LS supercharged, Subaru EJ25 twin-scroll turbo | [Oblongy](https://github.com/Oblongy/engine-sim) |
 | MTU MB 871 Ka-501 tank diesel (by pilot01 and LTSP6.1.1 on Archangel Motors' template) | barolig ([Sness00/engine-sim](https://github.com/Sness00/engine-sim)) |
+| 2005 Toyota Corolla XRS 2ZZ-GE (lift switch at 6000 rpm) | [sillysigmabollocks](https://github.com/sillysigmabollocks/engine-sim-test) |
 
 Themes: metric versions of the stock themes (`themes/*_metric.mr`) by Abdullah-Ajeebi (upstream PR #376), and Catppuccin by StanTheAwesomeMan (Beacroxx).
 
