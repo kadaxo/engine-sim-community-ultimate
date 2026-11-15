@@ -59,6 +59,7 @@
   <ul>
     <li>Speech starts by itself when a screen reader is running: NVDA, JAWS, Narrator, ZoomText, System Access and several others are supported.</li>
     <li>Without a screen reader, press <kbd>J</kbd> once and the Windows voice is used instead.</li>
+    <li>This guide describes Windows. On Linux or a Mac, also read <a href="#other-systems">Linux and macOS</a>.</li>
     <li>When the simulator opens it says the name of the engine it loaded, for example "Loaded Subaru EJ25".</li>
     <li>The simulator window has no buttons or menus to move through. Everything is done with single keys, listed below, and the simulator answers out loud.</li>
     <li>To start an engine: press <kbd>A</kbd> to turn the ignition on, then hold <kbd>S</kbd> for the starter until you hear "Engine running".</li>
@@ -240,6 +241,25 @@
 engine-sim-app.exe</code></pre>
       The first line of the log says which screen reader was found, and every announcement is written below it. Please send that file along with your report.</li>
   </ol>
+</section>
+
+<section>
+  <h2 id="other-systems">Linux and macOS</h2>
+  <p>Screen reader support on Linux and macOS is written but <strong>not yet tested</strong>: so far it has only been tried on Windows. If you try it, please report what works and what doesn't, with a speech log (see below).</p>
+  <ul>
+    <li>Speech goes to Orca on Linux and to VoiceOver on macOS when they are running. After <kbd>J</kbd>, the Speech Dispatcher voice on Linux or the macOS system voice is used instead.</li>
+    <li>The keys are the same as on Windows. The engine list's last entry is "Another file, with the file dialog".</li>
+    <li>Orca's desktop layout uses <kbd>Insert</kbd> as its own key, like NVDA and JAWS, so <kbd>Insert</kbd> (video recording) probably won't reach the simulator.</li>
+    <li>VoiceOver's own commands use <kbd>Control</kbd> + <kbd>Option</kbd>. The simulator doesn't use those keys, so they don't clash.</li>
+  </ul>
+  <p>On a Mac keyboard:</p>
+  <ul>
+    <li>The top row controls brightness and volume unless you hold <kbd>Fn</kbd>. To use F1 to F12 without <kbd>Fn</kbd>, turn on "Use F1, F2, etc. keys as standard function keys" in System Settings, Keyboard.</li>
+    <li><kbd>F11</kbd> shows the desktop in macOS. To use it for the engine information readout, turn off the "Show Desktop" shortcut in System Settings, Keyboard, Keyboard Shortcuts, Mission Control.</li>
+    <li>Mac laptops have no Page Up, Page Down, Home or End keys: use <kbd>Fn</kbd> + <kbd>Up Arrow</kbd> and <kbd>Fn</kbd> + <kbd>Down Arrow</kbd> for Page Up and Page Down, and <kbd>Fn</kbd> + <kbd>Left Arrow</kbd> and <kbd>Fn</kbd> + <kbd>Right Arrow</kbd> for Home and End.</li>
+  </ul>
+  <p>To write a speech log, start the simulator from a terminal in its build folder:</p>
+  <pre><code>ENGINE_SIM_SPEECH_LOG=~/engine-sim-speech.txt ./engine-sim-app</code></pre>
 </section>
 </main>
 </body>

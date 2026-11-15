@@ -4,6 +4,7 @@
 
 #include "../../include/game_audio/exporter.h"
 
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>

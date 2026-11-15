@@ -1,0 +1,23 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: kadaxo <105596590+kadaxo@users.noreply.github.com>
+Date: Tue, 17 Nov 2026 01:30:00 +0300
+Subject: [PATCH] Include <cstdlib> instead of <malloc.h>
+
+<malloc.h> doesn't exist on macOS, and nothing from it is used here.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+diff --git a/src/standard_allocator.cpp b/src/standard_allocator.cpp
+--- a/src/standard_allocator.cpp
++++ b/src/standard_allocator.cpp
+@@ -1,6 +1,6 @@
+ #include "../include/standard_allocator.h"
+ 
+-#include <malloc.h>
++#include <cstdlib>
+ 
+ piranha::StandardAllocator *piranha::StandardAllocator::s_global = nullptr;
+ 
+-- 
+2.56.0.windows.2
+

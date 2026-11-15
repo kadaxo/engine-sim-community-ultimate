@@ -13,6 +13,7 @@
 #include "../../include/engine_script.h"
 #include "../../scripting/include/compiler.h"
 
+#include <cstdint>
 #include <algorithm>
 #include <cassert>
 #include <cmath>

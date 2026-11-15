@@ -1,5 +1,7 @@
 #include "../include/simulator.h"
 
+#include <cstdint>
+
 Simulator::Simulator() {
     m_engine = nullptr;
     m_vehicle = nullptr;

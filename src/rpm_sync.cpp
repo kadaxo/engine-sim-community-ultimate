@@ -1,5 +1,6 @@
 #include "../include/rpm_sync.h"
 
+#include <cstdint>
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>

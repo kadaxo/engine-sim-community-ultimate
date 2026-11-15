@@ -1,5 +1,6 @@
 #include "../../include/game_audio/wav_file.h"
 
+#include <cstdint>
 #include <algorithm>
 #include <cmath>
 #include <cstring>

@@ -9,6 +9,12 @@ env:
   # Old submodule CMakeLists still declare cmake_minimum_required() < 3.5,
   # which CMake 4 rejects without this
   CMAKE_POLICY_VERSION_MINIMUM: "3.5"
+  # The vcpkg version the Windows dependencies in deps/vcpkg-audio use, for
+  # the jobs that build Prism (screen reader output)
+  VCPKG_COMMIT: 817892b0ecbc6af994dd6df999c73faf795adbf2
+
+# Every job builds all targets and runs every test except the slow engine
+# builder test (label "slow", which runs each builder preset on the dyno).
 
 jobs:
   windows:
@@ -56,10 +62,10 @@ jobs:
           "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
 
       - name: Build
-        run: cmake --build build --config ${{ env.BUILD_TYPE }} --target engine-sim-app engine-sim-test boost-probe
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
 
       - name: Test
-        run: ctest --test-dir build -C ${{ env.BUILD_TYPE }} --output-on-failure
+        run: ctest --test-dir build -C ${{ env.BUILD_TYPE }} -LE slow --output-on-failure
 
   linux:
     runs-on: ubuntu-latest
@@ -79,7 +85,100 @@ jobs:
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
 
       - name: Build
-        run: cmake --build build --parallel --target engine-sim-app engine-sim-test boost-probe
+        run: cmake --build build --parallel
 
       - name: Test
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --test-dir build -LE slow --output-on-failure
+
+  macos:
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out source and submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # The grammar needs bison 3.2 or newer; macOS ships 2.3. Homebrew's
+      # bison and flex are keg-only, so CMake is pointed at them.
+      - name: Install dependencies
+        run: |
+          brew install sdl2 sdl2_image bison flex
+          echo "BISON_EXECUTABLE=$(brew --prefix bison)/bin/bison" >> "$GITHUB_ENV"
+          echo "FLEX_EXECUTABLE=$(brew --prefix flex)/bin/flex" >> "$GITHUB_ENV"
+
+      - name: Configure
+        run: >-
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+          "-DBISON_EXECUTABLE=$BISON_EXECUTABLE"
+          "-DFLEX_EXECUTABLE=$FLEX_EXECUTABLE"
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Test
+        run: ctest --test-dir build -LE slow --output-on-failure
+
+  # Screen reader output (Prism) on Linux and macOS: Speech Dispatcher, which
+  # Orca uses, on Linux; VoiceOver and the system voice on macOS. Separate
+  # from the jobs above so a Prism build problem can't hide a plain build
+  # break. The first run builds glib and glibmm from source on Linux.
+  speech:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Check out source and submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsdl2-dev libsdl2-image-dev flex bison \
+            autoconf autoconf-archive automake libtool libltdl-dev pkg-config \
+            python3 python3-venv ninja-build
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install sdl2 sdl2_image bison flex autoconf autoconf-archive automake libtool pkg-config
+          echo "BISON_EXECUTABLE=$(brew --prefix bison)/bin/bison" >> "$GITHUB_ENV"
+          echo "FLEX_EXECUTABLE=$(brew --prefix flex)/bin/flex" >> "$GITHUB_ENV"
+
+      - name: Restore built vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/vcpkg/archives
+          key: vcpkg-prism-${{ runner.os }}-${{ runner.arch }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('cmake/vcpkg-overlay-ports/**') }}
+
+      - name: Build Prism with vcpkg
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git "$RUNNER_TEMP/vcpkg"
+          git -C "$RUNNER_TEMP/vcpkg" checkout "$VCPKG_COMMIT"
+          "$RUNNER_TEMP/vcpkg/bootstrap-vcpkg.sh" -disableMetrics
+          "$RUNNER_TEMP/vcpkg/vcpkg" install ethindp-prism \
+            --overlay-ports="$GITHUB_WORKSPACE/cmake/vcpkg-overlay-ports"
+
+      - name: Configure
+        run: |
+          args=()
+          if [ -n "$BISON_EXECUTABLE" ]; then
+            args+=("-DBISON_EXECUTABLE=$BISON_EXECUTABLE" "-DFLEX_EXECUTABLE=$FLEX_EXECUTABLE")
+          fi
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            "-DCMAKE_TOOLCHAIN_FILE=$RUNNER_TEMP/vcpkg/scripts/buildsystems/vcpkg.cmake" \
+            "${args[@]}" | tee configure.log
+          # Fail here, not silently, if Prism wasn't picked up
+          grep -q "Screen reader output: enabled (Prism)" configure.log
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Test
+        run: ctest --test-dir build -LE slow --output-on-failure

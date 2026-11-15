@@ -53,6 +53,9 @@ if (GIT_FOUND)
     engine_sim_apply_patches(
         "${CMAKE_CURRENT_SOURCE_DIR}/delta-studio"
         "${PROJECT_SOURCE_DIR}/patches/delta-studio")
+    engine_sim_apply_patches(
+        "${CMAKE_CURRENT_SOURCE_DIR}/piranha"
+        "${PROJECT_SOURCE_DIR}/patches/piranha")
 else()
     message(WARNING "Git not found, can't apply patches/delta-studio (the Windows build will fail)")
 endif()

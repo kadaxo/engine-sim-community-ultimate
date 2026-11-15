@@ -12,6 +12,7 @@
 #include "delay_filter.h"
 #include "engine.h"
 
+#include <cstdint>
 #include <chrono>
 
 class Simulator {

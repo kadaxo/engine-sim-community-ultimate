@@ -1,0 +1,164 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: kadaxo <105596590+kadaxo@users.noreply.github.com>
+Date: Tue, 17 Nov 2026 01:30:00 +0300
+Subject: [PATCH] Build with current GCC and Xcode
+
+Headers that use the fixed-width integer types now include <cstdint>
+themselves, and the OpenGL device includes <cassert> for its assert:
+current standard libraries no longer pull these in through other headers.
+On macOS, the OpenGL headers path was added to a misspelled target
+("delta-code"), which stopped CMake, delta-physics couldn't find
+sse2neon.h on Apple Silicon because only delta-core had its include
+directory, and delta-basic linked its libraries whole with GNU ld's
+--whole-archive, which Apple's linker doesn't have (it uses -force_load).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -352,7 +352,7 @@ if(ENABLE_OPENGL)
+     target_include_directories(delta-core PRIVATE dependencies/libraries/OpenGL/include)
+ 
+     if (APPLE)
+-        target_include_directories(delta-code PRIVATE
++        target_include_directories(delta-core PRIVATE
+             "${OPENGL_INCLUDE_DIR}/Headers"
+         )
+     endif()
+diff --git a/engines/basic/CMakeLists.txt b/engines/basic/CMakeLists.txt
+--- a/engines/basic/CMakeLists.txt
++++ b/engines/basic/CMakeLists.txt
+@@ -80,6 +80,12 @@ add_library(delta-basic STATIC
+ if (WIN32)
+     set(LINK_WHOLE_ARCHIVE_START "")
+     set(LINK_WHOLE_ARCHIVE_END "")
++elseif (APPLE)
++    # Apple's linker has no --whole-archive; -force_load takes one archive each
++    set(LINK_WHOLE_ARCHIVE_START "")
++    set(LINK_WHOLE_ARCHIVE_END
++        -Wl,-force_load,$<TARGET_FILE:delta-core>
++        -Wl,-force_load,$<TARGET_FILE:delta-physics>)
+ else()
+     set(LINK_WHOLE_ARCHIVE_START -Wl,--push-state,--whole-archive)
+     set(LINK_WHOLE_ARCHIVE_END -Wl,--pop-state)
+diff --git a/include/yds_breakdown_timer.h b/include/yds_breakdown_timer.h
+--- a/include/yds_breakdown_timer.h
++++ b/include/yds_breakdown_timer.h
+@@ -2,6 +2,7 @@
+ #define YDS_BREAKDOWN_TIMER_H
+ 
+ #include "yds_base.h"
++#include <cstdint>
+ 
+ #include "yds_expanding_array.h"
+ #include "yds_dynamic_array.h"
+diff --git a/include/yds_breakdown_timer_channel.h b/include/yds_breakdown_timer_channel.h
+--- a/include/yds_breakdown_timer_channel.h
++++ b/include/yds_breakdown_timer_channel.h
+@@ -2,6 +2,7 @@
+ #define YDS_BREAKDOWN_TIMER_CHANNEL_H
+ 
+ #include "yds_base.h"
++#include <cstdint>
+ 
+ #include <string>
+ 
+diff --git a/include/yds_device.h b/include/yds_device.h
+--- a/include/yds_device.h
++++ b/include/yds_device.h
+@@ -2,6 +2,7 @@
+ #define YDS_DEVICE_H
+ 
+ #include "yds_base.h"
++#include <cstdint>
+ #include "yds_window.h"
+ #include "yds_context_object.h"
+ #include "yds_rendering_context.h"
+diff --git a/include/yds_sdl_audio_device.h b/include/yds_sdl_audio_device.h
+--- a/include/yds_sdl_audio_device.h
++++ b/include/yds_sdl_audio_device.h
+@@ -2,6 +2,7 @@
+ #define YDS_SDL_AUDIO_DEVICE_H
+ 
+ #include "yds_audio_device.h"
++#include <cstdint>
+ 
+ #include <SDL2/SDL_audio.h>
+ 
+diff --git a/include/yds_sdl_audio_source.h b/include/yds_sdl_audio_source.h
+--- a/include/yds_sdl_audio_source.h
++++ b/include/yds_sdl_audio_source.h
+@@ -2,6 +2,7 @@
+ #define YDS_SDL_AUDIO_SOURCE_H
+ 
+ #include "yds_audio_source.h"
++#include <cstdint>
+ 
+ #include <mutex>
+ 
+diff --git a/include/yds_sdl_audio_wave_file.h b/include/yds_sdl_audio_wave_file.h
+--- a/include/yds_sdl_audio_wave_file.h
++++ b/include/yds_sdl_audio_wave_file.h
+@@ -2,6 +2,7 @@
+ #define YDS_SDL_AUDIO_WAVE_FILE_H
+ 
+ #include "yds_audio_file.h"
++#include <cstdint>
+ 
+ class ysSdlAudioWaveFile : public ysAudioFile {
+ public:
+diff --git a/physics/CMakeLists.txt b/physics/CMakeLists.txt
+--- a/physics/CMakeLists.txt
++++ b/physics/CMakeLists.txt
+@@ -35,3 +35,7 @@ add_library(delta-physics
+     src/rigid_body_system.cpp
+     src/spring_link.cpp
+ )
++
++# yds_math.h includes sse2neon.h on ARM (Apple Silicon); delta-core has its
++# include directory, but this library doesn't link delta-core
++target_include_directories(delta-physics PRIVATE ../dependencies/libraries/sse2neon-1.6.0)
+diff --git a/physics/include/grid_partition_system.h b/physics/include/grid_partition_system.h
+--- a/physics/include/grid_partition_system.h
++++ b/physics/include/grid_partition_system.h
+@@ -2,6 +2,7 @@
+ #define DELTA_BASIC_GRID_PARTITION_SYSTEM_H
+ 
+ #include "delta_core.h"
++#include <cstdint>
+ 
+ namespace dphysics {
+ 
+diff --git a/src/yds_opengl_device.cpp b/src/yds_opengl_device.cpp
+--- a/src/yds_opengl_device.cpp
++++ b/src/yds_opengl_device.cpp
+@@ -13,6 +13,7 @@
+ #endif
+ 
+ #include "OpenGL.h"
++#include <cassert>
+ #include <SDL.h>
+ #include <SDL_image.h>
+ 
+diff --git a/src/yds_sdl_audio_system.cpp b/src/yds_sdl_audio_system.cpp
+--- a/src/yds_sdl_audio_system.cpp
++++ b/src/yds_sdl_audio_system.cpp
+@@ -1,4 +1,5 @@
+ #include "../include/yds_sdl_audio_system.h"
++#include <cstdint>
+ 
+ #include "../include/yds_sdl_audio_device.h"
+ 
+diff --git a/src/yds_timing.cpp b/src/yds_timing.cpp
+--- a/src/yds_timing.cpp
++++ b/src/yds_timing.cpp
+@@ -1,4 +1,5 @@
+ #include "../include/yds_timing.h"
++#include <cstdint>
+ 
+ #include <chrono>
+ 
+-- 
+2.56.0.windows.2
+

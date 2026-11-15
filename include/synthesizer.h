@@ -9,6 +9,7 @@
 #include "ring_buffer.h"
 #include "butterworth_low_pass_filter.h"
 
+#include <cstdint>
 #include <cinttypes>
 #include <thread>
 #include <mutex>

@@ -3,6 +3,7 @@
 #include "../include/utilities.h"
 #include "../include/delta.h"
 
+#include <cstdint>
 #include <cassert>
 #include <chrono>
 #include <cmath>

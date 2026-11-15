@@ -90,7 +90,7 @@ I wrote this to demo in a [YouTube video](https://youtu.be/RKT-sKtR970), not as 
 
 ## How do I build it? (Ignore this section if you're not a developer!)
 
-The project builds on Windows (Direct3D 11) and Linux (SDL2 + OpenGL). Boost is no longer needed.
+The project builds on Windows (Direct3D 11) and Linux (SDL2 + OpenGL). The macOS build (SDL2 + OpenGL) is set up in the GitHub workflow but hasn't been tried yet. Boost is no longer needed.
 
 ### Step 1 - Clone the repository
 ```git clone --recurse-submodules <url of this repository>```
@@ -113,9 +113,15 @@ vcpkg install sdl2:x64-windows sdl2-image:x64-windows libvorbis:x64-windows mp3l
 sudo apt install build-essential cmake libsdl2-dev libsdl2-image-dev flex bison
 ```
 
+**macOS** (Homebrew, untested):
+
+```
+brew install cmake sdl2 sdl2_image bison flex
+```
+
 libvorbis and LAME are optional: they let `engine-sim-export` write Ogg Vorbis and MP3 (WAV always works). CMake looks for their CMake packages (`Vorbis`, `Ogg`, `mp3lame`), which vcpkg provides; on Linux use `vcpkg install libvorbis mp3lame` and pass vcpkg's toolchain file to CMake. The configure output says which formats were enabled.
 
-[Prism](https://github.com/ethindp/prism) is optional too: it gives the simulator speech and braille output through screen readers (`vcpkg install ethindp-prism:x64-windows-static-md`). Without it the screen reader keys stay silent. Its port needs CMake 4 for MSVC; with an older vcpkg (such as the one bundled with Visual Studio) add `--overlay-ports=cmake/vcpkg-overlay-ports`, which builds it as C17. The configure output says whether screen reader output is enabled.
+[Prism](https://github.com/ethindp/prism) is optional too: it gives the simulator speech and braille output through screen readers (`vcpkg install ethindp-prism:x64-windows-static-md` on Windows, `vcpkg install ethindp-prism` on Linux and macOS, then pass vcpkg's toolchain file to CMake). On Linux it builds glib and glibmm and uses Speech Dispatcher, so the first install takes a while and needs autoconf, automake, libtool and pkg-config. Speech on Linux and macOS is untested; the `speech` job in `.github/workflows/cmake.yml` builds it. Without it the screen reader keys stay silent. Its port needs CMake 4 for MSVC; with an older vcpkg (such as the one bundled with Visual Studio) add `--overlay-ports=cmake/vcpkg-overlay-ports`, which builds it as C17. The configure output says whether screen reader output is enabled.
 
 ### Step 3 - Build and Run
 
@@ -133,7 +139,14 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ```
 
-Run the app with the build directory as the working directory so that it finds `../assets`: `cd build`, then `./engine-sim-app` on Linux or `Release\engine-sim-app.exe` on Windows (Visual Studio's debugger already uses that directory). On Windows the vcpkg toolchain copies the SDL2 DLLs next to the executable. On Linux, scripts in `~/.local/share/engine-sim/assets` take priority over the bundled ones, and `ENGINE_SIM_DATA_ROOT` points the app at a different data directory.
+macOS (untested). The script compiler needs Bison 3.2 or newer and macOS ships 2.3, so point CMake at Homebrew's Bison and Flex:
+
+```
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBISON_EXECUTABLE=$(brew --prefix bison)/bin/bison -DFLEX_EXECUTABLE=$(brew --prefix flex)/bin/flex
+cmake --build build -j
+```
+
+Run the app with the build directory as the working directory so that it finds `../assets`: `cd build`, then `./engine-sim-app` on Linux and macOS or `Release\engine-sim-app.exe` on Windows (Visual Studio's debugger already uses that directory). On Windows the vcpkg toolchain copies the SDL2 DLLs next to the executable. On Linux, scripts in `~/.local/share/engine-sim/assets` take priority over the bundled ones, and `ENGINE_SIM_DATA_ROOT` points the app at a different data directory.
 
 With CMake 4 add `-DCMAKE_POLICY_VERSION_MINIMUM=3.5`, since some submodules still declare a very old minimum version.
 

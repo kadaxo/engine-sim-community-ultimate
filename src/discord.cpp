@@ -1,5 +1,6 @@
 ﻿#include "../include/discord.h"
 
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <ctime>

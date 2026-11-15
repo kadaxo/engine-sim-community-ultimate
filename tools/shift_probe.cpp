@@ -9,6 +9,7 @@
 #include "../include/units.h"
 #include "../include/vehicle.h"
 
+#include <cstdint>
 #include <cstdio>
 #include <iostream>
 #include <string>

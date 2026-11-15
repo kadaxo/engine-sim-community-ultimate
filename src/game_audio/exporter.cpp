@@ -4,6 +4,7 @@
 #include "../../include/game_audio/loudness.h"
 #include "../../include/game_audio/wav_file.h"
 
+#include <cstdint>
 #include <algorithm>
 #include <atomic>
 #include <cctype>

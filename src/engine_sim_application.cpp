@@ -19,6 +19,7 @@
 
 #include "../scripting/include/compiler.h"
 
+#include <cstdint>
 #include <delta-studio/include/yds_error_handler.h>
 
 #include "build_info.h"
