@@ -178,7 +178,8 @@
         window.setTimeout(() => URL.revokeObjectURL(link.href), 10000);
 
         announce(`Saved ${name}, usually in your Downloads folder. ${B.summary(result.values)}. ` +
-            'In the simulator, press O and open this file.');
+            `In the simulator, press O. With speech on, it is in the engine list as "${result.values.name}, in Downloads"; ` +
+            'without speech, open the file in the Open dialog.');
     }
 
     function open(file) {

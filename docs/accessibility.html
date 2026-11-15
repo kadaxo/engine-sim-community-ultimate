@@ -141,13 +141,39 @@
     <caption>Files</caption>
     <thead><tr><th scope="col">Key</th><th scope="col">Action</th></tr></thead>
     <tbody>
-      <tr><td><kbd>O</kbd></td><td>Open an engine file with the standard Windows Open dialog. It starts in the engines folder.</td></tr>
+      <tr><td><kbd>O</kbd></td><td>Choose an engine from the engine list, read by name. See <a href="#choosing">Choosing an engine</a>.</td></tr>
+      <tr><td><kbd>[</kbd>, <kbd>]</kbd></td><td>Load the previous or next engine straight away. See <a href="#choosing">Choosing an engine</a>.</td></tr>
       <tr><td><kbd>Enter</kbd></td><td>Reload the current engine, for example after editing its file</td></tr>
       <tr><td><kbd>Escape</kbd></td><td>Exit the simulator</td></tr>
     </tbody>
   </table>
 
   <p class="note">Keys that only change the picture: <kbd>F</kbd> (full screen), <kbd>Tab</kbd> (switch screen), <kbd>M</kbd> and <kbd>,</kbd> (view layer), <kbd>F1</kbd> to <kbd>F3</kbd> (turn the engine view). <kbd>Insert</kbd> records video; your screen reader probably uses that key for itself.</p>
+</section>
+
+<section>
+  <h2 id="choosing">Choosing an engine</h2>
+  <p>Press <kbd>O</kbd> to open the engine list. You hear how many engines there are, then the engine that is running now. The engine keeps running while you browse, and the driving keys are off until the list closes.</p>
+  <table>
+    <caption>Keys in the engine list</caption>
+    <thead><tr><th scope="col">Key</th><th scope="col">Action</th></tr></thead>
+    <tbody>
+      <tr><td><kbd>Up Arrow</kbd>, <kbd>Down Arrow</kbd></td><td>Previous or next engine</td></tr>
+      <tr><td><kbd>Page Up</kbd>, <kbd>Page Down</kbd></td><td>Ten engines back or forward</td></tr>
+      <tr><td><kbd>Home</kbd>, <kbd>End</kbd></td><td>First or last entry</td></tr>
+      <tr><td>Letters and digits</td><td>Jump to the first name starting with what you type. Type quickly to add letters, for example <kbd>H</kbd> <kbd>O</kbd> for Honda. The same letter again goes to the next name starting with it.</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>Load the engine. You hear "Loaded" and its name.</td></tr>
+      <tr><td><kbd>Escape</kbd></td><td>Close the list and keep the engine you had</td></tr>
+    </tbody>
+  </table>
+  <ul>
+    <li>Engines are read by the name in their file, for example "Honda B18C5, VTEC, I4", in alphabetical order with their place in the list.</li>
+    <li>When two engines have the same name, the file name follows it so you can tell them apart, for example "Subaru EJ25, file 02 subaru ej25 uh".</li>
+    <li>Engines you saved from the <a href="#builder">engine builder</a> into your Downloads folder are in the list too, followed by "in Downloads".</li>
+    <li>The last entry, "Another file", opens the Windows Open dialog for an engine file anywhere else.</li>
+  </ul>
+  <p>Without speech, <kbd>O</kbd> opens the Windows Open dialog as before.</p>
+  <p><kbd>[</kbd> and <kbd>]</kbd>, the two keys to the right of <kbd>P</kbd>, load the previous or next engine straight away, in the same order as the list, with or without speech. You hear "Loaded", the engine's name as the list reads it and its place, for example "Loaded Honda B18C5, VTEC, I4, 39 of 102". Like an engine chosen from the list, it starts switched off.</p>
 </section>
 
 <section>
@@ -171,7 +197,7 @@
 
 <section>
   <h2 id="builder">Building your own engine</h2>
-  <p>The <a href="../tools/engine-builder/index.html">engine builder</a> is a web page with an ordinary form: pick a layout (single, inline 2 to 6, flat 4 and 6, V6, cross-plane or flat-plane V8, V10, V12), then fill in bore, stroke, compression, cam timing, intake, exhaust, ignition timing, the vehicle and the gearbox. Every field says what it does and which values are allowed. Start from one of the presets, change what you like and press "Save engine file". The file goes to your Downloads folder; open it in the simulator with <kbd>O</kbd>.</p>
+  <p>The <a href="../tools/engine-builder/index.html">engine builder</a> is a web page with an ordinary form: pick a layout (single, inline 2 to 6, flat 4 and 6, V6, cross-plane or flat-plane V8, V10, V12), then fill in bore, stroke, compression, cam timing, intake, exhaust, ignition timing, the vehicle and the gearbox. Every field says what it does and which values are allowed. Start from one of the presets, change what you like and press "Save engine file". The file goes to your Downloads folder. In the simulator, press <kbd>O</kbd>: it is in the engine list under its name, followed by "in Downloads".</p>
   <p>To change an engine you made, open it in the builder with "Open an engine made with this builder": all of its values come back into the form. The builder is in the <code>tools\engine-builder</code> folder as <code>index.html</code> and works in any web browser, without an internet connection.</p>
 </section>
 
@@ -182,7 +208,7 @@
     <li>Make a copy of the engine file you want to change, so the original stays as it was.</li>
     <li>Open the copy in a text editor. Many community engines keep their main settings near the top, one per line, each with a comment saying what it does, for example <code>label E_B(170.0) // Cylinder bore diameter. Units: millimeters.</code></li>
     <li>Change a value and save the file.</li>
-    <li>In the simulator, press <kbd>O</kbd> and open the copy, or press <kbd>Enter</kbd> if it is already loaded.</li>
+    <li>In the simulator, press <kbd>O</kbd> and choose the copy from the engine list, or press <kbd>Enter</kbd> if it is already loaded. While the copy has the same name as the original, the list adds the file name to tell them apart; change its <code>name:</code> line to give it a name of its own.</li>
     <li>If you hear "Script error", the message gives the file name, the line number and the problem. Fix it, save and press <kbd>Enter</kbd> again. The full list of errors is in <code>error_log.log</code> in the output folder.</li>
   </ol>
   <p>The exhaust sound is shaped by the exhaust settings (pipe lengths and diameters) and by the impulse response, a recording that gives the exhaust its character. In an engine file the impulse response is chosen on the line that contains <code>impulse_response</code>, for example <code>ir_lib.mild_exhaust_0</code> or one of <code>ir_lib.smooth_01</code> to <code>ir_lib.smooth_49</code>.</p>

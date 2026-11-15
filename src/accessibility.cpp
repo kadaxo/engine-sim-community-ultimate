@@ -81,6 +81,7 @@ Accessibility::Accessibility() {
     m_dynoPower = 0.0;
     m_lastSimulationFrequency = 0.0;
     m_loadReportTimer = 0.0;
+    m_engineListHintGiven = false;
 }
 
 Accessibility::~Accessibility() {
@@ -165,11 +166,13 @@ void Accessibility::onScriptLoaded() {
 
     Engine *engine = m_app->getSimulator()->getEngine();
     if (engine != nullptr) {
-        event("Loaded " + engine->getName());
+        event("Loaded " + (m_nextLoadLabel.empty() ? engine_list::spokenName(engine->getName()) : m_nextLoadLabel));
     }
+    m_nextLoadLabel.clear();
 }
 
 void Accessibility::onScriptFailed(const std::string &errorLogPath) {
+    m_nextLoadLabel.clear();
     const std::string error = spoken_text::scriptError(readFile(errorLogPath));
     event(error.empty() ? "The script failed to load" : error);
 }
@@ -335,6 +338,84 @@ void Accessibility::recordDynoRun(float dt) {
     m_dynoRun.push_back({ std::abs(engine->getRpm()), m_dynoTorque, m_dynoPower });
 }
 
+void Accessibility::openEngineList() {
+    std::vector<engine_list::Entry> entries = engine_list::find(engine_list::standardFolders(
+        m_app->getDataRoot().ToString(), m_app->getUserDataPath().ToString()));
+    const size_t engines = entries.size();
+#ifdef _WIN32
+    entries.push_back({ "Another file, with the Windows Open dialog", "" });
+#else
+    entries.push_back({ "Another file, with the file dialog", "" });
+#endif
+
+    Engine *engine = m_app->getSimulator()->getEngine();
+    m_engineList.open(
+        std::move(entries), (engine != nullptr) ? engine->getName() : "", m_app->getEngineScriptPath());
+
+    std::string intro = "Engine list, " + std::to_string(engines) + " engines";
+    if (!m_engineListHintGiven) {
+        intro += ". Up and Down arrows to browse, type the start of a name to jump, "
+            "Enter to load, Escape to close";
+        m_engineListHintGiven = true;
+    }
+
+    announce(intro);
+    announce(m_engineList.describe(), true);
+}
+
+void Accessibility::processEngineList() {
+    dbasic::DeltaEngine *keys = m_app->getEngine();
+
+    // Nobody to hear it any more (the screen reader was closed)
+    if (!isActive()) {
+        m_engineList.close();
+        return;
+    }
+
+    if (keys->ProcessKeyDown(ysKey::Code::Escape)) {
+        m_engineList.close();
+        announce("Engine list closed");
+        return;
+    }
+
+    if (keys->ProcessKeyDown(ysKey::Code::Return)) {
+        // "Loaded" and the engine's name follow once it has loaded
+        const engine_list::Entry chosen = m_engineList.current();
+        m_engineList.close();
+        if (chosen.path.empty()) m_app->chooseEngineScript();
+        else m_app->loadEngineFile(chosen.path);
+        return;
+    }
+
+    bool moved = false;
+    if (keys->ProcessKeyDown(ysKey::Code::Down)) { m_engineList.move(1); moved = true; }
+    if (keys->ProcessKeyDown(ysKey::Code::Up)) { m_engineList.move(-1); moved = true; }
+    if (keys->ProcessKeyDown(ysKey::Code::PageDown)) { m_engineList.move(10); moved = true; }
+    if (keys->ProcessKeyDown(ysKey::Code::PageUp)) { m_engineList.move(-10); moved = true; }
+    if (keys->ProcessKeyDown(ysKey::Code::Home)) { m_engineList.moveTo(0); moved = true; }
+    if (keys->ProcessKeyDown(ysKey::Code::End)) { m_engineList.moveTo(m_engineList.size() - 1); moved = true; }
+
+    // Type to jump. The key codes for 0-9 and A-Z are consecutive.
+    for (int i = 0; i < 36; ++i) {
+        const ysKey::Code code = (i < 10)
+            ? static_cast<ysKey::Code>(static_cast<int>(ysKey::Code::N0) + i)
+            : static_cast<ysKey::Code>(static_cast<int>(ysKey::Code::A) + i - 10);
+        if (!keys->ProcessKeyDown(code)) continue;
+
+        const char c = (i < 10) ? static_cast<char>('0' + i) : static_cast<char>('a' + i - 10);
+        if (m_engineList.type(c, m_time)) {
+            moved = true;
+        }
+        else {
+            announce("No engine starting with " + m_engineList.typed());
+            moved = false;
+        }
+    }
+
+    // Read again at either end too, so a key press is never met with silence
+    if (moved) announce(m_engineList.describe());
+}
+
 void Accessibility::watchSimulationFrequency(float dt) {
     const double frequency = m_app->getSimulator()->getSimulationFrequency();
     if (frequency != m_lastSimulationFrequency) {
@@ -395,7 +476,7 @@ spoken_text::Readings Accessibility::read() {
 
     if (engine != nullptr) {
         r.hasEngine = true;
-        r.engineName = engine->getName();
+        r.engineName = engine_list::spokenName(engine->getName());
         r.cylinders = engine->getCylinderCount();
         r.displacement = engine->getDisplacement();
         r.redline = engine->getRedline();

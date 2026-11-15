@@ -1,6 +1,7 @@
 #ifndef ATG_ENGINE_SIM_ACCESSIBILITY_H
 #define ATG_ENGINE_SIM_ACCESSIBILITY_H
 
+#include "engine_list.h"
 #include "screen_reader.h"
 #include "spoken_text.h"
 
@@ -30,10 +31,20 @@ public:
     void onScriptLoaded();
     void onScriptFailed(const std::string &errorLogPath);
 
+    // What to say after "Loaded" for the next engine instead of its name, for
+    // [ and ]: the engine list's name for it and its place in the list
+    void setNextLoadLabel(const std::string &label) { m_nextLoadLabel = label; }
+
     // The dyno sweep reached redline and switched itself off
     void onDynoRunFinished();
 
     bool isActive();
+
+    // The spoken engine list (O while speech is on). While it's open it takes
+    // the keyboard: processEngineList() runs instead of the usual keys.
+    bool isEngineListOpen() const { return m_engineList.isOpen(); }
+    void openEngineList();
+    void processEngineList();
 
 private:
     // A queued announcement waits for the current one to finish
@@ -76,6 +87,10 @@ private:
 
     double m_lastSimulationFrequency;
     double m_loadReportTimer;
+
+    engine_list::Browser m_engineList;
+    bool m_engineListHintGiven;
+    std::string m_nextLoadLabel;
 };
 
 #endif /* ATG_ENGINE_SIM_ACCESSIBILITY_H */

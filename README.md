@@ -68,7 +68,8 @@ The UI is extremely minimalistic and there are only a few controls used to inter
 | Tab | Change screen |
 | P | Toggle Average/Instant fuel consumption |
 | Page Up / Page Down | Same as one step of the mouse wheel, with any of the keys above that use Scroll |
-| O | Open an engine script (same as the LOAD ENGINE button) |
+| O | Open an engine script (same as the LOAD ENGINE button). With speech on, a spoken list of engines by name instead (see the accessibility guide) |
+| [ and ] | Previous or next engine, in the same order as the engine list (the two keys to the right of P) |
 | F5, F6, F7, F8, F9, F11, F12 | Screen reader: read out the engine, vehicle, dyno, air, fuel, engine info and sound settings |
 | Home | Screen reader: repeat the last announcement |
 | J | Screen reader: change how much is announced, or turn speech off (also turns on the Windows voice without a screen reader) |

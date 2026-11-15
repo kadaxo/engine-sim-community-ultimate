@@ -91,7 +91,22 @@ class EngineSimApplication {
         PerformanceCluster *getPerformanceCluster() { return m_performanceCluster; }
         ApplicationSettings* getAppSettings() { return &m_applicationSettings; }
         dbasic::Path getDataRoot() const { return m_dataRoot; }
+        dbasic::Path getUserDataPath() const { return m_userData; }
         dbasic::Path getOutputPath() const { return m_outputPath; }
+
+        // Ask for an engine script with the file dialog and run it
+        void chooseEngineScript();
+
+        // Run the engine in an engine script (one that defines main() or an
+        // engine node), as if picked with the file dialog
+        bool loadEngineFile(const std::string &path);
+
+        // Load the previous (-1) or next (+1) engine in the engine list's order
+        void stepEngine(int direction);
+
+        // The engine script loaded with loadEngineFile(), or empty for the
+        // one from main.mr
+        const std::string &getEngineScriptPath() const { return m_engineScriptPath; }
 
         // Actions from the UI buttons, carried out at the start of the next frame
         enum class UserAction {
@@ -107,7 +122,6 @@ class EngineSimApplication {
     protected:
         void loadScript();
         void reloadScript();
-        void chooseEngineScript();
         void chooseThemeScript();
         void initializeScriptSelection();
         bool writeSelectionScript();
@@ -153,6 +167,7 @@ class EngineSimApplication {
         std::string m_selectionThemeImport;
         std::string m_selectionThemeCall;
         std::vector<std::string> m_selectionEngineLines;
+        std::string m_engineScriptPath;
 
         ysRenderTarget *m_mainRenderTarget;
         ysGPUBuffer *m_geometryVertexBuffer;

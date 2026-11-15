@@ -14,6 +14,7 @@
 #include "../include/feedback_comb_filter.h"
 #include "../include/utilities.h"
 #include "../include/file_dialog.h"
+#include "../include/engine_list.h"
 #include "../include/engine_script.h"
 
 #include "../scripting/include/compiler.h"
@@ -280,8 +281,14 @@ void EngineSimApplication::process(float frame_dt) {
     // Limit jumps after stalls without speeding up rotation above 200 FPS.
     frame_dt = static_cast<float>(clamp(frame_dt, 0.0f, 1 / 30.0f));
 
+    // Digits typed in the engine list aren't slow motion
+    const bool slowMotionKeys = !m_accessibility.isEngineListOpen();
+
     double speed = 1.0 / 1.0;
-    if (m_engine.IsKeyDown(ysKey::Code::N1)) {
+    if (!slowMotionKeys) {
+        /* full speed */
+    }
+    else if (m_engine.IsKeyDown(ysKey::Code::N1)) {
         speed = 1 / 10.0;
     }
     else if (m_engine.IsKeyDown(ysKey::Code::N2)) {
@@ -501,26 +508,49 @@ void EngineSimApplication::run() {
         const UserAction action = m_requestedAction;
         m_requestedAction = UserAction::None;
 
-        if (m_engine.ProcessKeyDown(ysKey::Code::Escape) || action == UserAction::Exit) {
+        // The spoken engine list takes the keyboard while it's open: letters
+        // jump to names, Escape closes it and Enter loads the engine
+        const bool engineList = m_accessibility.isEngineListOpen();
+        if (engineList) {
+            m_accessibility.processEngineList();
+        }
+
+        if (action == UserAction::Exit
+            || (!engineList && m_engine.ProcessKeyDown(ysKey::Code::Escape)))
+        {
             break;
         }
 
-        if (m_engine.ProcessKeyDown(ysKey::Code::Return) || action == UserAction::Reload) {
+        if (action == UserAction::Reload
+            || (!engineList && m_engine.ProcessKeyDown(ysKey::Code::Return)))
+        {
             reloadScript();
         }
-        else if (action == UserAction::LoadEngine || m_engine.ProcessKeyDown(ysKey::Code::O)) {
+        else if (action == UserAction::LoadEngine) {
             chooseEngineScript();
+        }
+        else if (!engineList && m_engine.ProcessKeyDown(ysKey::Code::O)) {
+            // With speech on, a list of engines read by name instead of the
+            // file dialog's file names
+            if (m_accessibility.isActive()) m_accessibility.openEngineList();
+            else chooseEngineScript();
+        }
+        else if (!engineList && m_engine.ProcessKeyDown(ysKey::Code::OEM_4)) {
+            stepEngine(-1);     // [
+        }
+        else if (!engineList && m_engine.ProcessKeyDown(ysKey::Code::OEM_6)) {
+            stepEngine(1);      // ]
         }
         else if (action == UserAction::LoadTheme) {
             chooseThemeScript();
         }
 
-        if (m_engine.ProcessKeyDown(ysKey::Code::Tab)) {
+        if (!engineList && m_engine.ProcessKeyDown(ysKey::Code::Tab)) {
             m_screen++;
             if (m_screen > 2) m_screen = 0;
         }
 
-        if (m_engine.ProcessKeyDown(ysKey::Code::F)) {
+        if (!engineList && m_engine.ProcessKeyDown(ysKey::Code::F)) {
             if (m_engine.GetGameWindow()->GetWindowStyle() != ysWindow::WindowStyle::Fullscreen) {
                 m_engine.GetGameWindow()->SetWindowStyle(ysWindow::WindowStyle::Fullscreen);
                 m_infoCluster->setLogMessage("Entered fullscreen mode");
@@ -986,26 +1016,55 @@ void EngineSimApplication::chooseEngineScript() {
         getNativeWindowHandle(),
         &path);
 
-    const std::string call = picked ? engineScriptCall(readTextFile(path)) : std::string();
-    if (picked && call.empty()) {
-        m_infoCluster->setLogMessage("No engine found in " + path);
-    }
-
-    if (call.empty()) {
+    if (!picked || !loadEngineFile(path)) {
         if (m_simulator->getEngine() != nullptr) {
             m_audioSource->SetMode(ysAudioSource::Mode::Loop);
         }
-        return;
+    }
+}
+
+bool EngineSimApplication::loadEngineFile(const std::string &path) {
+    const std::string call = engineScriptCall(readTextFile(path));
+    if (call.empty()) {
+        m_infoCluster->setLogMessage("No engine found in " + path);
+        return false;
     }
 
+    const std::string assets = m_dataRoot.Append("assets").ToString();
     initializeScriptSelection();
     m_selectionEngineLines = { "import \"" + importPath(path, assets) + "\"", call };
+    m_engineScriptPath = path;
 
     if (!writeSelectionScript()) {
         m_infoCluster->setLogMessage("Couldn't write " + m_outputPath.Append("engine_selection.mr").ToString());
     }
 
     reloadScript();
+    return true;
+}
+
+void EngineSimApplication::stepEngine(int direction) {
+    const std::vector<engine_list::Entry> engines = engine_list::find(
+        engine_list::standardFolders(m_dataRoot.ToString(), m_userData.ToString()));
+    if (engines.empty()) {
+        m_infoCluster->setLogMessage("No engines found");
+        return;
+    }
+
+    // Engines that share a name are told apart by file, once one has been
+    // loaded from the list; the engine from main.mr is found by name
+    const std::string name = (m_iceEngine != nullptr) ? m_iceEngine->getName() : "";
+    const int count = static_cast<int>(engines.size());
+    const int index = engine_list::step(
+        engine_list::indexOf(engines, m_engineScriptPath, name), direction, count);
+
+    // Spoken as "Loaded <name as the list reads it>, 39 of 102", so engines
+    // that share a name can be told apart
+    m_accessibility.setNextLoadLabel(
+        engines[index].name + ", " + std::to_string(index + 1) + " of " + std::to_string(count));
+    if (!loadEngineFile(engines[index].path)) {
+        m_accessibility.setNextLoadLabel("");
+    }
 }
 
 void EngineSimApplication::chooseThemeScript() {
@@ -1046,6 +1105,13 @@ void EngineSimApplication::processEngineInput() {
     m_rpmSync.update();
 
     if (m_iceEngine == nullptr) {
+        return;
+    }
+
+    // Typing in the engine list mustn't work the starter, throttle or clutch.
+    // The engine keeps running as it was.
+    if (m_accessibility.isEngineListOpen()) {
+        m_lastMouseWheel = m_engine.GetMouseWheel();
         return;
     }
 

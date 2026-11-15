@@ -66,6 +66,7 @@ add_library(engine-sim STATIC
     src/direct_throttle_linkage.cpp
     src/dynamometer.cpp
     src/engine.cpp
+    src/engine_list.cpp
     src/exhaust_system.cpp
     src/feedback_comb_filter.cpp
     src/filter.cpp
@@ -131,6 +132,7 @@ add_library(engine-sim STATIC
     include/piston.h
     include/piston_engine_simulator.h
     include/simulator.h
+    include/engine_list.h
     include/spoken_text.h
     include/standard_valvetrain.h
     include/starter_motor.h
@@ -370,12 +372,17 @@ add_executable(engine-sim-test
     test/function_test.cpp
     test/synthesizer_tests.cpp
     test/spoken_text_tests.cpp
+    test/engine_list_tests.cpp
 )
 
 target_link_libraries(engine-sim-test
     gtest_main
     engine-sim
 )
+
+# The engine list tests read the bundled engine scripts
+target_compile_definitions(engine-sim-test
+    PRIVATE ENGINE_SIM_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 
 include(GoogleTest)
 # Discover at test time: listing the tests runs the executable, which fails
