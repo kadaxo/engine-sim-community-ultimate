@@ -3,6 +3,8 @@
 
 #include "valvetrain.h"
 
+#include <vector>
+
 class Engine;
 class VtecValvetrain : public Valvetrain {
 public:
@@ -35,6 +37,14 @@ public:
 
 private:
     bool isVtecEnabled() const;
+
+    // The cam a cylinder's valve follows. It changes only while the valve is
+    // closed on both cams, so the lift never jumps in the middle of an opening.
+    Camshaft *followedCamshaft(
+        int cylinder, std::vector<bool> &onVtec, Camshaft *normal, Camshaft *vtec);
+
+    std::vector<bool> m_intakeOnVtec;
+    std::vector<bool> m_exhaustOnVtec;
 
     Camshaft *m_intakeCamshaft;
     Camshaft *m_exhaustCamshaft;

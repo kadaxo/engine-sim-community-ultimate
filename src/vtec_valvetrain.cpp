@@ -1,6 +1,7 @@
 #include "../include/vtec_valvetrain.h"
 
 #include "../include/engine.h"
+#include "../include/units.h"
 
 VtecValvetrain::VtecValvetrain() {
     m_intakeCamshaft = nullptr;
@@ -32,18 +33,37 @@ void VtecValvetrain::initialize(const Parameters &parameters) {
     m_minThrottlePosition = parameters.minThrottlePosition;
     m_manifoldVacuum = parameters.manifoldVacuum;
     m_engine = parameters.engine;
+
+    m_intakeOnVtec.assign(m_intakeCamshaft->getLobeCount(), false);
+    m_exhaustOnVtec.assign(m_exhaustCamshaft->getLobeCount(), false);
 }
 
 double VtecValvetrain::intakeValveLift(int cylinder) {
-    return isVtecEnabled()
-        ? m_vtecIntakeCamshaft->valveLift(cylinder)
-        : m_intakeCamshaft->valveLift(cylinder);
+    return followedCamshaft(cylinder, m_intakeOnVtec, m_intakeCamshaft, m_vtecIntakeCamshaft)
+        ->valveLift(cylinder);
 }
 
 double VtecValvetrain::exhaustValveLift(int cylinder) {
-    return isVtecEnabled()
-        ? m_vtecExhaustCamshaft->valveLift(cylinder)
-        : m_exhaustCamshaft->valveLift(cylinder);
+    return followedCamshaft(cylinder, m_exhaustOnVtec, m_exhaustCamshaft, m_vtecExhaustCamshaft)
+        ->valveLift(cylinder);
+}
+
+Camshaft *VtecValvetrain::followedCamshaft(
+    int cylinder, std::vector<bool> &onVtec, Camshaft *normal, Camshaft *vtec)
+{
+    // Lobe profiles end on a sampled value rather than exactly zero, so
+    // anything below valve lash counts as closed
+    constexpr double ClosedLift = units::distance(0.01, units::mm);
+
+    const bool requested = isVtecEnabled();
+    if (onVtec[cylinder] != requested
+        && normal->valveLift(cylinder) < ClosedLift
+        && vtec->valveLift(cylinder) < ClosedLift)
+    {
+        onVtec[cylinder] = requested;
+    }
+
+    return onVtec[cylinder] ? vtec : normal;
 }
 
 Camshaft *VtecValvetrain::getActiveIntakeCamshaft() {
