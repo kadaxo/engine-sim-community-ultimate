@@ -39,16 +39,6 @@ project(engine-sim VERSION 0.1.12)
 
 set(CMAKE_CXX_STANDARD 17)
 
-# Programs that never draw (the tests and command-line tools) still link
-# delta-studio's renderers. On Windows, delay-load the Direct3D extension
-# libraries so they start without the legacy D3DX runtime installed.
-function(engine_sim_headless target)
-    if (MSVC)
-        target_link_options(${target} PRIVATE delayimp.lib
-            /DELAYLOAD:d3dx10_43.dll /DELAYLOAD:d3dx11_43.dll)
-    endif ()
-endfunction ()
-
 # ========================================================
 # GTEST
 
@@ -400,7 +390,6 @@ target_link_libraries(engine-sim-test
     gtest_main
     engine-sim
 )
-engine_sim_headless(engine-sim-test)
 
 # The engine list tests read the bundled engine scripts
 target_compile_definitions(engine-sim-test
@@ -416,13 +405,11 @@ if (PIRANHA_ENABLED)
     add_executable(boost-probe tools/boost_probe.cpp)
     target_link_libraries(boost-probe engine-sim engine-sim-script-interpreter)
     target_include_directories(boost-probe PUBLIC dependencies/submodules)
-    engine_sim_headless(boost-probe)
 
     # Headless gear shift probe
     add_executable(shift-probe tools/shift_probe.cpp)
     target_link_libraries(shift-probe engine-sim engine-sim-script-interpreter)
     target_include_directories(shift-probe PUBLIC dependencies/submodules)
-    engine_sim_headless(shift-probe)
 endif (PIRANHA_ENABLED)
 
 # ========================================================
@@ -489,7 +476,6 @@ if (GAME_AUDIO_EXPORT)
 
     target_link_libraries(engine-sim-export
         engine-sim-game-audio)
-    engine_sim_headless(engine-sim-export)
 
     add_executable(engine-sim-game-audio-test
         test/game_audio_tests.cpp)
@@ -497,7 +483,6 @@ if (GAME_AUDIO_EXPORT)
     target_link_libraries(engine-sim-game-audio-test
         gtest_main
         engine-sim-game-audio)
-    engine_sim_headless(engine-sim-game-audio-test)
 
     if (TARGET Vorbis::vorbisfile)
         target_link_libraries(engine-sim-game-audio-test Vorbis::vorbisfile)

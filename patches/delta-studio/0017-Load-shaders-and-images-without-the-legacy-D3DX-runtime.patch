@@ -1,0 +1,394 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: kadaxo <105596590+kadaxo@users.noreply.github.com>
+Date: Mon, 16 Nov 2026 18:30:00 +0300
+Subject: [PATCH] Load shaders and images without the legacy D3DX runtime
+
+The Direct3D 10 and 11 devices compiled shaders and read image files with
+D3DX, which isn't part of Windows: it comes from the DirectX End-User
+Runtime of 2010, which may only be installed with Microsoft's own setup
+program. Without it, programs built with delta-studio failed to start on
+a clean Windows install ("d3dx11_43.dll was not found").
+
+Shaders are now compiled with D3DCompileFromFile from d3dcompiler_47.dll,
+which Windows 10 and later include, and image files are read with
+SDL_image, as the OpenGL device already does. A shader file that can't
+be read now reports why instead of dereferencing a missing error blob,
+and the Direct3D 10 device reports the compiler's message instead of an
+uninitialized buffer.
+---
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 119ee9d8..114eeed0 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -257,26 +257,25 @@ if(ENABLE_D3D)
+         include/yds_d3d11_utilities.h
+     )
+ 
+-    set(
+-        D3DX_LIBS
+-        ${CMAKE_CURRENT_SOURCE_DIR}/dependencies/libraries/D3DX/lib/${TARGET_ARCHITECTURE})
++    # Shaders are compiled with d3dcompiler_47.dll, which Windows 10 and
++    # later include, and image files are read with SDL_image, instead of the
++    # legacy D3DX runtime
++    if (NOT ENABLE_SDL)
++        message(FATAL_ERROR "The Direct3D devices read image files with SDL_image; enable OpenGL or the SDL platform too")
++    endif()
++    target_sources(delta-core PRIVATE
++        src/yds_d3d_file_loading.cpp
++        include/yds_d3d_file_loading.h
++    )
++
+     set(
+         DXGI_LIBS
+         ${CMAKE_CURRENT_SOURCE_DIR}/dependencies/libraries/DXGI/lib/${TARGET_ARCHITECTURE})
+-    target_include_directories(delta-core PUBLIC dependencies/libraries/D3DX/include)
+-
+     target_link_libraries(delta-core PRIVATE
+-        # D3DX
+         d3d9
+         d3d10
+         d3d11
+-        $<$<CONFIG:Debug>:${D3DX_LIBS}/d3dx9d.lib>
+-        $<$<NOT:$<CONFIG:Debug>>:${D3DX_LIBS}/d3dx9.lib>
+-        $<$<CONFIG:Debug>:${D3DX_LIBS}/d3dx10d.lib>
+-        $<$<NOT:$<CONFIG:Debug>>:${D3DX_LIBS}/d3dx10.lib>
+-        $<$<CONFIG:Debug>:${D3DX_LIBS}/d3dx11d.lib>
+-        $<$<NOT:$<CONFIG:Debug>>:${D3DX_LIBS}/d3dx11.lib>
+-        ${D3DX_LIBS}/d3dxof.lib
++        d3dcompiler
+ 
+         # DXGI
+         ${DXGI_LIBS}/DxErr.lib
+diff --git a/src/yds_d3d10_device.cpp b/src/yds_d3d10_device.cpp
+index fc949139..7ed1e411 100644
+--- a/src/yds_d3d10_device.cpp
++++ b/src/yds_d3d10_device.cpp
+@@ -12,11 +12,7 @@
+ 
+ #include <D3D10.h>
+ 
+-#pragma warning(push, 0)
+-#include <d3dx10.h>
+-#include <d3dx10async.h>
+-#include <d3dx10tex.h>
+-#pragma warning(pop)
++#include "../include/yds_d3d_file_loading.h"
+ 
+ ysD3D10Device::ysD3D10Device() : ysDevice(DeviceAPI::DirectX10) {
+     m_device = nullptr;
+@@ -768,16 +764,15 @@ ysError ysD3D10Device::CreateVertexShader(ysShader **newShader, const char *shad
+     if (shaderName == nullptr) return YDS_ERROR_RETURN(ysError::InvalidParameter);
+ 
+     ID3D10VertexShader *vertexShader;
+-    ID3D10Blob *error;
+     ID3D10Blob *shaderBlob;
+-    char errorBuffer[2048];
+ 
+     HRESULT result;
+ 
+-    result = D3DX10CompileFromFile(shaderFilename, nullptr, nullptr, shaderName, "vs_4_0", D3D10_SHADER_ENABLE_STRICTNESS, 0, nullptr, &shaderBlob, &error, nullptr);
++    std::string compileMessage;
++    result = ysD3DCompileShaderFile(shaderFilename, shaderName, "vs_4_0", &shaderBlob, &compileMessage);
+ 
+     if (FAILED(result)) {
+-        return YDS_ERROR_RETURN_MSG(ysError::VertexShaderCompilationError, errorBuffer);
++        return YDS_ERROR_RETURN_MSG(ysError::VertexShaderCompilationError, compileMessage.c_str());
+     }
+ 
+     result = m_device->CreateVertexShader(shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(), &vertexShader);
+@@ -810,15 +805,14 @@ ysError ysD3D10Device::CreatePixelShader(ysShader **newShader, const char *shade
+     if (shaderName == nullptr) return YDS_ERROR_RETURN(ysError::InvalidParameter);
+ 
+     ID3D10PixelShader *pixelShader;
+-    ID3D10Blob *error;
+     ID3D10Blob *shaderBlob;
+-    char errorBuffer[2048];
+ 
+     HRESULT result;
+-    result = D3DX10CompileFromFile(shaderFilename, nullptr, nullptr, shaderName, "ps_4_0", D3D10_SHADER_ENABLE_STRICTNESS, 0, nullptr, &shaderBlob, &error, nullptr);
++    std::string compileMessage;
++    result = ysD3DCompileShaderFile(shaderFilename, shaderName, "ps_4_0", &shaderBlob, &compileMessage);
+ 
+     if (FAILED(result)) {
+-        return YDS_ERROR_RETURN_MSG(ysError::FragmentShaderCompilationError, errorBuffer);
++        return YDS_ERROR_RETURN_MSG(ysError::FragmentShaderCompilationError, compileMessage.c_str());
+     }
+ 
+     result = m_device->CreatePixelShader(shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(), &pixelShader);
+@@ -1038,12 +1032,31 @@ ysError ysD3D10Device::CreateTexture(ysTexture **newTexture, const char *fname)
+     D3D10_TEXTURE2D_DESC desc;
+     HRESULT result;
+ 
+-    result = D3DX10CreateTextureFromFile(m_device, fname, nullptr, nullptr, (ID3D10Resource **)&newD3DTexture, nullptr);
++    std::vector<unsigned char> pixels;
++    std::string message;
++    int width, height;
++    if (!ysLoadRgbaImage(fname, &pixels, &width, &height, &message)) {
++        return YDS_ERROR_RETURN_MSG(ysError::CouldNotOpenTexture, message.c_str());
++    }
++
++    ZeroMemory(&desc, sizeof(desc));
++    desc.Width = width;
++    desc.Height = height;
++    desc.MipLevels = desc.ArraySize = 1;
++    desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
++    desc.SampleDesc.Count = 1;
++    desc.Usage = D3D10_USAGE_IMMUTABLE;
++    desc.BindFlags = D3D10_BIND_SHADER_RESOURCE;
++
++    D3D10_SUBRESOURCE_DATA data;
++    data.pSysMem = pixels.data();
++    data.SysMemPitch = width * 4;
++    data.SysMemSlicePitch = 0;
++
++    result = m_device->CreateTexture2D(&desc, &data, &newD3DTexture);
+     if (FAILED(result)) {
+         return YDS_ERROR_RETURN_MSG(ysError::CouldNotOpenTexture, fname);
+     }
+-
+-    newD3DTexture->GetDesc(&desc);
+     ZeroMemory(&srvDesc, sizeof(srvDesc));
+     srvDesc.Format = desc.Format;
+     srvDesc.ViewDimension = D3D10_SRV_DIMENSION_TEXTURE2D;
+diff --git a/src/yds_d3d11_device.cpp b/src/yds_d3d11_device.cpp
+index b9b767b9..683c6c07 100644
+--- a/src/yds_d3d11_device.cpp
++++ b/src/yds_d3d11_device.cpp
+@@ -13,9 +13,9 @@
+ 
+ #include <d3d11.h>
+ 
++#include "../include/yds_d3d_file_loading.h"
++
+ #pragma warning(push, 0)
+-#include <d3dx11async.h>
+-#include <d3dx11tex.h>
+ 
+ #ifdef _DEBUG
+ #include <dxgi1_3.h>
+@@ -987,14 +987,14 @@ ysError ysD3D11Device::CreateVertexShader(ysShader **newShader, const char *shad
+     if (shaderName == nullptr) return YDS_ERROR_RETURN(ysError::InvalidParameter);
+ 
+     ID3D11VertexShader *vertexShader;
+-    ID3D10Blob *error;
+     ID3D10Blob *shaderBlob;
+ 
++    std::string compileMessage;
+     HRESULT result;
+-    result = D3DX11CompileFromFile(shaderFilename, nullptr, nullptr, shaderName, "vs_4_0", D3D10_SHADER_ENABLE_STRICTNESS, 0, nullptr, &shaderBlob, &error, nullptr);
++    result = ysD3DCompileShaderFile(shaderFilename, shaderName, "vs_4_0", &shaderBlob, &compileMessage);
+ 
+     if (FAILED(result)) {
+-        return YDS_ERROR_RETURN_MSG(ysError::VertexShaderCompilationError, (char *)error->GetBufferPointer());
++        return YDS_ERROR_RETURN_MSG(ysError::VertexShaderCompilationError, compileMessage.c_str());
+     }
+ 
+     result = m_device->CreateVertexShader(shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(), nullptr, &vertexShader);
+@@ -1029,14 +1029,14 @@ ysError ysD3D11Device::CreatePixelShader(ysShader **newShader, const char *shade
+     if (shaderName == nullptr) return YDS_ERROR_RETURN(ysError::InvalidParameter);
+ 
+     ID3D11PixelShader *pixelShader;
+-    ID3D10Blob *error;
+     ID3D10Blob *shaderBlob;
+ 
++    std::string compileMessage;
+     HRESULT result;
+-    result = D3DX11CompileFromFile(shaderFilename, nullptr, nullptr, shaderName, "ps_4_0", D3D10_SHADER_ENABLE_STRICTNESS, 0, nullptr, &shaderBlob, &error, nullptr);
++    result = ysD3DCompileShaderFile(shaderFilename, shaderName, "ps_4_0", &shaderBlob, &compileMessage);
+ 
+     if (FAILED(result)) {
+-        return YDS_ERROR_RETURN_MSG(ysError::FragmentShaderCompilationError, (char *)error->GetBufferPointer());
++        return YDS_ERROR_RETURN_MSG(ysError::FragmentShaderCompilationError, compileMessage.c_str());
+     }
+ 
+     result = m_device->CreatePixelShader(shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(), nullptr, &pixelShader);
+@@ -1274,40 +1274,14 @@ ysError ysD3D11Device::CreateTexture(ysTexture **newTexture, const char *fname)
+ 
+     *newTexture = nullptr;
+ 
+-    ID3D11Texture2D *newD3DTexture = nullptr;
+-    ID3D11ShaderResourceView *resourceView;
+-
+-    D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
+-    D3D11_TEXTURE2D_DESC desc;
+-    HRESULT result;
+-
+-    D3DX11_IMAGE_LOAD_INFO info;
+-    memset((void *)&info, 0, sizeof(D3DX11_IMAGE_LOAD_INFO));
+-
+-    result = D3DX11CreateTextureFromFile(m_device, fname, nullptr, nullptr, (ID3D11Resource **)&newD3DTexture, nullptr);
+-    if (FAILED(result)) {
+-        return YDS_ERROR_RETURN_MSG(ysError::CouldNotOpenTexture, fname);
++    std::vector<unsigned char> pixels;
++    std::string message;
++    int width, height;
++    if (!ysLoadRgbaImage(fname, &pixels, &width, &height, &message)) {
++        return YDS_ERROR_RETURN_MSG(ysError::CouldNotOpenTexture, message.c_str());
+     }
+ 
+-    newD3DTexture->GetDesc(&desc);
+-    ZeroMemory(&srvDesc, sizeof(srvDesc));
+-    srvDesc.Format = desc.Format;
+-    srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+-    srvDesc.Texture2D.MostDetailedMip = 0;
+-    srvDesc.Texture2D.MipLevels = desc.MipLevels;
+-
+-    result = m_device->CreateShaderResourceView(newD3DTexture, &srvDesc, &resourceView);
+-    if (FAILED(result)) {
+-        return YDS_ERROR_RETURN(ysError::CouldNotMakeShaderResourceView);
+-    }
+-
+-    ysD3D11Texture *newD3D11Texture = m_textures.NewGeneric<ysD3D11Texture>();
+-    newD3D11Texture->m_resourceView = resourceView;
+-    newD3D11Texture->m_width = desc.Width;
+-    newD3D11Texture->m_height = desc.Height;
+-    *newTexture = newD3D11Texture;
+-
+-    newD3DTexture->Release();
++    YDS_NESTED_ERROR_CALL(CreateTexture(newTexture, width, height, pixels.data()));
+ 
+     return YDS_ERROR_RETURN(ysError::None);
+ }
+diff --git a/include/yds_d3d_file_loading.h b/include/yds_d3d_file_loading.h
+new file mode 100644
+index 00000000..541ad731
+--- /dev/null
++++ b/include/yds_d3d_file_loading.h
+@@ -0,0 +1,30 @@
++#ifndef YDS_D3D_FILE_LOADING_H
++#define YDS_D3D_FILE_LOADING_H
++
++// Shader and image loading for the Direct3D 10 and 11 devices, using only
++// what Windows 10 and later include (d3dcompiler_47.dll) and SDL_image, in
++// place of the legacy D3DX runtime that has to be installed separately.
++
++#include <d3dcommon.h>
++
++#include <string>
++#include <vector>
++
++// Compiles one entry point of an HLSL file. On failure, message holds the
++// compiler's output, or why the file couldn't be read.
++HRESULT ysD3DCompileShaderFile(
++    const char *filename,
++    const char *entryPoint,
++    const char *target,
++    ID3DBlob **blob,
++    std::string *message);
++
++// Reads an image file as rows of 8-bit RGBA pixels with no padding.
++bool ysLoadRgbaImage(
++    const char *filename,
++    std::vector<unsigned char> *pixels,
++    int *width,
++    int *height,
++    std::string *message);
++
++#endif /* YDS_D3D_FILE_LOADING_H */
+diff --git a/src/yds_d3d_file_loading.cpp b/src/yds_d3d_file_loading.cpp
+new file mode 100644
+index 00000000..00a36f16
+--- /dev/null
++++ b/src/yds_d3d_file_loading.cpp
+@@ -0,0 +1,98 @@
++#include "../include/yds_d3d_file_loading.h"
++
++#include <windows.h>
++#include <d3dcompiler.h>
++#include <SDL_image.h>
++
++#include <algorithm>
++
++HRESULT ysD3DCompileShaderFile(
++    const char *filename,
++    const char *entryPoint,
++    const char *target,
++    ID3DBlob **blob,
++    std::string *message)
++{
++    *blob = nullptr;
++    message->clear();
++
++    // The device API takes file names in the ANSI code page, as D3DX did
++    const int length = MultiByteToWideChar(CP_ACP, 0, filename, -1, nullptr, 0);
++    if (length <= 0) {
++        *message = std::string("Invalid shader file name: ") + filename;
++        return E_INVALIDARG;
++    }
++
++    std::wstring wideFilename(length, L'\0');
++    MultiByteToWideChar(CP_ACP, 0, filename, -1, &wideFilename[0], length);
++
++    ID3DBlob *errors = nullptr;
++    const HRESULT result = D3DCompileFromFile(
++        wideFilename.c_str(),
++        nullptr,
++        D3D_COMPILE_STANDARD_FILE_INCLUDE,
++        entryPoint,
++        target,
++        D3DCOMPILE_ENABLE_STRICTNESS,
++        0,
++        blob,
++        &errors);
++
++    if (errors != nullptr) {
++        if (FAILED(result)) {
++            message->assign(
++                static_cast<const char *>(errors->GetBufferPointer()),
++                errors->GetBufferSize());
++        }
++        errors->Release();
++    }
++
++    // A missing or unreadable file fails without compiler output
++    if (FAILED(result) && message->empty()) {
++        *message = std::string("Could not read shader file: ") + filename;
++    }
++
++    return result;
++}
++
++bool ysLoadRgbaImage(
++    const char *filename,
++    std::vector<unsigned char> *pixels,
++    int *width,
++    int *height,
++    std::string *message)
++{
++    pixels->clear();
++    *width = *height = 0;
++
++    SDL_Surface *loaded = IMG_Load(filename);
++    if (loaded == nullptr) {
++        *message = std::string(filename) + ": " + IMG_GetError();
++        return false;
++    }
++
++    // RGBA32 is R, G, B, A in memory, which is DXGI_FORMAT_R8G8B8A8_UNORM
++    SDL_Surface *rgba = SDL_ConvertSurfaceFormat(loaded, SDL_PIXELFORMAT_RGBA32, 0);
++    SDL_FreeSurface(loaded);
++    if (rgba == nullptr) {
++        *message = std::string(filename) + ": " + SDL_GetError();
++        return false;
++    }
++
++    const size_t rowBytes = static_cast<size_t>(rgba->w) * 4;
++    pixels->resize(rowBytes * rgba->h);
++
++    SDL_LockSurface(rgba);
++    for (int y = 0; y < rgba->h; ++y) {
++        const unsigned char *row =
++            static_cast<const unsigned char *>(rgba->pixels) + static_cast<size_t>(y) * rgba->pitch;
++        std::copy(row, row + rowBytes, pixels->begin() + y * rowBytes);
++    }
++    SDL_UnlockSurface(rgba);
++
++    *width = rgba->w;
++    *height = rgba->h;
++    SDL_FreeSurface(rgba);
++
++    return true;
++}
+-- 
+2.56.0.windows.2
+
