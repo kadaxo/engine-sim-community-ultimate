@@ -527,14 +527,26 @@ endif ()
 # RELEASE PACKAGE
 #
 # `cmake --install build --component release --prefix <dir>` lays out a folder
-# that runs on its own: the programs beside the engine scripts, the libraries
-# they load and the licenses. scripts/package-windows.ps1 checks it and zips
-# it (.github/workflows/release.yml). Other install rules (googletest,
+# that runs on its own: the programs, the engine scripts, the libraries the
+# programs load and the licenses. On Windows and Linux everything is in one
+# folder; on macOS the programs and data are in "Engine Sim.app", with the
+# README and licenses beside it. scripts/package-windows.ps1 and
+# scripts/package.sh check the folder and archive it
+# (.github/workflows/release.yml). Other install rules (googletest,
 # discord-rpc) are in other components.
 
 set(ENGINE_SIM_RELEASE_PROGRAMS engine-sim-app)
 if (TARGET engine-sim-export)
     list(APPEND ENGINE_SIM_RELEASE_PROGRAMS engine-sim-export)
+endif ()
+
+if (APPLE)
+    set(ENGINE_SIM_BUNDLE "Engine Sim.app")
+    set(_release_programs "${ENGINE_SIM_BUNDLE}/Contents/MacOS")
+    set(_release_data "${ENGINE_SIM_BUNDLE}/Contents/Resources")
+else ()
+    set(_release_programs .)
+    set(_release_data .)
 endif ()
 
 # vcpkg (or other) prefixes the build took libraries from, with forward
@@ -593,37 +605,49 @@ if (WIN32 AND NOT CMAKE_VERSION VERSION_LESS 3.21)
         include(InstallRequiredSystemLibraries)
     endif ()
 else ()
+    # macOS and Linux downloads link the vcpkg libraries statically; on Linux
+    # SDL2 and SDL2_image come from the system
     install(TARGETS ${ENGINE_SIM_RELEASE_PROGRAMS}
-        RUNTIME DESTINATION . COMPONENT release)
+        RUNTIME DESTINATION "${_release_programs}" COMPONENT release)
 endif ()
 
-# Engine scripts and the script library; the app finds them beside itself
+if (APPLE)
+    if (CMAKE_OSX_DEPLOYMENT_TARGET)
+        set(ENGINE_SIM_MACOS_MINIMUM "${CMAKE_OSX_DEPLOYMENT_TARGET}")
+    else ()
+        set(ENGINE_SIM_MACOS_MINIMUM 11.0)
+    endif ()
+    configure_file(cmake/release/Info.plist.in
+        ${CMAKE_CURRENT_BINARY_DIR}/release-files/Info.plist @ONLY)
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/release-files/Info.plist
+        DESTINATION "${ENGINE_SIM_BUNDLE}/Contents" COMPONENT release)
+endif ()
+
+# Engine scripts and the script library; the app finds them beside itself,
+# or in Contents/Resources inside the macOS app (see data_root::find)
 install(DIRECTORY assets es
-    DESTINATION . COMPONENT release
+    DESTINATION "${_release_data}" COMPONENT release
     PATTERN "probe_*.mr" EXCLUDE)
 
-# delta-studio's shaders and the console font, at the paths delta.conf gives
+# delta-studio's shaders and the console font, in delta/ where the app looks
+# for them before the submodule's folder
 set(_delta_basic dependencies/submodules/delta-studio/engines/basic)
 install(DIRECTORY ${_delta_basic}/shaders/
-    DESTINATION delta/shaders COMPONENT release)
+    DESTINATION "${_release_data}/delta/shaders" COMPONENT release)
 install(DIRECTORY ${_delta_basic}/fonts/Silkscreen
-    DESTINATION delta/fonts COMPONENT release)
-# Installed from the source tree: a copy anywhere in the build folder could
-# end up beside the app being developed (build/Release with Visual Studio),
-# which would then read it
-install(FILES cmake/release/delta.conf
-    DESTINATION . COMPONENT release)
+    DESTINATION "${_release_data}/delta/fonts" COMPONENT release)
 
 # Documentation, and the engine builder at the path the guide links to
+# (the guide opens with F4, from the data folder)
 install(FILES README.md COMMUNITY.md LICENSE RPM_SYNC.md
     DESTINATION . COMPONENT release)
 install(DIRECTORY docs
-    DESTINATION . COMPONENT release)
+    DESTINATION "${_release_data}" COMPONENT release)
 install(FILES
         tools/engine-builder/index.html
         tools/engine-builder/builder.js
         tools/engine-builder/generator.js
-    DESTINATION tools/engine-builder COMPONENT release)
+    DESTINATION "${_release_data}/tools/engine-builder" COMPONENT release)
 
 # Licenses: this project's, the bundled libraries' and those of the packages
 # the build took from vcpkg (share/<port>/copyright)

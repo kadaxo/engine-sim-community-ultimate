@@ -26,7 +26,11 @@ It is not a scientific tool: it is designed to sound and respond like an engine,
 
 **Windows 10 or 11 (64-bit):** download `engine-sim-community-<version>-windows-x64.zip` from the [releases](https://github.com/kadaxo/engine-sim-community-ultimate/releases), unzip it into a folder you can write to (such as Documents, not Program Files) and run `engine-sim-app.exe`. Nothing needs installing: SDL2 and the Visual C++ runtime are in the folder, screen reader output is built in, and `engine-sim-export.exe` is next to the app. The app isn't signed, so Windows may say "Windows protected your PC": choose **More info**, then **Run anyway**.
 
-There are no macOS or Linux downloads yet; build from source there (see [Building from source](#building-from-source)). The [original project's releases](https://github.com/ange-yaghi/engine-sim/releases) are older builds without any of the changes above.
+**macOS (Apple Silicon, macOS 11 or newer):** download `engine-sim-community-<version>-macos-arm64.zip`, unzip it and move `Engine Sim.app` to Applications. The app isn't signed by an Apple developer, so the first time macOS refuses to open it: open **System Settings > Privacy & Security** and choose **Open Anyway** next to the message about Engine Sim. `engine-sim-export` is inside the app, in `Engine Sim.app/Contents/MacOS`. Intel Macs need a build from source.
+
+**Linux (x86-64):** the download needs glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36 or later) and the system's SDL2, SDL2_image and OpenGL libraries: `sudo apt install libsdl2-2.0-0 libsdl2-image-2.0-0 libopengl0 libgl1`, `sudo dnf install SDL2 SDL2_image libglvnd-opengl` or `sudo pacman -S sdl2 sdl2_image`. Unpack `engine-sim-community-<version>-linux-x64.tar.gz` and run `./engine-sim-app` in its folder. Screen reader output goes through Speech Dispatcher, as Orca's does.
+
+The [original project's releases](https://github.com/ange-yaghi/engine-sim/releases) are older builds without any of the changes above.
 
 ## Controls
 
@@ -140,7 +144,7 @@ cmake --build build -j
 
 Run `build/engine-sim-app` on Linux and macOS or `build\Release\engine-sim-app.exe` on Windows. The app finds `assets` and the script library by looking in its own folder and the folders above it, so it can be started from anywhere. On Windows the vcpkg toolchain copies the SDL2 DLLs next to the executable. On Linux, scripts in `~/.local/share/engine-sim/assets` take priority over the bundled ones, and `ENGINE_SIM_DATA_ROOT` points the app at a different data directory. On macOS, Homebrew's SDL2 loads SDL3 at startup from a folder macOS doesn't search by default, so start the app with `DYLD_LIBRARY_PATH=$(brew --prefix)/lib build/engine-sim-app`.
 
-`pwsh scripts/package-windows.ps1` (in a Developer PowerShell for Visual Studio) makes the Windows release zip from a Release build and checks that it runs on its own; `.github/workflows/release.yml` builds it on GitHub.
+`pwsh scripts/package-windows.ps1` (in a Developer PowerShell for Visual Studio) makes the Windows release zip from a Release build and checks that it runs on its own; `scripts/package.sh` does the same for macOS and Linux. `.github/workflows/release.yml` builds all three on GitHub, with the libraries the downloads need (see the comments there).
 
 `ctest --test-dir build -C Release` runs the unit tests, `engine-sim-export --out <dir>` exports a game audio set for the engine in `assets/main.mr` (or `--script <file.mr>`, see [docs/game-audio-export.md](docs/game-audio-export.md)), and `boost-probe <script.mr> [rpm ...]` runs an engine script headlessly on the dyno (handy for checking a new engine). `shift-probe <script.mr>` drives the car through a set of up- and downshifts and prints whether each one completes.
 
@@ -152,4 +156,4 @@ The changes collected here come from the community forks and contributors credit
 
 ## License
 
-The code is released under the MIT license; see [LICENSE](LICENSE). Optional libraries keep their own licenses: [Prism](https://github.com/ethindp/prism) (screen reader output) is MPL-2.0, SDL2 is zlib, libvorbis is BSD and LAME is LGPL. The Windows download has their license texts in its `licenses` folder.
+The code is released under the MIT license; see [LICENSE](LICENSE). Optional libraries keep their own licenses: [Prism](https://github.com/ethindp/prism) (screen reader output) is MPL-2.0, SDL2 is zlib, libvorbis is BSD and LAME is LGPL. Each download has their license texts in its `licenses` folder.
