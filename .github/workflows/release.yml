@@ -168,7 +168,9 @@ jobs:
   # scripts/package.sh signs it ad hoc.
   macos:
     if: github.event_name != 'workflow_dispatch' || contains(inputs.platforms, 'macos')
-    runs-on: macos-15
+    # macOS 26 on Apple Silicon (what macos-latest means now; macos-15 runners
+    # were often busy). Its Xcode 26 builds for macOS 11 and newer.
+    runs-on: macos-26
     timeout-minutes: 120
     env:
       # Keep in step with cmake/vcpkg-triplets/engine-sim-arm64-osx.cmake
