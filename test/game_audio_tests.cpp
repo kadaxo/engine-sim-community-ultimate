@@ -521,14 +521,6 @@ TEST(EngineSessionTests, RendersAreDeterministicForASeed) {
 }
 
 TEST(EngineSessionTests, OnLoadIsLouderThanOffLoad) {
-#if defined(__APPLE__) && defined(__aarch64__)
-    // On Apple Silicon the closed-throttle render comes out about six times
-    // louder than on x86 (RMS 1.39e6 against 0.24e6) while full throttle
-    // matches to three digits, so the closed-throttle path differs there. An
-    // x86 build with fused multiply-add didn't reproduce it; finding the cause
-    // needs a Mac.
-    GTEST_SKIP() << "closed-throttle level differs on Apple Silicon (known, not explained yet)";
-#endif
     std::srand(3);
     const std::vector<float> on = renderHeldRpm(3000, 1.0, 0.5);
     std::srand(3);

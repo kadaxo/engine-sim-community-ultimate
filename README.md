@@ -142,8 +142,6 @@ With CMake 4 add `-DCMAKE_POLICY_VERSION_MINIMUM=3.5`, since some submodules sti
 
 `ctest --test-dir build -C Release` runs the unit tests, `engine-sim-export --out <dir>` exports a game audio set for the engine in `assets/main.mr` (or `--script <file.mr>`, see [docs/game-audio-export.md](docs/game-audio-export.md)), and `boost-probe <script.mr> [rpm ...]` runs an engine script headlessly on the dyno (handy for checking a new engine). `shift-probe <script.mr>` drives the car through a set of up- and downshifts and prints whether each one completes.
 
-On Apple Silicon Macs, closed-throttle (off-load) sound currently renders much louder than on Windows and Linux, while full throttle matches. The cause isn't known yet, so the test that compares the two is skipped there.
-
 ## Credits
 
 Engine Simulator was created by [AngeTheGreat (Ange Yaghi)](https://github.com/ange-yaghi/engine-sim) and first shown in [this YouTube video](https://youtu.be/RKT-sKtR970). The original project was made possible by its Patreon supporters, who are listed in the [original README](https://github.com/ange-yaghi/engine-sim#patreon-supporters).
