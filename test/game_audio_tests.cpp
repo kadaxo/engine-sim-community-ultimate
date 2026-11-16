@@ -536,6 +536,36 @@ TEST(EngineSessionTests, OnLoadIsLouderThanOffLoad) {
     EXPECT_GT(rms(on), rms(off));
 }
 
+// Started from rest, the crank's first movement under the dyno hold is rounding
+// noise. The hold used to follow its sign, so at some simulation frequencies
+// (and with Apple Silicon's rounding) the engine ran backwards and made no power.
+TEST(EngineSessionTests, DynoHoldRunsForwardAtAnySimulationFrequency) {
+    for (const double frequency : { 10000.0, 20000.0, 40000.0, 80000.0 }) {
+        std::srand(3);
+        SessionConfig config = defaultEngineConfig();
+        config.simulationFrequency = frequency;
+        std::string error;
+        std::unique_ptr<EngineSession> session = EngineSession::create(config, &error);
+        ASSERT_TRUE(session) << error;
+
+        session->setIgnition(true);
+        session->setThrottleImmediate(1.0);
+        for (int i = 0; i <= 50; ++i) {
+            session->setDynoHold(3000 * i / 50.0);
+            session->advance(0.01, nullptr, nullptr);
+        }
+        session->advance(0.5, nullptr, nullptr);
+
+        std::vector<TelemetrySample> telemetry;
+        session->advance(0.25, nullptr, &telemetry);
+        ASSERT_FALSE(telemetry.empty());
+        double torque = 0;
+        for (const TelemetrySample &sample : telemetry) torque += sample.dynoTorque;
+        torque /= telemetry.size();
+        EXPECT_GT(torque, 100.0) << "at " << frequency << " Hz";
+    }
+}
+
 TEST(EngineSessionTests, MissingScriptReportsError) {
     SessionConfig config = defaultEngineConfig();
     config.scriptPath = "this/does/not/exist.mr";
