@@ -6,9 +6,6 @@ on:
 
 env:
   BUILD_TYPE: Release
-  # Old submodule CMakeLists still declare cmake_minimum_required() < 3.5,
-  # which CMake 4 rejects without this
-  CMAKE_POLICY_VERSION_MINIMUM: "3.5"
   # The vcpkg version the Windows dependencies in deps/vcpkg-audio use, for
   # the jobs that build Prism (screen reader output)
   VCPKG_COMMIT: 817892b0ecbc6af994dd6df999c73faf795adbf2

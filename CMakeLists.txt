@@ -1,5 +1,13 @@
 cmake_minimum_required(VERSION 3.10)
 
+# googletest, discord-rpc and several submodules still declare minimum
+# versions below 3.5, which CMake 4 refuses to configure. Treat them as 3.5
+# unless CMAKE_POLICY_VERSION_MINIMUM was given on the command line or in the
+# environment.
+if (NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM AND NOT DEFINED ENV{CMAKE_POLICY_VERSION_MINIMUM})
+    set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+endif()
+
 include(CMakeDependentOption)
 
 option(DTV "Enable video output" OFF)

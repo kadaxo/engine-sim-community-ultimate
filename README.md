@@ -138,8 +138,6 @@ cmake --build build -j
 
 Run the app with the build directory as the working directory so that it finds `../assets`: `cd build`, then `./engine-sim-app` on Linux and macOS or `Release\engine-sim-app.exe` on Windows (Visual Studio's debugger already uses that directory). On Windows the vcpkg toolchain copies the SDL2 DLLs next to the executable. On Linux, scripts in `~/.local/share/engine-sim/assets` take priority over the bundled ones, and `ENGINE_SIM_DATA_ROOT` points the app at a different data directory. On macOS, Homebrew's SDL2 loads SDL3 at startup from a folder macOS doesn't search by default, so start the app with `DYLD_LIBRARY_PATH=$(brew --prefix)/lib ./engine-sim-app`.
 
-With CMake 4 add `-DCMAKE_POLICY_VERSION_MINIMUM=3.5`, since some submodules still declare a very old minimum version.
-
 `ctest --test-dir build -C Release` runs the unit tests, `engine-sim-export --out <dir>` exports a game audio set for the engine in `assets/main.mr` (or `--script <file.mr>`, see [docs/game-audio-export.md](docs/game-audio-export.md)), and `boost-probe <script.mr> [rpm ...]` runs an engine script headlessly on the dyno (handy for checking a new engine). `shift-probe <script.mr>` drives the car through a set of up- and downshifts and prints whether each one completes.
 
 ## Credits
