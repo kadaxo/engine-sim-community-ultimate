@@ -1,0 +1,208 @@
+name: Release
+
+# Builds the downloads.
+#
+# - Run it by hand (Actions > Release > Run workflow) to get the zip as an
+#   artifact of the run, to try before tagging.
+# - Pushing a version tag such as v0.2.0 also creates a draft GitHub release
+#   with the zip and SHA256SUMS. The tag must match the version in
+#   CMakeLists.txt. Check the draft, then publish it on GitHub.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+env:
+  BUILD_TYPE: Release
+  # Same vcpkg as the CI jobs that build Prism
+  VCPKG_COMMIT: 817892b0ecbc6af994dd6df999c73faf795adbf2
+
+jobs:
+  windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source and submodules
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Install Flex and Bison
+        shell: pwsh
+        run: |
+          $installed = $false
+          for ($attempt = 1; $attempt -le 4; $attempt++) {
+            choco install winflexbison3 --yes --no-progress
+            if ($LASTEXITCODE -eq 0) {
+              $installed = $true
+              break
+            }
+            if ($attempt -lt 4) {
+              Write-Warning "Chocolatey failed; retrying in 20 seconds"
+              Start-Sleep -Seconds 20
+            }
+          }
+          if (-not $installed) {
+            throw "Chocolatey could not install winflexbison3 after four attempts"
+          }
+          $flex = (Get-Command win_flex.exe -ErrorAction Stop).Source
+          $bison = (Get-Command win_bison.exe -ErrorAction Stop).Source
+          "FLEX_EXECUTABLE=$flex" | Out-File $env:GITHUB_ENV -Append
+          "BISON_EXECUTABLE=$bison" | Out-File $env:GITHUB_ENV -Append
+
+      - name: Restore built vcpkg packages
+        id: vcpkg-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/AppData/Local/vcpkg/archives
+          key: vcpkg-release-${{ runner.os }}-${{ runner.arch }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('cmake/vcpkg-overlay-ports/**') }}
+
+      # SDL2 and the encoders as DLLs (LAME's license wants it replaceable);
+      # Prism's port only builds as a static library
+      - name: Build the libraries with vcpkg
+        shell: pwsh
+        run: |
+          $vcpkg = Join-Path $env:RUNNER_TEMP vcpkg
+          git clone https://github.com/microsoft/vcpkg.git $vcpkg
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          git -C $vcpkg checkout $env:VCPKG_COMMIT
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          & "$vcpkg/bootstrap-vcpkg.bat" -disableMetrics
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          & "$vcpkg/vcpkg.exe" install `
+            sdl2:x64-windows sdl2-image:x64-windows `
+            libvorbis:x64-windows mp3lame:x64-windows `
+            ethindp-prism:x64-windows-static-md `
+            "--overlay-ports=$env:GITHUB_WORKSPACE/cmake/vcpkg-overlay-ports"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          "VCPKG_ROOT_PINNED=$vcpkg" | Out-File $env:GITHUB_ENV -Append
+
+      - name: Save built vcpkg packages
+        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/AppData/Local/vcpkg/archives
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake -S . -B build -A x64 `
+            "-DFLEX_EXECUTABLE=$env:FLEX_EXECUTABLE" `
+            "-DBISON_EXECUTABLE=$env:BISON_EXECUTABLE" `
+            "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT_PINNED/scripts/buildsystems/vcpkg.cmake" `
+            "-DCMAKE_PREFIX_PATH=$env:VCPKG_ROOT_PINNED/installed/x64-windows-static-md" |
+            Tee-Object -FilePath configure.log
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          # A download without speech or an encoder would look fine, so fail here
+          $expected = @(
+            "Screen reader output: enabled (Prism)",
+            "engine-sim-export: Ogg Vorbis enabled",
+            "engine-sim-export: MP3 enabled"
+          )
+          foreach ($line in $expected) {
+            if (-not (Select-String -Path configure.log -SimpleMatch $line -Quiet)) {
+              throw "Configure output lacks '$line'"
+            }
+          }
+
+      - name: Build
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
+
+      - name: Test
+        run: ctest --test-dir build -C ${{ env.BUILD_TYPE }} -LE slow --output-on-failure
+
+      - name: Package
+        id: package
+        shell: pwsh
+        run: ./scripts/package-windows.ps1 -BuildDir build -Config $env:BUILD_TYPE -OutDir dist
+
+      # licenses/README.txt says LAME is a DLL that can be replaced
+      - name: List the package
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.package.outputs.version }}
+        run: |
+          $stage = "dist/stage/engine-sim-community-$env:VERSION-windows-x64"
+          Get-ChildItem $stage | Format-Table Name, Length -AutoSize | Out-String -Width 200
+          Get-ChildItem "$stage/licenses" -Name
+          if (-not (Test-Path "$stage/libmp3lame.dll")) {
+            throw "libmp3lame.dll is not in the package"
+          }
+
+      - name: Check the version against the tag
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ steps.package.outputs.version }}
+        run: |
+          if ($env:TAG -ne "v$env:VERSION") {
+            throw "Tag $env:TAG doesn't match the version in CMakeLists.txt ($env:VERSION)"
+          }
+
+      # Uploaded as the zip itself, so the run's download isn't a zip in a zip
+      - name: Upload the zip
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ steps.package.outputs.zip }}
+          archive: false
+          if-no-files-found: error
+
+  # Runs on manual runs too, so everything but creating the release is
+  # tried before a tag depends on it
+  publish:
+    needs: windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download the builds
+        uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+          skip-decompress: true
+
+      - name: Check the files and write SHA256SUMS
+        run: |
+          set -euo pipefail
+          mkdir upload
+          find dist -type f -print0 | xargs -0 -I{} mv {} upload/
+          cd upload
+          ls -l
+          for f in *; do
+            case "$f" in
+              engine-sim-community-*.zip) unzip -tq "$f" ;;
+              *) echo "::error::Unexpected file $f"; exit 1 ;;
+            esac
+          done
+          sha256sum -- * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create a draft release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          cd upload
+          cat > ../notes.md <<'EOF'
+          **Windows** (10 or 11, 64-bit): download `engine-sim-community-*-windows-x64.zip`, unzip it anywhere you can write to, and run `engine-sim-app.exe`. Nothing needs installing. The app isn't signed, so Windows may show "Windows protected your PC": choose **More info**, then **Run anyway**.
+
+          `SHA256SUMS` holds the checksum of each download.
+
+          See the README for the controls and what's new in this collection.
+          EOF
+          gh release create "$TAG" * \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft --verify-tag \
+            --title "Engine Simulator community collection $TAG" \
+            --notes-file ../notes.md
