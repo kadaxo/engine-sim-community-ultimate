@@ -30,6 +30,7 @@ Pinned commit: `8daecd0` on
 | `0010` | The SDL key map missing F1–F12, Page Up/Down, Home, End, Insert, 0, [ and ] on Linux and macOS (the screen reader readouts, the mouse-wheel keys, the spoken engine list, switching engines, slow motion and view rotation) |
 | `0011` | Builds with current compilers: headers using the fixed-width integer types include `<cstdint>` (GCC no longer pulls it in indirectly), the OpenGL device includes `<cassert>`, the macOS OpenGL headers path is set on `delta-core` instead of a misspelled target, `delta-physics` gets the `sse2neon` include directory it needs on Apple Silicon, and `delta-basic` links its libraries whole with `-force_load` on macOS instead of GNU ld's `--whole-archive` |
 | `0012` | `ysToolAnimationFile` returning an uninitialized error code for animation file versions other than 0, by kyan0s-git ([kyan0s-git/engine-sim](https://github.com/kyan0s-git/engine-sim)) |
+| `0013` | The GLSL shaders needing OpenGL 4.2 for their `layout(binding = N)` qualifiers while macOS only provides 4.1, so the app crashed on start: shaders are rewritten to GLSL 4.10 when loaded and their bindings set after linking, uniform blocks use `std140`, and the SDL context asks for a forward-compatible core profile with a 4.1 fallback, by kyan0s-git ([kyan0s-git/engine-sim](https://github.com/kyan0s-git/engine-sim)) |
 Without 0001–0007 the port only builds on Linux/macOS; with them it builds on
 Windows (Direct3D 11) as well.
 

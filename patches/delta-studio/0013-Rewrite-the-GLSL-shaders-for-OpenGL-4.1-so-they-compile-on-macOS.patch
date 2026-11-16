@@ -1,0 +1,275 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: kyan0s-git <91159868+kyan0s-git@users.noreply.github.com>
+Date: Sun, 11 Oct 2026 09:26:53 +0000
+Subject: [PATCH 1/2] Rewrite the GLSL shaders for OpenGL 4.1 so they compile
+ on macOS
+
+The bundled shaders are GLSL 4.20 and set their binding points with
+layout(binding = N), which needs OpenGL 4.2; macOS only provides a 4.1
+core profile, so the vertex shader failed to compile and the app crashed
+on its first frame. When a shader is loaded, its source is rewritten to
+GLSL 4.10 with those qualifiers removed, and after the program is linked
+the bindings are set with glUniformBlockBinding and glUniform1i. Uniform
+blocks are declared std140, the layout the C++ structs already match.
+
+The SDL context now asks for a forward-compatible core profile on macOS,
+falls back to 4.1 when the requested version isn't available, and
+reports SDL's error if no context can be created.
+
+From kyan0s-git/engine-sim 56fa977a ("Port to Linux and macOS: vendor
+trimmed dependencies, SDL2/OpenGL backend"), adapted to this delta-studio.
+---
+ include/yds_opengl_context.h       |  2 +
+ include/yds_opengl_shader.h        | 12 +++++
+ src/yds_opengl_device.cpp          | 86 +++++++++++++++++++++++++++---
+ src/yds_opengl_sdl_context.cpp     | 25 +++++++--
+ src/yds_opengl_windows_context.cpp |  2 +
+ 5 files changed, 116 insertions(+), 11 deletions(-)
+
+diff --git a/include/yds_opengl_context.h b/include/yds_opengl_context.h
+index ed87c7e2..a0229423 100644
+--- a/include/yds_opengl_context.h
++++ b/include/yds_opengl_context.h
+@@ -70,6 +70,8 @@ public:
+     PFNGLBINDFRAGDATALOCATIONPROC glBindFragDataLocation = nullptr;
+     PFNGLGETFRAGDATALOCATIONPROC glGetFragDataLocation = nullptr;
+     PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation = nullptr;
++    PFNGLGETUNIFORMBLOCKINDEXPROC glGetUniformBlockIndex = nullptr;
++    PFNGLUNIFORMBLOCKBINDINGPROC glUniformBlockBinding = nullptr;
+     PFNGLGETSHADERIVPROC glGetShaderiv = nullptr;
+     PFNGLGETSHADERINFOLOGPROC glGetShaderInfoLog = nullptr;
+     PFNGLGETPROGRAMINFOLOGPROC glGetProgramInfoLog = nullptr;
+diff --git a/include/yds_opengl_shader.h b/include/yds_opengl_shader.h
+index 8989897e..83d29c85 100644
+--- a/include/yds_opengl_shader.h
++++ b/include/yds_opengl_shader.h
+@@ -3,6 +3,9 @@
+ 
+ #include "yds_shader.h"
+ 
++#include <string>
++#include <vector>
++
+ class ysOpenGLShader : public ysShader {
+     friend class ysOpenGLDevice;
+ 
+@@ -10,8 +13,17 @@ public:
+     ysOpenGLShader();
+     virtual ~ysOpenGLShader();
+ 
++    // A binding point declared with layout(binding = N) in the shader
++    // source; it is removed from the source and set after linking instead
++    struct Binding {
++        std::string Name;
++        int Slot = 0;
++        bool IsSampler = false;
++    };
++
+ protected:
+     unsigned int m_handle;
++    std::vector<Binding> m_bindings;
+ };
+ 
+ #endif /* YDS_OPENGL_SHADER_H */
+diff --git a/src/yds_opengl_device.cpp b/src/yds_opengl_device.cpp
+index 602fb968..992f967e 100644
+--- a/src/yds_opengl_device.cpp
++++ b/src/yds_opengl_device.cpp
+@@ -14,6 +14,9 @@
+ 
+ #include "OpenGL.h"
+ #include <cassert>
++#include <regex>
++#include <string>
++#include <vector>
+ #include <SDL.h>
+ #include <SDL_image.h>
+ 
+@@ -662,6 +665,43 @@ ysError ysOpenGLDevice::EditBufferData(ysGPUBuffer *buffer, char *data) {
+ }
+ 
+ // Shaders
++
++// The bundled GLSL shaders target version 4.20 and set their binding points
++// with layout(binding = N), which needs OpenGL 4.2. macOS only provides 4.1,
++// so the source is rewritten to GLSL 4.10 with those qualifiers removed, and
++// the bindings are applied through the API once the program is linked.
++// Uniform blocks are declared std140 so their memory layout is the same on
++// every driver and matches the C++ structs that fill them.
++static std::string PreprocessGlsl(const std::string &source, std::vector<ysOpenGLShader::Binding> &bindings) {
++    static const std::regex versionPattern(R"(#version\s+\d+(\s+core)?)");
++    static const std::regex bindingPattern(
++        R"(layout\s*\(\s*binding\s*=\s*(\d+)\s*\)\s*uniform\s+(sampler\w*\s+)?(\w+))");
++
++    const std::string versioned = std::regex_replace(
++        source, versionPattern, "#version 410 core", std::regex_constants::format_first_only);
++
++    std::string output;
++    output.reserve(versioned.size());
++
++    auto searchStart = versioned.cbegin();
++    std::smatch match;
++    while (std::regex_search(searchStart, versioned.cend(), match, bindingPattern)) {
++        ysOpenGLShader::Binding binding;
++        binding.Slot = std::stoi(match[1].str());
++        binding.IsSampler = match[2].matched;
++        binding.Name = match[3].str();
++        bindings.push_back(binding);
++
++        output.append(searchStart, match[0].first);
++        if (binding.IsSampler) output += "uniform " + match[2].str() + binding.Name;
++        else output += "layout(std140) uniform " + binding.Name;
++
++        searchStart = match[0].second;
++    }
++    output.append(searchStart, versioned.cend());
++
++    return output;
++}
+ ysError ysOpenGLDevice::CreateVertexShader(ysShader **newShader, const char *shaderFilename, const char *shaderName) {
+     YDS_ERROR_DECLARE("CreateVertexShader");
+ 
+@@ -686,11 +726,14 @@ ysError ysOpenGLDevice::CreateVertexShader(ysShader **newShader, const char *sha
+     handle = m_realContext->glCreateShader(GL_VERTEX_SHADER);
+     if (handle == 0) return YDS_ERROR_RETURN(ysError::CouldNotCreateShader);
+ 
+-    m_realContext->glShaderSource(handle, 1, &fileBuffer, NULL); result = glGetError();
+-    m_realContext->glCompileShader(handle);
+-
++    std::vector<ysOpenGLShader::Binding> bindings;
++    const std::string source = PreprocessGlsl(fileBuffer, bindings);
+     delete[] fileBuffer;
+ 
++    const char *sourcePtr = source.c_str();
++    m_realContext->glShaderSource(handle, 1, &sourcePtr, NULL); result = glGetError();
++    m_realContext->glCompileShader(handle);
++
+     // Check Compilation
+     int shaderCompiled;
+     m_realContext->glGetShaderiv(handle, GL_COMPILE_STATUS, &shaderCompiled);
+@@ -707,6 +750,7 @@ ysError ysOpenGLDevice::CreateVertexShader(ysShader **newShader, const char *sha
+     strcpy_s(newOpenGLShader->m_filename, shaderFilename);
+     newOpenGLShader->m_shaderType = ysShader::ShaderType::Vertex;
+     newOpenGLShader->m_handle = handle;
++    newOpenGLShader->m_bindings = bindings;
+ 
+     *newShader = static_cast<ysShader *>(newOpenGLShader);
+ 
+@@ -739,11 +783,14 @@ ysError ysOpenGLDevice::CreatePixelShader(ysShader **newShader, const char *shad
+     file.ReadFileToBuffer(fileBuffer);
+     fileBuffer[fileLength] = 0;
+ 
+-    m_realContext->glShaderSource(shaderHandle, 1, &fileBuffer, NULL);
+-    m_realContext->glCompileShader(shaderHandle);
+-
++    std::vector<ysOpenGLShader::Binding> bindings;
++    const std::string source = PreprocessGlsl(fileBuffer, bindings);
+     delete[] fileBuffer;
+ 
++    const char *sourcePtr = source.c_str();
++    m_realContext->glShaderSource(shaderHandle, 1, &sourcePtr, NULL);
++    m_realContext->glCompileShader(shaderHandle);
++
+     // Check Compilation
+     int shaderCompiled;
+ 
+@@ -760,6 +807,7 @@ ysError ysOpenGLDevice::CreatePixelShader(ysShader **newShader, const char *shad
+     strcpy_s(newOpenGLShader->m_filename, shaderFilename);
+     newOpenGLShader->m_shaderType = ysShader::ShaderType::Pixel;
+     newOpenGLShader->m_handle = shaderHandle;
++    newOpenGLShader->m_bindings = bindings;
+ 
+     *newShader = static_cast<ysShader *>(newOpenGLShader);
+ 
+@@ -827,6 +875,32 @@ ysError ysOpenGLDevice::LinkProgram(ysShaderProgram *program) {
+         return YDS_ERROR_RETURN_MSG(ysError::ProgramLinkError, errorBuffer);
+     }
+ 
++    // Apply the binding points that were removed from the shader source
++    m_realContext->glUseProgram(openglProgram->m_handle);
++    for (int i = 0; i < (int)ysShader::ShaderType::NumShaderTypes; ++i) {
++        const ysOpenGLShader *shader =
++            static_cast<const ysOpenGLShader *>(openglProgram->GetShader((ysShader::ShaderType)i));
++        if (shader == nullptr) continue;
++
++        for (const ysOpenGLShader::Binding &binding : shader->m_bindings) {
++            if (binding.IsSampler) {
++                const GLint location =
++                    m_realContext->glGetUniformLocation(openglProgram->m_handle, binding.Name.c_str());
++                if (location >= 0) m_realContext->glUniform1i(location, binding.Slot);
++            }
++            else {
++                const GLuint index =
++                    m_realContext->glGetUniformBlockIndex(openglProgram->m_handle, binding.Name.c_str());
++                if (index != GL_INVALID_INDEX) {
++                    m_realContext->glUniformBlockBinding(openglProgram->m_handle, index, binding.Slot);
++                }
++            }
++        }
++    }
++
++    const ysOpenGLShaderProgram *active = static_cast<const ysOpenGLShaderProgram *>(m_activeShaderProgram);
++    m_realContext->glUseProgram((active != nullptr) ? active->m_handle : 0);
++
+     return YDS_ERROR_RETURN(ysError::None);
+ }
+ 
+diff --git a/src/yds_opengl_sdl_context.cpp b/src/yds_opengl_sdl_context.cpp
+index 13861f10..8b4df7ce 100644
+--- a/src/yds_opengl_sdl_context.cpp
++++ b/src/yds_opengl_sdl_context.cpp
+@@ -21,11 +21,24 @@ ysError ysOpenGLSdlContext::CreateRenderingContext(ysOpenGLDevice *device, ysWin
+ 
+     ysSdlWindow *sdlWindow = static_cast<ysSdlWindow *>(window);
+ 
+-    // TODO: more options here to match Windows impl
+-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, major);
+-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, minor);
+-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+-    m_context = SDL_GL_CreateContext(sdlWindow->m_window);
++    // macOS only provides OpenGL up to 4.1, as a forward-compatible core
++    // profile, so fall back to 4.1 when the requested version isn't available
++    const int versions[][2] = { { major, minor }, { 4, 1 } };
++    m_context = nullptr;
++    for (const auto &version : versions) {
++        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, version[0]);
++        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, version[1]);
++        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
++#ifdef __APPLE__
++        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
++#endif
++        m_context = SDL_GL_CreateContext(sdlWindow->m_window);
++        if (m_context != nullptr) break;
++    }
++
++    if (m_context == nullptr) {
++        return YDS_ERROR_RETURN_MSG(ysError::CouldNotCreateContext, SDL_GetError());
++    }
+ 
+     LoadAllExtensions();
+ 
+@@ -142,6 +155,8 @@ void ysOpenGLSdlContext::LoadAllExtensions() {
+     glBindFragDataLocation = (PFNGLBINDFRAGDATALOCATIONPROC)SDL_GL_GetProcAddress("glBindFragDataLocation");
+     glGetFragDataLocation = (PFNGLGETFRAGDATALOCATIONPROC)SDL_GL_GetProcAddress("glGetFragDataLocation");
+     glGetUniformLocation = (PFNGLGETUNIFORMLOCATIONPROC)SDL_GL_GetProcAddress("glGetUniformLocation");
++    glGetUniformBlockIndex = (PFNGLGETUNIFORMBLOCKINDEXPROC)SDL_GL_GetProcAddress("glGetUniformBlockIndex");
++    glUniformBlockBinding = (PFNGLUNIFORMBLOCKBINDINGPROC)SDL_GL_GetProcAddress("glUniformBlockBinding");
+     glGetShaderiv = (PFNGLGETSHADERIVPROC)SDL_GL_GetProcAddress("glGetShaderiv");
+     glGetShaderInfoLog = (PFNGLGETSHADERINFOLOGPROC)SDL_GL_GetProcAddress("glGetShaderInfoLog");
+     glGetProgramInfoLog = (PFNGLGETPROGRAMINFOLOGPROC)SDL_GL_GetProcAddress("glGetProgramInfoLog");
+diff --git a/src/yds_opengl_windows_context.cpp b/src/yds_opengl_windows_context.cpp
+index e19ae965..7105d0b5 100644
+--- a/src/yds_opengl_windows_context.cpp
++++ b/src/yds_opengl_windows_context.cpp
+@@ -263,6 +263,8 @@ void ysOpenGLWindowsContext::LoadAllExtensions() {
+     glBindFragDataLocation = (PFNGLBINDFRAGDATALOCATIONPROC)wglGetProcAddress("glBindFragDataLocation");
+     glGetFragDataLocation = (PFNGLGETFRAGDATALOCATIONPROC)wglGetProcAddress("glGetFragDataLocation");
+     glGetUniformLocation = (PFNGLGETUNIFORMLOCATIONPROC)wglGetProcAddress("glGetUniformLocation");
++    glGetUniformBlockIndex = (PFNGLGETUNIFORMBLOCKINDEXPROC)wglGetProcAddress("glGetUniformBlockIndex");
++    glUniformBlockBinding = (PFNGLUNIFORMBLOCKBINDINGPROC)wglGetProcAddress("glUniformBlockBinding");
+     glGetShaderiv = (PFNGLGETSHADERIVPROC)wglGetProcAddress("glGetShaderiv");
+     glGetShaderInfoLog = (PFNGLGETSHADERINFOLOGPROC)wglGetProcAddress("glGetShaderInfoLog");
+     glGetProgramInfoLog = (PFNGLGETPROGRAMINFOLOGPROC)wglGetProcAddress("glGetProgramInfoLog");
+-- 
+2.56.0.windows.2
+
