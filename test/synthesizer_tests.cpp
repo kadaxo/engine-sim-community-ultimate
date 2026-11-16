@@ -1,8 +1,13 @@
 #include <gtest/gtest.h>
 
 #include "../include/synthesizer.h"
+#include "../include/constants.h"
 
+#include <algorithm>
 #include <chrono>
+#include <cmath>
+#include <thread>
+#include <vector>
 
 using namespace std::chrono_literals;
 
@@ -25,171 +30,137 @@ void setupStandardSynthesizer(Synthesizer &synth) {
     synth.initialize(params);
 }
 
-void setupSynchronizedSynthesizer(Synthesizer &synth) {
-    Synthesizer::Parameters params;
-    params.audioBufferSize = 512 * 16;
-    params.audioSampleRate = 32;
-    params.inputBufferSize = 1024;
-    params.inputChannelCount = 8;
-    params.inputSampleRate = 32;
-
-    Synthesizer::AudioParameters audioParams;
-    audioParams.airNoise = 0.0;
-    audioParams.inputSampleNoise = 0.0;
-    audioParams.levelerMaxGain = 1.0;
-    audioParams.levelerMinGain = 1.0;
-    audioParams.dF_F_mix = 0.0;
-    params.initialAudioParameters = audioParams;
-
-    synth.initialize(params);
-}
-
 TEST(SynthesizerTests, SynthesizerSanityCheck) {
     Synthesizer synth;
     setupStandardSynthesizer(synth);
     synth.destroy();
 }
-/*
-TEST(SynthesizerTests, SynthesizerConversionTest) {
-    Synthesizer synth;
-    setupStandardSynthesizer(synth);
 
-    EXPECT_NEAR(synth.inputSampleToTimeOffset(0.0), 0.0, 1E-6);
-    EXPECT_NEAR(synth.inputSampleToTimeOffset(1.0), 1 / 32.0, 1E-6);
+namespace {
 
-    EXPECT_NEAR(synth.audioSampleToTimeOffset(0), -0.5, 1E-6);
+    constexpr float PassThroughSampleRate = 44100.0f;
+    constexpr int PassThroughAudioBuffer = 44100;
+    constexpr int PassThroughChannels = 8;
+    constexpr int PassThroughBlock = 256;
 
-    synth.destroy();
-}
+    // Same input and audio rate, and every stage that adds randomness or
+    // colour (input jitter, air noise, the dF/F mix, convolution and the
+    // leveler's gain) turned off, so the output is the summed channels through
+    // the fixed filters only.
+    void setupPassThroughSynthesizer(Synthesizer &synth) {
+        Synthesizer::Parameters params;
+        params.audioBufferSize = PassThroughAudioBuffer;
+        params.audioSampleRate = PassThroughSampleRate;
+        params.inputBufferSize = 44100;
+        params.inputChannelCount = PassThroughChannels;
+        params.inputSampleRate = PassThroughSampleRate;
 
-TEST(SynthesizerTests, SynthesizerTrimTest) {
-    Synthesizer synth;
-    setupStandardSynthesizer(synth);
+        Synthesizer::AudioParameters audioParams;
+        audioParams.airNoise = 0.0f;
+        audioParams.inputSampleNoise = 0.0f;
+        audioParams.dF_F_mix = 0.0f;
+        audioParams.convolution = 0.0f;
+        audioParams.levelerMode = LevelingFilter::Mode::Off;
+        params.initialAudioParameters = audioParams;
 
-    const double timeOffset0 = synth.audioSampleToTimeOffset(0);
+        synth.initialize(params);
+    }
 
-    synth.trimInput(0.5, false);
-
-    const double timeOffset1 = synth.audioSampleToTimeOffset(8);
-
-    EXPECT_NEAR(timeOffset1, timeOffset0, 1E-6);
-
-    synth.destroy();
-}
-
-TEST(SynthesizerTests, SynthesizerSampleTest) {
-    Synthesizer synth;
-    setupStandardSynthesizer(synth);
-
-    for (int i = 0; i < 1024; ++i) {
-        const double v = (double)i;
-        const double data[] = { v, v, v, v, v, v, v, v };
+    void writeTone(Synthesizer &synth, int sample, double amplitude, double frequency) {
+        const double v = amplitude * std::sin(
+            2 * constants::pi * frequency * sample / PassThroughSampleRate);
+        double data[PassThroughChannels];
+        for (double &channel : data) channel = v;
         synth.writeInput(data);
     }
 
-    const double end_t = 1023 / 32.0;
+} /* namespace */
 
-    const double v0 = synth.sampleInput(end_t, 0);
-    const double v1 = synth.sampleInput(end_t - 1 / 64.0, 0);
+TEST(SynthesizerTests, OfflineRenderPassesToneAtChannelSum) {
+    constexpr int Samples = 22050;
+    constexpr double Amplitude = 1000.0;
+    constexpr double Frequency = 440.0;
 
-    EXPECT_NEAR(v0, 1023.0, 1E-6);
-    EXPECT_NEAR(v1, 1022.5, 1E-6);
+    Synthesizer synth;
+    setupPassThroughSynthesizer(synth);
+    for (int i = 0; i < Samples; ++i) writeTone(synth, i, Amplitude, Frequency);
 
-    synth.trimInput(0.5);
+    std::vector<float> output;
+    const int rendered = synth.renderOffline(output);
+    ASSERT_GE(rendered, Samples);
+    ASSERT_EQ(rendered, static_cast<int>(output.size()));
 
-    const double v0_trim = synth.sampleInput(end_t, 0);
-    const double v1_trim = synth.sampleInput(end_t - 1 / 64.0, 0);
+    // Skip the first half so the filters have settled
+    double sumSquares = 0;
+    for (size_t i = output.size() / 2; i < output.size(); ++i) {
+        sumSquares += static_cast<double>(output[i]) * output[i];
+    }
+    const double measured = std::sqrt(2 * sumSquares / (output.size() - output.size() / 2));
 
-    EXPECT_NEAR(v0, v0_trim, 1E-6);
-    EXPECT_NEAR(v1, v1_trim, 1E-6);
+    // The eight channels add up. At 440 Hz the input anti-aliasing filter
+    // (4th-order Butterworth at 1900 Hz) and the 10 Hz DC filter take almost
+    // nothing off.
+    const double lowPass = 1 / std::sqrt(1 + std::pow(Frequency / 1900.0, 8));
+    const double dcFilter = 1 / std::sqrt(1 + std::pow(10.0 / Frequency, 2));
+    const double expected = PassThroughChannels * Amplitude * lowPass * dcFilter;
+    EXPECT_NEAR(measured, expected, expected * 0.005);
 
     synth.destroy();
 }
-*/
 
-// DISABLED: the expected output (a delayed copy of the input ramp) predates the
-// antialiasing, DC and leveler stages of the synthesizer, so the values no
-// longer match. Re-enable once the expectations are rewritten.
-TEST(SynthesizerTests, DISABLED_SynthesizerSystemTestSingleThread) {
-    constexpr int inputSamples = 64;
-    constexpr int outputSamples = 63;
+// The real-time path (rendering thread, input and output ring buffers,
+// endInputBlock and readAudioOutput) must deliver exactly what an offline
+// render of the same input gives, sample for sample and in order.
+TEST(SynthesizerTests, RealtimeThreadMatchesOfflineRender) {
+    constexpr int Samples = 8192;
+    constexpr int Block = PassThroughBlock;
 
-    Synthesizer synth;
-    setupSynchronizedSynthesizer(synth);
+    Synthesizer offline, live;
+    setupPassThroughSynthesizer(offline);
+    setupPassThroughSynthesizer(live);
+    live.startAudioRenderingThread();
 
-    // Room for every 16-sample read in the loop below (4 x 16 > outputSamples)
-    int16_t *output = new int16_t[inputSamples];
-    int totalSamples = 0;
+    std::vector<int16_t> received;
+    const auto drain = [&] {
+        int16_t buffer[PassThroughBlock];
+        int read;
+        do {
+            read = live.readAudioOutput(PassThroughBlock, buffer);
+            received.insert(received.end(), buffer, buffer + read);
+        } while (read == PassThroughBlock);
+    };
 
-    for (int i = 0; i < inputSamples;) {
-        for (int j = 0; j < 16; ++j, ++i) {
-            const double v = (double)i;
-            const double data[] = { v, v, v, v, v, v, v, v };
-            synth.writeInput(data);
+    for (int i = 0; i < Samples;) {
+        for (int j = 0; j < Block; ++j, ++i) {
+            writeTone(offline, i, 1000.0, 440.0);
+            writeTone(live, i, 1000.0, 440.0);
         }
 
-        synth.endInputBlock();
-        synth.renderAudio();
-
-        totalSamples += synth.readAudioOutput(16, output + totalSamples);
-        int a = 0;
+        // The thread renders only while the output buffer is below its target
+        drain();
+        live.endInputBlock();
+        live.waitProcessed();
     }
 
-    const int rem = synth.readAudioOutput(outputSamples - totalSamples, output + totalSamples);
+    std::vector<float> expected;
+    const int rendered = offline.renderOffline(expected);
+    const size_t total = static_cast<size_t>(rendered);
 
-    EXPECT_EQ(rem, outputSamples - totalSamples);
-
-    for (int i = 0; i < 16; ++i) {
-        EXPECT_EQ(output[i], 0);
+    // Rendering finishes on the thread after waitProcessed() returns
+    const auto deadline = std::chrono::steady_clock::now() + 10s;
+    while (received.size() < total && std::chrono::steady_clock::now() < deadline) {
+        drain();
+        std::this_thread::sleep_for(1ms);
     }
 
-    for (int i = 16; i < outputSamples; ++i) {
-        EXPECT_EQ(output[i], (i - 16) * 10 * 8);
+    live.endAudioRenderingThread();
+
+    ASSERT_EQ(received.size(), total);
+    for (int i = 0; i < rendered; ++i) {
+        const long value = std::clamp(std::lround(expected[i]), -32768L, 32767L);
+        ASSERT_EQ(received[i], value) << "at sample " << i;
     }
 
-    synth.destroy();
-    delete[] output;
-}
-
-// DISABLED: same stale expectations as SynthesizerSystemTestSingleThread
-TEST(SynthesizerTests, DISABLED_SynthesizerSystemTest) {
-    constexpr int inputSamples = 1024;
-    constexpr int outputSamples = 1023;
-
-    Synthesizer synth;
-    setupSynchronizedSynthesizer(synth);
-    synth.startAudioRenderingThread();
-
-    int16_t *output = new int16_t[outputSamples];
-    int totalSamples = 0;
-
-    for (int i = 0; i < inputSamples;) {
-        for (int j = 0; j < 16; ++j, ++i) {
-            const double v = (double)i;
-            const double data[] = { v, v, v, v, v, v, v, v };
-            synth.writeInput(data);
-        }
-
-        const int samplesReturned = synth.readAudioOutput(8, output + totalSamples);
-        totalSamples += samplesReturned;
-    }
-
-    synth.endInputBlock();
-    synth.waitProcessed();
-
-    const int rem = synth.readAudioOutput(outputSamples - totalSamples, output + totalSamples);
-    EXPECT_EQ(rem, outputSamples - totalSamples);
-
-    for (int i = 0; i < 16; ++i) {
-        EXPECT_EQ(output[i], 0);
-    }
-
-    for (int i = 16; i < outputSamples; ++i) {
-        EXPECT_EQ(output[i], std::min(32767, (i - 16) * 10 * 8));
-    }
-
-    synth.endAudioRenderingThread();
-    synth.destroy();
-
-    delete[] output;
+    live.destroy();
+    offline.destroy();
 }
