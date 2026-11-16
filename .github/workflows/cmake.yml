@@ -1,7 +1,10 @@
 name: CMake
 
+# Branch pushes and pull requests; version tags run release.yml instead
 on:
   push:
+    branches:
+      - "**"
   pull_request:
 
 env:
@@ -19,7 +22,7 @@ jobs:
 
     steps:
       - name: Check out source and submodules
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -69,7 +72,7 @@ jobs:
 
     steps:
       - name: Check out source and submodules
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -92,7 +95,7 @@ jobs:
 
     steps:
       - name: Check out source and submodules
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -133,7 +136,7 @@ jobs:
 
     steps:
       - name: Check out source and submodules
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -157,7 +160,7 @@ jobs:
       # so a failure later in the job doesn't throw away an hour of glib
       - name: Restore built vcpkg packages
         id: vcpkg-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ~/.cache/vcpkg/archives
           key: vcpkg-prism-${{ runner.os }}-${{ runner.arch }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('cmake/vcpkg-overlay-ports/**') }}
@@ -184,7 +187,7 @@ jobs:
 
       - name: Save built vcpkg packages
         if: steps.vcpkg-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ~/.cache/vcpkg/archives
           key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
@@ -220,7 +223,7 @@ jobs:
 
     steps:
       - name: Check out source and submodules
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -249,7 +252,7 @@ jobs:
 
       - name: Restore built vcpkg packages
         id: vcpkg-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ~/AppData/Local/vcpkg/archives
           key: vcpkg-prism-${{ runner.os }}-${{ runner.arch }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('cmake/vcpkg-overlay-ports/**') }}
@@ -272,7 +275,7 @@ jobs:
 
       - name: Save built vcpkg packages
         if: steps.vcpkg-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ~/AppData/Local/vcpkg/archives
           key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
