@@ -55,8 +55,14 @@ long long AudioDiagTimeMs() {
 }
 
 struct LoggingErrorHandler : ysErrorHandler {
-    void OnError(ysError error, unsigned int line, ysObject *object, const char *file) override {
-        printf("Error @ %s:%i - %i\n", file, line, static_cast<int>(error));
+    void OnError(ysError error, unsigned int line, ysObject *object, const char *file, const char *msg) override {
+        if (msg != nullptr && msg[0] != '\0') {
+            printf("Error @ %s:%i - %i: %s\n", file, line, static_cast<int>(error), msg);
+        }
+        else {
+            printf("Error @ %s:%i - %i\n", file, line, static_cast<int>(error));
+        }
+        fflush(stdout);
     }
 };
 
@@ -130,7 +136,7 @@ EngineSimApplication::~EngineSimApplication() {
     /* void */
 }
 
-void EngineSimApplication::initialize(void *instance, ysContextObject::DeviceAPI api) {
+bool EngineSimApplication::initialize(void *instance, ysContextObject::DeviceAPI api) {
     dbasic::Path modulePath = dbasic::GetModulePath();
 
     // Check the env var for where to load fixed data from
@@ -194,7 +200,19 @@ void EngineSimApplication::initialize(void *instance, ysContextObject::DeviceAPI
     settings.WindowWidth = 1920;
     settings.WindowHeight = 1080;
 
-    m_engine.CreateGameWindow(settings);
+    const ysError windowError = m_engine.CreateGameWindow(settings);
+    if (windowError != ysError::None) {
+        // Carrying on would crash on the first frame, so stop with the reason
+        const std::string message =
+            "Engine Sim could not create its window and graphics device (error "
+            + std::to_string(static_cast<int>(windowError))
+            + "). The lines starting with \"Error @\" above give the details.";
+        fprintf(stderr, "%s\n", message.c_str());
+#ifdef _WIN32
+        MessageBoxA(nullptr, message.c_str(), "Engine Sim", MB_OK | MB_ICONERROR);
+#endif
+        return false;
+    }
 
     m_engine.GetDevice()->CreateSubRenderTarget(
         &m_mainRenderTarget,
@@ -226,6 +244,7 @@ void EngineSimApplication::initialize(void *instance, ysContextObject::DeviceAPI
     m_geometryGenerator.initialize(100000, 200000);
 
     initialize();
+    return true;
 }
 
 void EngineSimApplication::initialize() {

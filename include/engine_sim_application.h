@@ -40,7 +40,8 @@ class EngineSimApplication {
 
         static std::string getBuildVersion() { return s_buildVersion; }
 
-        void initialize(void *instance, ysContextObject::DeviceAPI api);
+        // False when the window or graphics device couldn't be created
+        bool initialize(void *instance, ysContextObject::DeviceAPI api);
         void run();
         void destroy();
 

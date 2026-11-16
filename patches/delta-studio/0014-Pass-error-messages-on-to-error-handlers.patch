@@ -1,0 +1,63 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: kadaxo <105596590+kadaxo@users.noreply.github.com>
+Date: Mon, 16 Nov 2026 16:23:05 +0300
+Subject: [PATCH 2/2] Pass error messages on to error handlers
+
+RaiseError received the message given with YDS_ERROR_RETURN_MSG (a shader
+compiler log, for example) but didn't pass it to OnError, so handlers
+could only report the error number. OnError now takes the message too.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ include/yds_error_handler.h | 4 +++-
+ src/yds_error_handler.cpp   | 3 ++-
+ src/yds_error_system.cpp    | 2 +-
+ 3 files changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/include/yds_error_handler.h b/include/yds_error_handler.h
+index b3bdedf4..707f233c 100644
+--- a/include/yds_error_handler.h
++++ b/include/yds_error_handler.h
+@@ -10,7 +10,9 @@ public:
+     ysErrorHandler();
+     virtual ~ysErrorHandler();
+ 
+-    virtual void OnError(ysError error, unsigned int line, ysObject *object, const char *file);
++    // msg is the detail passed with YDS_ERROR_RETURN_MSG (a shader compiler
++    // log, for example), or an empty string
++    virtual void OnError(ysError error, unsigned int line, ysObject *object, const char *file, const char *msg);
+ };
+ 
+ #endif /* YDS_ERROR_HANDLER_H */
+diff --git a/src/yds_error_handler.cpp b/src/yds_error_handler.cpp
+index 5144d05e..59b6ef58 100644
+--- a/src/yds_error_handler.cpp
++++ b/src/yds_error_handler.cpp
+@@ -10,9 +10,10 @@ ysErrorHandler::~ysErrorHandler() {
+     /* void */
+ }
+ 
+-void ysErrorHandler::OnError(ysError error, unsigned int line, ysObject *object, const char *file) {
++void ysErrorHandler::OnError(ysError error, unsigned int line, ysObject *object, const char *file, const char *msg) {
+     (void)error;
+     (void)line;
+     (void)object;
+     (void)file;
++    (void)msg;
+ }
+diff --git a/src/yds_error_system.cpp b/src/yds_error_system.cpp
+index f5e53a69..8d9d2177 100644
+--- a/src/yds_error_system.cpp
++++ b/src/yds_error_system.cpp
+@@ -33,7 +33,7 @@ void ysErrorSystem::Destroy() {
+ ysError ysErrorSystem::RaiseError(ysError error, unsigned int line, ysObject *object, const char *file, const char *msg, bool affectStack) {
+     if (error != ysError::None) {
+         for (int i = 0; i < m_errorHandlers.GetNumObjects(); i++) {
+-            m_errorHandlers.Get(i)->OnError(error, line, object, file);
++            m_errorHandlers.Get(i)->OnError(error, line, object, file, (msg != nullptr) ? msg : "");
+         }
+     }
+ 
+-- 
+2.56.0.windows.2
+
