@@ -537,11 +537,18 @@ if (TARGET engine-sim-export)
     list(APPEND ENGINE_SIM_RELEASE_PROGRAMS engine-sim-export)
 endif ()
 
-# vcpkg (or other) prefixes the build took libraries from
-set(ENGINE_SIM_LIBRARY_PREFIXES ${CMAKE_PREFIX_PATH})
+# vcpkg (or other) prefixes the build took libraries from, with forward
+# slashes: the paths end up in the install script, which would read the
+# backslashes of a path such as D:\a\... as escapes
+set(_prefixes ${CMAKE_PREFIX_PATH})
 if (DEFINED VCPKG_INSTALLED_DIR AND DEFINED VCPKG_TARGET_TRIPLET)
-    list(APPEND ENGINE_SIM_LIBRARY_PREFIXES "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}")
+    list(APPEND _prefixes "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}")
 endif ()
+set(ENGINE_SIM_LIBRARY_PREFIXES)
+foreach (_prefix IN LISTS _prefixes)
+    string(REPLACE "\\" "/" _prefix "${_prefix}")
+    list(APPEND ENGINE_SIM_LIBRARY_PREFIXES "${_prefix}")
+endforeach ()
 list(REMOVE_DUPLICATES ENGINE_SIM_LIBRARY_PREFIXES)
 
 if (WIN32 AND NOT CMAKE_VERSION VERSION_LESS 3.21)
@@ -561,6 +568,11 @@ if (WIN32 AND NOT CMAKE_VERSION VERSION_LESS 3.21)
     # Leave out Windows itself (API sets, system32, d3dcompiler_47 since
     # Windows 10) and the C++ runtime, which comes from Visual Studio below.
     # CMake matches DLL names in lowercase, but folders keep their case.
+    # The patterns take either slash, so CMake 4.3's forward-slash paths
+    # (policy CMP0207) suit them too.
+    if (POLICY CMP0207)
+        cmake_policy(SET CMP0207 NEW)
+    endif ()
     install(TARGETS ${ENGINE_SIM_RELEASE_PROGRAMS}
         RUNTIME_DEPENDENCIES
             PRE_EXCLUDE_REGEXES
