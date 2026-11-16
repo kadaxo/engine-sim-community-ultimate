@@ -18,7 +18,7 @@ It is not a scientific tool: it is designed to sound and respond like an engine,
 - **More engine types**: camshaft reduction ratio, `sparks_per_cycle` and intake atmosphere for two-stroke and steam engines and altitude setups, and a VTEC switch that changes cams only while each valve is closed.
 - **Steady sound**: an optional loudness-based volume leveler (`L`), fixes for audio underruns and a data race in the synthesizer, and a UDP rpm input ([RPM_SYNC.md](RPM_SYNC.md)).
 - **Works with screen readers.** Speech and braille through NVDA, JAWS, Narrator and others, keys that read out every gauge, a spoken engine list, and keyboard alternatives for everything the mouse did. See the [accessibility guide](docs/accessibility.html).
-- **Builds on Windows and Linux** with no Boost dependency, plus fixes to the physics, rendering and memory handling. macOS builds are set up but untested.
+- **Builds on Windows, Linux and macOS** with no Boost dependency, plus fixes to the physics, rendering and memory handling. The macOS app has been tried on an Apple Silicon Mac; Linux is built and tested in CI but the app hasn't been tried there yet.
 
 [COMMUNITY.md](COMMUNITY.md) lists where every change came from.
 
@@ -80,7 +80,7 @@ The rpm hold keeps the engine at one speed and measures its power and torque the
 
 ## Building from source
 
-The project builds on Windows (Direct3D 11) and Linux (SDL2 + OpenGL). The macOS build (SDL2 + OpenGL) is set up in the GitHub workflow but hasn't been tried yet. Boost is no longer needed.
+The project builds on Windows (Direct3D 11), Linux and macOS (SDL2 + OpenGL 4.1). Boost is no longer needed.
 
 ### Step 1 - Clone the repository
 ```git clone --recurse-submodules <url of this repository>```
@@ -103,7 +103,7 @@ vcpkg install sdl2:x64-windows sdl2-image:x64-windows libvorbis:x64-windows mp3l
 sudo apt install build-essential cmake libsdl2-dev libsdl2-image-dev flex bison
 ```
 
-**macOS** (Homebrew, untested):
+**macOS** (Homebrew):
 
 ```
 brew install cmake sdl2 sdl2_image bison flex
@@ -129,14 +129,14 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ```
 
-macOS (untested). The script compiler needs Bison 3.2 or newer and macOS ships 2.3, so point CMake at Homebrew's Bison and Flex:
+macOS. The script compiler needs Bison 3.2 or newer and macOS ships 2.3, so point CMake at Homebrew's Bison and Flex:
 
 ```
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=$(brew --prefix) -DBISON_EXECUTABLE=$(brew --prefix bison)/bin/bison -DFLEX_EXECUTABLE=$(brew --prefix flex)/bin/flex
 cmake --build build -j
 ```
 
-Run the app with the build directory as the working directory so that it finds `../assets`: `cd build`, then `./engine-sim-app` on Linux and macOS or `Release\engine-sim-app.exe` on Windows (Visual Studio's debugger already uses that directory). On Windows the vcpkg toolchain copies the SDL2 DLLs next to the executable. On Linux, scripts in `~/.local/share/engine-sim/assets` take priority over the bundled ones, and `ENGINE_SIM_DATA_ROOT` points the app at a different data directory.
+Run the app with the build directory as the working directory so that it finds `../assets`: `cd build`, then `./engine-sim-app` on Linux and macOS or `Release\engine-sim-app.exe` on Windows (Visual Studio's debugger already uses that directory). On Windows the vcpkg toolchain copies the SDL2 DLLs next to the executable. On Linux, scripts in `~/.local/share/engine-sim/assets` take priority over the bundled ones, and `ENGINE_SIM_DATA_ROOT` points the app at a different data directory. On macOS, Homebrew's SDL2 loads SDL3 at startup from a folder macOS doesn't search by default, so start the app with `DYLD_LIBRARY_PATH=$(brew --prefix)/lib ./engine-sim-app`.
 
 With CMake 4 add `-DCMAKE_POLICY_VERSION_MINIMUM=3.5`, since some submodules still declare a very old minimum version.
 
