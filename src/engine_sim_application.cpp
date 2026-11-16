@@ -258,8 +258,16 @@ bool EngineSimApplication::initialize(void *instance, ysContextObject::DeviceAPI
 
 void EngineSimApplication::initialize() {
     m_shaders.SetClearColor(ysColor::srgbiToLinear(0x34, 0x98, 0xdb));
-    m_assetManager.CompileInterchangeFile((m_assetPath + "/assets").c_str(), 1.0f, true);
-    m_assetManager.LoadSceneFile((m_assetPath + "/assets").c_str(), true);
+    // assets.ysce is compiled from assets.dia and kept in the repository, so
+    // only compile it when it's missing (delete it after editing the .dia).
+    // Compiling on every start wrote into the data folder, which in the macOS
+    // app is inside its signed bundle.
+    const std::string scene = m_assetPath + "/assets";
+    std::error_code sceneError;
+    if (!std::filesystem::exists(scene + ".ysce", sceneError)) {
+        m_assetManager.CompileInterchangeFile(scene.c_str(), 1.0f, true);
+    }
+    m_assetManager.LoadSceneFile(scene.c_str(), true);
 
     m_textRenderer.SetEngine(&m_engine);
     m_textRenderer.SetRenderer(m_engine.GetUiRenderer());
