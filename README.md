@@ -18,7 +18,7 @@ It is not a scientific tool: it is designed to sound and respond like an engine,
 - **More engine types**: camshaft reduction ratio, `sparks_per_cycle` and intake atmosphere for two-stroke and steam engines and altitude setups, and a VTEC switch that changes cams only while each valve is closed.
 - **Steady sound**: an optional loudness-based volume leveler (`L`), fixes for audio underruns and a data race in the synthesizer, and a UDP rpm input ([RPM_SYNC.md](RPM_SYNC.md)).
 - **Works with screen readers.** Speech and braille through NVDA, JAWS, Narrator and others, keys that read out every gauge, a spoken engine list, and keyboard alternatives for everything the mouse did. See the [accessibility guide](docs/accessibility.html).
-- **Builds on Windows, Linux and macOS** with no Boost dependency, plus fixes to the physics, rendering and memory handling. The macOS app has been tried on an Apple Silicon Mac; Linux is built and tested in CI but the app hasn't been tried there yet.
+- **Builds on Windows, Linux and macOS** with no Boost dependency, plus fixes to the physics, rendering and memory handling. The macOS app has been tried on an Apple Silicon Mac, and the Linux app on Ubuntu 22.04 (under WSL).
 
 [COMMUNITY.md](COMMUNITY.md) lists where every change came from.
 
@@ -28,7 +28,7 @@ It is not a scientific tool: it is designed to sound and respond like an engine,
 
 **macOS (Apple Silicon, macOS 11 or newer):** download `engine-sim-community-<version>-macos-arm64.zip`, unzip it and move `Engine Sim.app` to Applications. The app isn't signed by an Apple developer, so the first time macOS refuses to open it: open **System Settings > Privacy & Security** and choose **Open Anyway** next to the message about Engine Sim. `engine-sim-export` is inside the app, in `Engine Sim.app/Contents/MacOS`. Intel Macs need a build from source.
 
-**Linux (x86-64):** the download needs glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36 or later) and the system's SDL2, SDL2_image and OpenGL libraries: `sudo apt install libsdl2-2.0-0 libsdl2-image-2.0-0 libopengl0 libgl1`, `sudo dnf install SDL2 SDL2_image libglvnd-opengl` or `sudo pacman -S sdl2 sdl2_image`. Unpack `engine-sim-community-<version>-linux-x64.tar.gz` and run `./engine-sim-app` in its folder. Screen reader output goes through Speech Dispatcher, as Orca's does.
+**Linux (x86-64):** the download needs glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36 or later) and the system's SDL2, SDL2_image and OpenGL libraries: `sudo apt install libsdl2-2.0-0 libsdl2-image-2.0-0 libopengl0 libgl1`, `sudo dnf install SDL2 SDL2_image libglvnd-opengl` or `sudo pacman -S sdl2 sdl2_image`. Unpack `engine-sim-community-<version>-linux-x64.tar.gz` and run `./engine-sim-app` in its folder. Screen reader output goes through Speech Dispatcher, as Orca's does (tried with eSpeak NG; not yet with Orca itself).
 
 The [original project's releases](https://github.com/ange-yaghi/engine-sim/releases) are older builds without any of the changes above.
 
@@ -117,7 +117,7 @@ brew install cmake sdl2 sdl2_image bison flex
 
 libvorbis and LAME are optional: they let `engine-sim-export` write Ogg Vorbis and MP3 (WAV always works). CMake looks for their CMake packages (`Vorbis`, `Ogg`, `mp3lame`), which vcpkg provides; on Linux use `vcpkg install libvorbis mp3lame` and pass vcpkg's toolchain file to CMake. The configure output says which formats were enabled.
 
-[Prism](https://github.com/ethindp/prism) is optional too: it gives the simulator speech and braille output through screen readers (`vcpkg install ethindp-prism:x64-windows-static-md` on Windows, `vcpkg install ethindp-prism` on Linux and macOS, then pass vcpkg's toolchain file to CMake). On Linux it builds glib and glibmm and uses Speech Dispatcher, so the first install takes a while and needs autoconf, automake, libtool and pkg-config. Speech on Linux and macOS is untested; the `speech` job in `.github/workflows/cmake.yml` builds it. Without it the screen reader keys stay silent. Its port needs CMake 4 for MSVC; with an older vcpkg (such as the one bundled with Visual Studio) add `--overlay-ports=cmake/vcpkg-overlay-ports`, which builds it as C17. The configure output says whether screen reader output is enabled.
+[Prism](https://github.com/ethindp/prism) is optional too: it gives the simulator speech and braille output through screen readers (`vcpkg install ethindp-prism:x64-windows-static-md` on Windows, `vcpkg install ethindp-prism` on Linux and macOS, then pass vcpkg's toolchain file to CMake). On Linux it builds glib and glibmm and uses Speech Dispatcher, so the first install takes a while and needs autoconf, automake, libtool and pkg-config. On Linux, speech through Speech Dispatcher with eSpeak NG has been tried, Orca hasn't; on macOS speech is untested; the `speech` job in `.github/workflows/cmake.yml` builds it. Without it the screen reader keys stay silent. Its port needs CMake 4 for MSVC; with an older vcpkg (such as the one bundled with Visual Studio) add `--overlay-ports=cmake/vcpkg-overlay-ports`, which builds it as C17. The configure output says whether screen reader output is enabled.
 
 ### Step 3 - Build and Run
 
