@@ -40,13 +40,12 @@ project(engine-sim VERSION 0.1.12)
 set(CMAKE_CXX_STANDARD 17)
 
 # Programs that never draw (the tests and command-line tools) still link
-# delta-studio's renderers. On Windows, delay-load the Direct3D extension and
-# Vulkan libraries so they start without the legacy D3DX runtime or a Vulkan
-# driver installed.
+# delta-studio's renderers. On Windows, delay-load the Direct3D extension
+# libraries so they start without the legacy D3DX runtime installed.
 function(engine_sim_headless target)
     if (MSVC)
         target_link_options(${target} PRIVATE delayimp.lib
-            /DELAYLOAD:d3dx10_43.dll /DELAYLOAD:d3dx11_43.dll /DELAYLOAD:vulkan-1.dll)
+            /DELAYLOAD:d3dx10_43.dll /DELAYLOAD:d3dx11_43.dll)
     endif ()
 endfunction ()
 

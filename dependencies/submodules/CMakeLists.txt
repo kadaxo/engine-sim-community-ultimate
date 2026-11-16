@@ -60,6 +60,11 @@ else()
     message(WARNING "Git not found, can't apply patches/delta-studio (the Windows build will fail)")
 endif()
 
+# delta-studio builds an unfinished Vulkan renderer on Windows by default.
+# Nothing creates it, but linking it makes every program need vulkan-1.dll
+# to start, which PCs without a Vulkan driver don't have.
+set(ENABLE_VULKAN OFF CACHE BOOL "Enable the Vulkan graphics API" FORCE)
+
 add_subdirectory(delta-studio)
 
 set_property(TARGET delta-basic PROPERTY FOLDER "delta")
