@@ -1,0 +1,352 @@
+// BMW B58: 3.0 L inline six with a single twin-scroll turbocharger, about 380 hp at 6500 rpm.
+//
+// Written by the engine designer of kyan0s-git/engine-sim from its
+// "BMW B58" preset, translated to this version's scripts and tuned on its
+// dyno (see the notes at the end).
+
+import "engine_sim.mr"
+
+units units()
+constants constants()
+impulse_response_library ir_lib()
+
+label cycle(2 * 360 * units.deg)
+
+private node b58_wires {
+    output wire1: ignition_wire();
+    output wire2: ignition_wire();
+    output wire3: ignition_wire();
+    output wire4: ignition_wire();
+    output wire5: ignition_wire();
+    output wire6: ignition_wire();
+}
+
+private node b58_head {
+    input intake_camshaft;
+    input exhaust_camshaft;
+    input flip_display: false;
+    alias output __out: head;
+
+    function intake_flow(50 * units.thou)
+    intake_flow
+        .add_flow_sample(0, 0)
+        .add_flow_sample(48.5294, 49.346)
+        .add_flow_sample(97.0588, 87.6317)
+        .add_flow_sample(145.588, 132.724)
+        .add_flow_sample(194.118, 182.07)
+        .add_flow_sample(242.647, 211.848)
+        .add_flow_sample(291.176, 228.013)
+        .add_flow_sample(339.706, 238.222)
+        .add_flow_sample(388.235, 238.222)
+        .add_flow_sample(436.765, 239.073)
+
+    function exhaust_flow(50 * units.thou)
+    exhaust_flow
+        .add_flow_sample(0, 0)
+        .add_flow_sample(47.549, 31.4794)
+        .add_flow_sample(95.098, 61.2571)
+        .add_flow_sample(142.647, 96.1397)
+        .add_flow_sample(190.196, 136.127)
+        .add_flow_sample(237.745, 166.756)
+        .add_flow_sample(285.294, 188.876)
+        .add_flow_sample(332.843, 199.936)
+        .add_flow_sample(380.392, 208.444)
+        .add_flow_sample(427.941, 209.295)
+
+    generic_cylinder_head head(
+        chamber_volume: 49.9584 * units.cc,
+        intake_runner_volume: 139.736 * units.cc,
+        intake_runner_cross_section_area: 13.9736 * units.cm2,
+        exhaust_runner_volume: 69.8679 * units.cc,
+        exhaust_runner_cross_section_area: 13.9736 * units.cm2,
+        intake_port_flow: intake_flow,
+        exhaust_port_flow: exhaust_flow,
+        valvetrain: standard_valvetrain(
+            intake_camshaft: intake_camshaft,
+            exhaust_camshaft: exhaust_camshaft
+        ),
+        flip_display: flip_display
+    )
+}
+
+public node b58_engine {
+    alias output __out: engine;
+
+    engine engine(
+        name: "BMW B58",
+        starter_torque: 129.925 * units.lb_ft,
+        starter_speed: 300 * units.rpm,
+        redline: 7000 * units.rpm,
+        dyno_max_speed: 7000 * units.rpm,
+        simulation_frequency: 10000
+    )
+
+    b58_wires wires()
+
+    label flywheel_radius(0.1419 * units.m)
+    crankshaft c0(
+        throw: 47.3 * units.mm,
+        flywheel_mass: 9 * units.kg,
+        mass: 19.8 * units.kg,
+        friction_torque: 4.6 * units.lb_ft,
+        moment_of_inertia:
+            disk_moment_of_inertia(mass: 19.8 * units.kg, radius: 47.3 * units.mm)
+            + disk_moment_of_inertia(mass: 9 * units.kg, radius: flywheel_radius),
+        position_x: 0.0,
+        position_y: 0.0,
+        tdc: 90 * units.deg
+    )
+
+    rod_journal rj0(angle: 0 * units.deg)
+    rod_journal rj1(angle: 120 * units.deg)
+    rod_journal rj2(angle: 240 * units.deg)
+    rod_journal rj3(angle: 240 * units.deg)
+    rod_journal rj4(angle: 120 * units.deg)
+    rod_journal rj5(angle: 0 * units.deg)
+    c0
+        .add_rod_journal(rj0)
+        .add_rod_journal(rj1)
+        .add_rod_journal(rj2)
+        .add_rod_journal(rj3)
+        .add_rod_journal(rj4)
+        .add_rod_journal(rj5)
+
+    piston_parameters piston_params(
+        mass: 330.821 * units.g,
+        compression_height: 28.7 * units.mm,
+        wrist_pin_position: 0.0,
+        displacement: 0.0
+    )
+
+    connecting_rod_parameters cr_params(
+        mass: 396.985 * units.g,
+        moment_of_inertia: rod_moment_of_inertia(mass: 396.985 * units.g, length: 144.35 * units.mm),
+        center_of_mass: 0.0,
+        length: 144.35 * units.mm
+    )
+
+    cylinder_bank_parameters bank_params(
+        bore: 82 * units.mm,
+        deck_height: 220.35 * units.mm
+    )
+
+    intake intake(
+        plenum_volume: 2.99751 * units.L,
+        plenum_cross_section_area: 44.9626 * units.cm2,
+        intake_flow_rate: k_carb(481.644),
+        runner_flow_rate: k_carb(200.685),
+        runner_length: 250 * units.mm,
+        idle_flow_rate: k_carb(0.0),
+        idle_throttle_plate_position: 0.996,
+        velocity_decay: 0.5
+    )
+
+    exhaust_system_parameters es_params(
+        outlet_flow_rate: k_carb(963.289),
+        primary_tube_length: 300 * units.mm,
+        primary_flow_rate: k_carb(200.685),
+        velocity_decay: 1.0,
+        collector_cross_section_area: circle_area(70 * units.mm),
+        length: 3000 * units.mm
+    )
+
+    exhaust_system exhaust0(es_params, audio_volume: 1.0, impulse_response: ir_lib.mild_exhaust_0_reverb)
+
+    cylinder_bank b0(bank_params, angle: 0 * units.deg)
+
+    b0
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.1)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj0,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire1,
+            sound_attenuation: 1.0,
+            primary_length: 0.3 * units.m
+        )
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.1)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj1,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire2,
+            sound_attenuation: 1.0,
+            primary_length: 0.24 * units.m
+        )
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.1)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj2,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire3,
+            sound_attenuation: 1.0,
+            primary_length: 0.18 * units.m
+        )
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.1)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj3,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire4,
+            sound_attenuation: 1.0,
+            primary_length: 0.12 * units.m
+        )
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.1)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj4,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire5,
+            sound_attenuation: 1.0,
+            primary_length: 0.06 * units.m
+        )
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.1)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj5,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire6,
+            sound_attenuation: 1.0,
+            primary_length: 0 * units.m
+        )
+        .set_cylinder_head(
+            b58_head(
+                intake_camshaft: intake_cam_0,
+                exhaust_camshaft: exhaust_cam_0)
+        )
+
+    engine
+        .add_cylinder_bank(b0)
+    engine.add_crankshaft(c0)
+
+    harmonic_cam_lobe intake_lobe(
+        duration_at_50_thou: 212 * units.deg,
+        gamma: 1.1,
+        lift: 9.9 * units.mm,
+        steps: 100
+    )
+    harmonic_cam_lobe exhaust_lobe(
+        duration_at_50_thou: 216 * units.deg,
+        gamma: 1.1,
+        lift: 9.7 * units.mm,
+        steps: 100
+    )
+    camshaft_parameters cam_params(advance: 0 * units.deg, base_radius: 16.4 * units.mm)
+    camshaft intake_cam_0(cam_params, lobe_profile: intake_lobe)
+    camshaft exhaust_cam_0(cam_params, lobe_profile: exhaust_lobe)
+    intake_cam_0
+        .add_lobe(360 * units.deg + 112 * units.deg + 0 * units.deg)
+        .add_lobe(360 * units.deg + 112 * units.deg + 480 * units.deg)
+        .add_lobe(360 * units.deg + 112 * units.deg + 240 * units.deg)
+        .add_lobe(360 * units.deg + 112 * units.deg + 600 * units.deg)
+        .add_lobe(360 * units.deg + 112 * units.deg + 120 * units.deg)
+        .add_lobe(360 * units.deg + 112 * units.deg + 360 * units.deg)
+    exhaust_cam_0
+        .add_lobe(360 * units.deg - 110 * units.deg + 0 * units.deg)
+        .add_lobe(360 * units.deg - 110 * units.deg + 480 * units.deg)
+        .add_lobe(360 * units.deg - 110 * units.deg + 240 * units.deg)
+        .add_lobe(360 * units.deg - 110 * units.deg + 600 * units.deg)
+        .add_lobe(360 * units.deg - 110 * units.deg + 120 * units.deg)
+        .add_lobe(360 * units.deg - 110 * units.deg + 360 * units.deg)
+
+    // Forced induction
+    engine.add_forced_induction(
+        turbocharger(
+            arrangement: "single",
+            compressor_diameter: 73.1614 * units.mm,
+            compressor_flow: 0.446049 * units.kg / units.sec,
+            turbine_ar: 0.55,
+            inertia: 0.0000808675868567,
+            bearings: "journal",
+            boost: 110.316 * units.kPa,
+            blowoff_valve: true,
+            blowoff_type: "recirculating",
+            boost_control: "electronic",
+            wastegate: "internal",
+            twin_scroll: true,
+            whistle_pitch: 1,
+            intercooler_effectiveness: 0.8,
+            charge_volume: 5.99501 * units.L,
+            sequential_speed: 3850 * units.rpm
+        )
+    )
+
+    function timing_curve(500 * units.rpm)
+    timing_curve
+        .add_sample(0 * units.rpm, 5.5 * units.deg)
+        .add_sample(500 * units.rpm, 5.5 * units.deg)
+        .add_sample(1000 * units.rpm, 5.5 * units.deg)
+        .add_sample(1500 * units.rpm, 6.9667 * units.deg)
+        .add_sample(2000 * units.rpm, 8.4333 * units.deg)
+        .add_sample(2500 * units.rpm, 9.9 * units.deg)
+        .add_sample(3000 * units.rpm, 11.3667 * units.deg)
+        .add_sample(3500 * units.rpm, 12.8333 * units.deg)
+        .add_sample(4000 * units.rpm, 14.3 * units.deg)
+        .add_sample(4500 * units.rpm, 14.3 * units.deg)
+        .add_sample(5000 * units.rpm, 14.3 * units.deg)
+        .add_sample(5500 * units.rpm, 14.3 * units.deg)
+        .add_sample(6000 * units.rpm, 14.3 * units.deg)
+        .add_sample(6500 * units.rpm, 14.3 * units.deg)
+        .add_sample(7000 * units.rpm, 14.3 * units.deg)
+        .add_sample(7500 * units.rpm, 14.3 * units.deg)
+        .add_sample(8000 * units.rpm, 14.3 * units.deg)
+        .add_sample(8500 * units.rpm, 14.3 * units.deg)
+
+    ignition_module ignition(
+        timing_curve: timing_curve,
+        rev_limit: 7200 * units.rpm,
+        limiter_duration: 0.1
+    )
+    ignition
+        .connect_wire(wires.wire1, 0 * units.deg)
+        .connect_wire(wires.wire2, 480 * units.deg)
+        .connect_wire(wires.wire3, 240 * units.deg)
+        .connect_wire(wires.wire4, 600 * units.deg)
+        .connect_wire(wires.wire5, 120 * units.deg)
+        .connect_wire(wires.wire6, 360 * units.deg)
+    engine.add_ignition_module(ignition)
+}
+
+private node b58_vehicle {
+    alias output __out:
+        vehicle(
+            mass: 1600 * units.kg,
+            drag_coefficient: 0.3,
+            cross_sectional_area: 2.2 * units.m2,
+            diff_ratio: 3.7,
+            tire_radius: 0.31 * units.m,
+            rolling_resistance: 235.44,
+            max_brake_force: 15539 * units.N
+        );
+}
+
+private node b58_transmission {
+    alias output __out:
+        transmission(max_clutch_torque: 1878.3 * units.lb_ft)
+            .add_gear(3.6)
+            .add_gear(2.2)
+            .add_gear(1.5)
+            .add_gear(1.15)
+            .add_gear(0.92)
+            .add_gear(0.75);
+}
+
+public node main {
+    set_engine(b58_engine())
+    set_vehicle(b58_vehicle())
+    set_transmission(b58_transmission())
+}
+
+// Tuning notes. The designer's figures were set for kyan0s-git's physics
+// model, with which this version makes about 28% more torque at the same
+// boost. Rather than lower the boost below the real engine's 16 psi, the
+// ignition timing is 0.55 times the designer's (14 degrees at most under
+// boost, as a real engine runs). On this version's dyno (boost-probe) it
+// makes 376 to 402 lb-ft from 1500 to 4000 rpm and 389 hp at 6500 rpm,
+// against BMW's 369 lb-ft and 382 hp.

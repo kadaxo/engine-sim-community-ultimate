@@ -67,6 +67,7 @@ Each script was compiled and run headlessly (cranks, idles and holds 1500 rpm on
 | Porsche 992 GT3 | csaba.hegedus ([csabigee](https://github.com/csabigee/engine-sim)) |
 | Subaru EJ25 street exhaust | [Samzax](https://github.com/Samzax/engine-sim) |
 | GM LS supercharged, Subaru EJ25 twin-scroll turbo (moved to the kyan0s-git forced induction) | [Oblongy](https://github.com/Oblongy/engine-sim) |
+| Toyota 2JZ-GTE, BMW B58, F1 2026 V6 (written by its engine designer from its presets, translated and tuned on this version's dyno) | [kyan0s-git](https://github.com/kyan0s-git/engine-sim) |
 | MTU MB 871 Ka-501 tank diesel (by pilot01 and LTSP6.1.1 on Archangel Motors' template) | barolig ([Sness00/engine-sim](https://github.com/Sness00/engine-sim)) |
 | 2005 Toyota Corolla XRS 2ZZ-GE (lift switch at 6000 rpm) | [sillysigmabollocks](https://github.com/sillysigmabollocks/engine-sim-test) |
 

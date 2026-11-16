@@ -27,7 +27,9 @@ supercharger blower(
 engine.add_forced_induction(blower)
 ```
 
-Examples: `assets/engines/forced-induction/`.
+Examples in `assets/engines/forced-induction/`: a supercharged GM LS and a twin-scroll turbo
+Subaru EJ25, and from kyan0s-git's engine designer a Toyota 2JZ-GTE (sequential twin turbos),
+a BMW B58 (twin-scroll turbo) and a 2026 Formula 1 V6.
 
 ### turbocharger
 

@@ -833,3 +833,39 @@ TEST(ForcedInductionEngineTests, TurboWhistleFadesAfterLift) {
     EXPECT_LT(afterShare, onShare - 15.0) << "on " << onShare << " dB, after " << afterShare << " dB";
     EXPECT_LT(fi->getWhineLevel(), 0.05);
 }
+
+TEST(ForcedInductionEngineTests, DesignerEnginesReachTheirBoost) {
+    // The engines from kyan0s-git's designer presets
+    const struct {
+        const char *file;
+        double rpm;
+        ForcedInduction::Arrangement arrangement;
+    } engines[] = {
+        { "toyota_2jz_gte.mr", 4500, ForcedInduction::Arrangement::Sequential },
+        { "bmw_b58.mr", 3000, ForcedInduction::Arrangement::Single },
+        // Where the wastegate runs nearly shut, which made the boost hunt
+        // when the controller set the valve opening directly
+        { "f1_2026_v6.mr", 9000, ForcedInduction::Arrangement::Single }
+    };
+
+    for (const auto &e : engines) {
+        std::unique_ptr<EngineSession> session = startForcedInduction(e.file);
+        ASSERT_TRUE(session) << e.file;
+        const ForcedInduction *fi = forcedInduction(*session);
+        ASSERT_NE(fi, nullptr) << e.file;
+        EXPECT_TRUE(fi->isTurbocharger()) << e.file;
+        EXPECT_EQ(fi->getArrangement(), e.arrangement) << e.file;
+
+        holdAt(session.get(), e.rpm, 1.0);
+        session->advance(1.5, nullptr, nullptr);
+
+        double low = 1e9, high = 0;
+        for (int i = 0; i < 50; ++i) {
+            session->advance(0.02, nullptr, nullptr);
+            low = std::min(low, psi(fi->getBoost()));
+            high = std::max(high, psi(fi->getBoost()));
+        }
+        EXPECT_NEAR(0.5 * (low + high), psi(fi->getBoostTarget()), 1.0) << e.file;
+        EXPECT_LT(high - low, 1.5) << e.file << ": boost hunts between " << low << " and " << high << " psi";
+    }
+}

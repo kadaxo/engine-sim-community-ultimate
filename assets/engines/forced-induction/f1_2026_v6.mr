@@ -1,0 +1,382 @@
+// F1 2026 V6 turbo: 1.6 L 90 degree V6 to the 2026 Formula 1 rules: 80 mm bore, 16:1 compression, 15,000 rpm limit, single turbocharger without the MGU-H (combustion engine only).
+//
+// Written by the engine designer of kyan0s-git/engine-sim from its
+// "F1 2026 V6 turbo" preset, translated to this version's scripts and tuned on its
+// dyno (see the notes at the end).
+
+import "engine_sim.mr"
+
+units units()
+constants constants()
+impulse_response_library ir_lib()
+
+label cycle(2 * 360 * units.deg)
+
+private node f1_v6_wires {
+    output wire1: ignition_wire();
+    output wire2: ignition_wire();
+    output wire3: ignition_wire();
+    output wire4: ignition_wire();
+    output wire5: ignition_wire();
+    output wire6: ignition_wire();
+}
+
+private node f1_v6_head {
+    input intake_camshaft;
+    input exhaust_camshaft;
+    input flip_display: false;
+    alias output __out: head;
+
+    function intake_flow(50 * units.thou)
+    intake_flow
+        .add_flow_sample(0, 0)
+        .add_flow_sample(73.5294, 46.9683)
+        .add_flow_sample(147.059, 83.4091)
+        .add_flow_sample(220.588, 126.328)
+        .add_flow_sample(294.118, 173.297)
+        .add_flow_sample(367.647, 201.64)
+        .add_flow_sample(441.176, 217.026)
+        .add_flow_sample(514.706, 226.743)
+        .add_flow_sample(588.235, 226.743)
+        .add_flow_sample(661.765, 227.553)
+
+    function exhaust_flow(50 * units.thou)
+    exhaust_flow
+        .add_flow_sample(0, 0)
+        .add_flow_sample(66.1765, 29.9625)
+        .add_flow_sample(132.353, 58.3054)
+        .add_flow_sample(198.529, 91.5071)
+        .add_flow_sample(264.706, 129.568)
+        .add_flow_sample(330.882, 158.72)
+        .add_flow_sample(397.059, 179.775)
+        .add_flow_sample(463.235, 190.302)
+        .add_flow_sample(529.412, 198.4)
+        .add_flow_sample(595.588, 199.21)
+
+    generic_cylinder_head head(
+        chamber_volume: 17.7772 * units.cc,
+        intake_runner_volume: 133.002 * units.cc,
+        intake_runner_cross_section_area: 13.3002 * units.cm2,
+        exhaust_runner_volume: 66.5012 * units.cc,
+        exhaust_runner_cross_section_area: 13.3002 * units.cm2,
+        intake_port_flow: intake_flow,
+        exhaust_port_flow: exhaust_flow,
+        valvetrain: standard_valvetrain(
+            intake_camshaft: intake_camshaft,
+            exhaust_camshaft: exhaust_camshaft
+        ),
+        flip_display: flip_display
+    )
+}
+
+public node f1_v6_engine {
+    alias output __out: engine;
+
+    engine engine(
+        name: "F1 2026 V6 turbo",
+        starter_torque: 87.9985 * units.lb_ft,
+        starter_speed: 300 * units.rpm,
+        redline: 15000 * units.rpm,
+        dyno_max_speed: 15000 * units.rpm,
+        simulation_frequency: 21000
+    )
+
+    f1_v6_wires wires()
+
+    label flywheel_radius(0.12 * units.m)
+    crankshaft c0(
+        throw: 26.525 * units.mm,
+        flywheel_mass: 1 * units.kg,
+        mass: 11.1035 * units.kg,
+        friction_torque: 4.6 * units.lb_ft,
+        moment_of_inertia:
+            disk_moment_of_inertia(mass: 11.1035 * units.kg, radius: 26.525 * units.mm)
+            + disk_moment_of_inertia(mass: 1 * units.kg, radius: flywheel_radius),
+        position_x: 0.0,
+        position_y: 0.0,
+        tdc: 45 * units.deg
+    )
+
+    rod_journal rj0(angle: 0 * units.deg)
+    rod_journal rj1(angle: 240 * units.deg)
+    rod_journal rj2(angle: 120 * units.deg)
+    rod_journal rj3(angle: 210 * units.deg)
+    rod_journal rj4(angle: 90 * units.deg)
+    rod_journal rj5(angle: 330 * units.deg)
+    c0
+        .add_rod_journal(rj0)
+        .add_rod_journal(rj1)
+        .add_rod_journal(rj2)
+        .add_rod_journal(rj3)
+        .add_rod_journal(rj4)
+        .add_rod_journal(rj5)
+
+    piston_parameters piston_params(
+        mass: 307.2 * units.g,
+        compression_height: 28 * units.mm,
+        wrist_pin_position: 0.0,
+        displacement: 0.0
+    )
+
+    connecting_rod_parameters cr_params(
+        mass: 368.64 * units.g,
+        moment_of_inertia: rod_moment_of_inertia(mass: 368.64 * units.g, length: 110 * units.mm),
+        center_of_mass: 0.0,
+        length: 110 * units.mm
+    )
+
+    cylinder_bank_parameters bank_params(
+        bore: 80 * units.mm,
+        deck_height: 164.525 * units.mm
+    )
+
+    intake intake(
+        plenum_volume: 1.59995 * units.L,
+        plenum_cross_section_area: 23.9993 * units.cm2,
+        intake_flow_rate: k_carb(550.892),
+        runner_flow_rate: k_carb(367.2608),
+        runner_length: 120 * units.mm,
+        idle_flow_rate: k_carb(0.0),
+        idle_throttle_plate_position: 0.97,
+        velocity_decay: 0.5
+    )
+
+    exhaust_system_parameters es_params(
+        outlet_flow_rate: k_carb(1101.78),
+        primary_tube_length: 350 * units.mm,
+        primary_flow_rate: k_carb(367.2608),
+        velocity_decay: 1.0,
+        collector_cross_section_area: circle_area(65 * units.mm),
+        length: 1000 * units.mm
+    )
+
+    exhaust_system exhaust0(es_params, audio_volume: 1.0, impulse_response: ir_lib.minimal_muffling_03)
+    exhaust_system exhaust1(es_params, audio_volume: 1.0, impulse_response: ir_lib.minimal_muffling_03)
+
+    cylinder_bank b0(bank_params, angle: -45 * units.deg)
+    cylinder_bank b1(bank_params, angle: 45 * units.deg)
+
+    b0
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.1)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj0,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire1,
+            sound_attenuation: 1.0,
+            primary_length: 0.12 * units.m
+        )
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.1)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj1,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire2,
+            sound_attenuation: 1.0,
+            primary_length: 0.06 * units.m
+        )
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.1)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj2,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire3,
+            sound_attenuation: 1.0,
+            primary_length: 0 * units.m
+        )
+        .set_cylinder_head(
+            f1_v6_head(
+                intake_camshaft: intake_cam_0,
+                exhaust_camshaft: exhaust_cam_0)
+        )
+    b1
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.1)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj3,
+            intake: intake,
+            exhaust_system: exhaust1,
+            ignition_wire: wires.wire4,
+            sound_attenuation: 1.0,
+            primary_length: 0.12 * units.m
+        )
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.1)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj4,
+            intake: intake,
+            exhaust_system: exhaust1,
+            ignition_wire: wires.wire5,
+            sound_attenuation: 1.0,
+            primary_length: 0.06 * units.m
+        )
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.1)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj5,
+            intake: intake,
+            exhaust_system: exhaust1,
+            ignition_wire: wires.wire6,
+            sound_attenuation: 1.0,
+            primary_length: 0 * units.m
+        )
+        .set_cylinder_head(
+            f1_v6_head(
+                intake_camshaft: intake_cam_1,
+                exhaust_camshaft: exhaust_cam_1,
+                flip_display: true)
+        )
+
+    engine
+        .add_cylinder_bank(b0)
+        .add_cylinder_bank(b1)
+    engine.add_crankshaft(c0)
+
+    harmonic_cam_lobe intake_lobe(
+        duration_at_50_thou: 290 * units.deg,
+        gamma: 1.1,
+        lift: 15 * units.mm,
+        steps: 100
+    )
+    harmonic_cam_lobe exhaust_lobe(
+        duration_at_50_thou: 285 * units.deg,
+        gamma: 1.1,
+        lift: 13.5 * units.mm,
+        steps: 100
+    )
+    camshaft_parameters cam_params(advance: 0 * units.deg, base_radius: 16 * units.mm)
+    camshaft intake_cam_0(cam_params, lobe_profile: intake_lobe)
+    camshaft exhaust_cam_0(cam_params, lobe_profile: exhaust_lobe)
+    intake_cam_0
+        .add_lobe(360 * units.deg + 104 * units.deg + 0 * units.deg)
+        .add_lobe(360 * units.deg + 104 * units.deg + 240 * units.deg)
+        .add_lobe(360 * units.deg + 104 * units.deg + 480 * units.deg)
+    exhaust_cam_0
+        .add_lobe(360 * units.deg - 108 * units.deg + 0 * units.deg)
+        .add_lobe(360 * units.deg - 108 * units.deg + 240 * units.deg)
+        .add_lobe(360 * units.deg - 108 * units.deg + 480 * units.deg)
+    camshaft intake_cam_1(cam_params, lobe_profile: intake_lobe)
+    camshaft exhaust_cam_1(cam_params, lobe_profile: exhaust_lobe)
+    intake_cam_1
+        .add_lobe(360 * units.deg + 104 * units.deg + 120 * units.deg)
+        .add_lobe(360 * units.deg + 104 * units.deg + 360 * units.deg)
+        .add_lobe(360 * units.deg + 104 * units.deg + 600 * units.deg)
+    exhaust_cam_1
+        .add_lobe(360 * units.deg - 108 * units.deg + 120 * units.deg)
+        .add_lobe(360 * units.deg - 108 * units.deg + 360 * units.deg)
+        .add_lobe(360 * units.deg - 108 * units.deg + 600 * units.deg)
+
+    // Forced induction
+    engine.add_forced_induction(
+        turbocharger(
+            arrangement: "single",
+            compressor_diameter: 93.3618 * units.mm,
+            compressor_flow: 0.726369 * units.kg / units.sec,
+            turbine_ar: 0.85,
+            inertia: 0.0002737,
+            bearings: "ball",
+            boost: 200 * units.kPa,
+            blowoff_valve: true,
+            blowoff_type: "atmospheric",
+            boost_control: "electronic",
+            wastegate: "external",
+            twin_scroll: false,
+            whistle_pitch: 1,
+            intercooler_effectiveness: 0.85,
+            charge_volume: 3.1999 * units.L,
+            sequential_speed: 8250 * units.rpm
+        )
+    )
+
+    function timing_curve(500 * units.rpm)
+    timing_curve
+        .add_sample(0 * units.rpm, 20 * units.deg)
+        .add_sample(500 * units.rpm, 20 * units.deg)
+        .add_sample(1000 * units.rpm, 20 * units.deg)
+        .add_sample(1500 * units.rpm, 21.2857 * units.deg)
+        .add_sample(2000 * units.rpm, 22.5714 * units.deg)
+        .add_sample(2500 * units.rpm, 23.8571 * units.deg)
+        .add_sample(3000 * units.rpm, 25.1429 * units.deg)
+        .add_sample(3500 * units.rpm, 26.4286 * units.deg)
+        .add_sample(4000 * units.rpm, 27.7143 * units.deg)
+        .add_sample(4500 * units.rpm, 29 * units.deg)
+        .add_sample(5000 * units.rpm, 30.2857 * units.deg)
+        .add_sample(5500 * units.rpm, 31.5714 * units.deg)
+        .add_sample(6000 * units.rpm, 32.8571 * units.deg)
+        .add_sample(6500 * units.rpm, 34.1429 * units.deg)
+        .add_sample(7000 * units.rpm, 35.4286 * units.deg)
+        .add_sample(7500 * units.rpm, 36.7143 * units.deg)
+        .add_sample(8000 * units.rpm, 38 * units.deg)
+        .add_sample(8500 * units.rpm, 38 * units.deg)
+        .add_sample(9000 * units.rpm, 38 * units.deg)
+        .add_sample(9500 * units.rpm, 38 * units.deg)
+        .add_sample(10000 * units.rpm, 38 * units.deg)
+        .add_sample(10500 * units.rpm, 38 * units.deg)
+        .add_sample(11000 * units.rpm, 38 * units.deg)
+        .add_sample(11500 * units.rpm, 38 * units.deg)
+        .add_sample(12000 * units.rpm, 38 * units.deg)
+        .add_sample(12500 * units.rpm, 38 * units.deg)
+        .add_sample(13000 * units.rpm, 38 * units.deg)
+        .add_sample(13500 * units.rpm, 38 * units.deg)
+        .add_sample(14000 * units.rpm, 38 * units.deg)
+        .add_sample(14500 * units.rpm, 38 * units.deg)
+        .add_sample(15000 * units.rpm, 38 * units.deg)
+        .add_sample(15500 * units.rpm, 38 * units.deg)
+        .add_sample(16000 * units.rpm, 38 * units.deg)
+        .add_sample(16500 * units.rpm, 38 * units.deg)
+
+    ignition_module ignition(
+        timing_curve: timing_curve,
+        rev_limit: 15200 * units.rpm,
+        limiter_duration: 0.1
+    )
+    ignition
+        .connect_wire(wires.wire1, 0 * units.deg)
+        .connect_wire(wires.wire2, 240 * units.deg)
+        .connect_wire(wires.wire3, 480 * units.deg)
+        .connect_wire(wires.wire4, 120 * units.deg)
+        .connect_wire(wires.wire5, 360 * units.deg)
+        .connect_wire(wires.wire6, 600 * units.deg)
+    engine.add_ignition_module(ignition)
+}
+
+private node f1_v6_vehicle {
+    alias output __out:
+        vehicle(
+            mass: 800 * units.kg,
+            drag_coefficient: 0.3,
+            cross_sectional_area: 2.2 * units.m2,
+            diff_ratio: 3.7,
+            tire_radius: 0.31 * units.m,
+            rolling_resistance: 117.72,
+            max_brake_force: 7769.52 * units.N
+        );
+}
+
+private node f1_v6_transmission {
+    alias output __out:
+        transmission(max_clutch_torque: 1427.4 * units.lb_ft)
+            .add_gear(3.6)
+            .add_gear(2.2)
+            .add_gear(1.5)
+            .add_gear(1.15)
+            .add_gear(0.92)
+            .add_gear(0.75);
+}
+
+public node main {
+    set_engine(f1_v6_engine())
+    set_vehicle(f1_v6_vehicle())
+    set_transmission(f1_v6_transmission())
+}
+
+// Tuning notes. The designer's figures were set for kyan0s-git's physics
+// model; here the runner and header primary flow are 1.6 times the
+// designer's, which kept the engine from breathing above 11000 rpm. On this
+// version's dyno (boost-probe) it makes about 534 hp at 13000 rpm and
+// 498 hp at 14000 rpm, against the 400 kW (536 hp) the 2026 rules allow the
+// combustion engine. Its turbo spools so fast from cruise that the boost
+// briefly overshoots by up to 6 psi before the wastegate catches it.

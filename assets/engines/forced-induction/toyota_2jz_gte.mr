@@ -1,0 +1,350 @@
+// Toyota 2JZ-GTE: 3.0 L inline six with sequential twin turbochargers, about 320 hp at 5600 rpm.
+//
+// Written by the engine designer of kyan0s-git/engine-sim from its
+// "Toyota 2JZ-GTE" preset, translated to this version's scripts and tuned on its
+// dyno (see the notes at the end).
+
+import "engine_sim.mr"
+
+units units()
+constants constants()
+impulse_response_library ir_lib()
+
+label cycle(2 * 360 * units.deg)
+
+private node t2jz_gte_wires {
+    output wire1: ignition_wire();
+    output wire2: ignition_wire();
+    output wire3: ignition_wire();
+    output wire4: ignition_wire();
+    output wire5: ignition_wire();
+    output wire6: ignition_wire();
+}
+
+private node t2jz_gte_head {
+    input intake_camshaft;
+    input exhaust_camshaft;
+    input flip_display: false;
+    alias output __out: head;
+
+    function intake_flow(50 * units.thou)
+    intake_flow
+        .add_flow_sample(0, 0)
+        .add_flow_sample(40.6863, 54.2777)
+        .add_flow_sample(81.3725, 96.3897)
+        .add_flow_sample(122.059, 145.988)
+        .add_flow_sample(162.745, 200.266)
+        .add_flow_sample(203.431, 233.02)
+        .add_flow_sample(244.118, 250.8)
+        .add_flow_sample(284.804, 262.03)
+        .add_flow_sample(325.49, 262.03)
+        .add_flow_sample(366.176, 262.966)
+
+    function exhaust_flow(50 * units.thou)
+    exhaust_flow
+        .add_flow_sample(0, 0)
+        .add_flow_sample(41.1765, 34.6254)
+        .add_flow_sample(82.3529, 67.3792)
+        .add_flow_sample(123.529, 105.748)
+        .add_flow_sample(164.706, 149.732)
+        .add_flow_sample(205.882, 183.421)
+        .add_flow_sample(247.059, 207.753)
+        .add_flow_sample(288.235, 219.918)
+        .add_flow_sample(329.412, 229.276)
+        .add_flow_sample(370.588, 230.212)
+
+    generic_cylinder_head head(
+        chamber_volume: 66.6076 * units.cc,
+        intake_runner_volume: 153.701 * units.cc,
+        intake_runner_cross_section_area: 15.3701 * units.cm2,
+        exhaust_runner_volume: 76.8505 * units.cc,
+        exhaust_runner_cross_section_area: 15.3701 * units.cm2,
+        intake_port_flow: intake_flow,
+        exhaust_port_flow: exhaust_flow,
+        valvetrain: standard_valvetrain(
+            intake_camshaft: intake_camshaft,
+            exhaust_camshaft: exhaust_camshaft
+        ),
+        flip_display: flip_display
+    )
+}
+
+public node t2jz_gte_engine {
+    alias output __out: engine;
+
+    engine engine(
+        name: "Toyota 2JZ-GTE",
+        starter_torque: 129.92 * units.lb_ft,
+        starter_speed: 300 * units.rpm,
+        redline: 6800 * units.rpm,
+        dyno_max_speed: 6800 * units.rpm,
+        simulation_frequency: 10000
+    )
+
+    t2jz_gte_wires wires()
+
+    label flywheel_radius(0.129 * units.m)
+    crankshaft c0(
+        throw: 43 * units.mm,
+        flywheel_mass: 8.5 * units.kg,
+        mass: 18 * units.kg,
+        friction_torque: 4.6 * units.lb_ft,
+        moment_of_inertia:
+            disk_moment_of_inertia(mass: 18 * units.kg, radius: 43 * units.mm)
+            + disk_moment_of_inertia(mass: 8.5 * units.kg, radius: flywheel_radius),
+        position_x: 0.0,
+        position_y: 0.0,
+        tdc: 90 * units.deg
+    )
+
+    rod_journal rj0(angle: 0 * units.deg)
+    rod_journal rj1(angle: 120 * units.deg)
+    rod_journal rj2(angle: 240 * units.deg)
+    rod_journal rj3(angle: 240 * units.deg)
+    rod_journal rj4(angle: 120 * units.deg)
+    rod_journal rj5(angle: 0 * units.deg)
+    c0
+        .add_rod_journal(rj0)
+        .add_rod_journal(rj1)
+        .add_rod_journal(rj2)
+        .add_rod_journal(rj3)
+        .add_rod_journal(rj4)
+        .add_rod_journal(rj5)
+
+    piston_parameters piston_params(
+        mass: 381.634 * units.g,
+        compression_height: 30.1 * units.mm,
+        wrist_pin_position: 0.0,
+        displacement: 0.0
+    )
+
+    connecting_rod_parameters cr_params(
+        mass: 457.96 * units.g,
+        moment_of_inertia: rod_moment_of_inertia(mass: 457.96 * units.g, length: 142 * units.mm),
+        center_of_mass: 0.0,
+        length: 142 * units.mm
+    )
+
+    cylinder_bank_parameters bank_params(
+        bore: 86 * units.mm,
+        deck_height: 215.1 * units.mm
+    )
+
+    intake intake(
+        plenum_volume: 2.99734 * units.L,
+        plenum_cross_section_area: 44.9601 * units.cm2,
+        intake_flow_rate: k_carb(467.858),
+        runner_flow_rate: k_carb(233.9292),
+        runner_length: 300 * units.mm,
+        idle_flow_rate: k_carb(0.0),
+        idle_throttle_plate_position: 0.996,
+        velocity_decay: 0.5
+    )
+
+    exhaust_system_parameters es_params(
+        outlet_flow_rate: k_carb(935.716),
+        primary_tube_length: 350 * units.mm,
+        primary_flow_rate: k_carb(233.9292),
+        velocity_decay: 1.0,
+        collector_cross_section_area: circle_area(76 * units.mm),
+        length: 2800 * units.mm
+    )
+
+    exhaust_system exhaust0(es_params, audio_volume: 1.0, impulse_response: ir_lib.minimal_muffling_01)
+
+    cylinder_bank b0(bank_params, angle: 0 * units.deg)
+
+    b0
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.1)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj0,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire1,
+            sound_attenuation: 1.0,
+            primary_length: 0.3 * units.m
+        )
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.1)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj1,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire2,
+            sound_attenuation: 1.0,
+            primary_length: 0.24 * units.m
+        )
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.1)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj2,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire3,
+            sound_attenuation: 1.0,
+            primary_length: 0.18 * units.m
+        )
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.1)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj3,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire4,
+            sound_attenuation: 1.0,
+            primary_length: 0.12 * units.m
+        )
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.1)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj4,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire5,
+            sound_attenuation: 1.0,
+            primary_length: 0.06 * units.m
+        )
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.1)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj5,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire6,
+            sound_attenuation: 1.0,
+            primary_length: 0 * units.m
+        )
+        .set_cylinder_head(
+            t2jz_gte_head(
+                intake_camshaft: intake_cam_0,
+                exhaust_camshaft: exhaust_cam_0)
+        )
+
+    engine
+        .add_cylinder_bank(b0)
+    engine.add_crankshaft(c0)
+
+    harmonic_cam_lobe intake_lobe(
+        duration_at_50_thou: 205 * units.deg,
+        gamma: 1.1,
+        lift: 8.3 * units.mm,
+        steps: 100
+    )
+    harmonic_cam_lobe exhaust_lobe(
+        duration_at_50_thou: 205 * units.deg,
+        gamma: 1.1,
+        lift: 8.4 * units.mm,
+        steps: 100
+    )
+    camshaft_parameters cam_params(advance: 0 * units.deg, base_radius: 17.2 * units.mm)
+    camshaft intake_cam_0(cam_params, lobe_profile: intake_lobe)
+    camshaft exhaust_cam_0(cam_params, lobe_profile: exhaust_lobe)
+    intake_cam_0
+        .add_lobe(360 * units.deg + 110 * units.deg + 0 * units.deg)
+        .add_lobe(360 * units.deg + 110 * units.deg + 480 * units.deg)
+        .add_lobe(360 * units.deg + 110 * units.deg + 240 * units.deg)
+        .add_lobe(360 * units.deg + 110 * units.deg + 600 * units.deg)
+        .add_lobe(360 * units.deg + 110 * units.deg + 120 * units.deg)
+        .add_lobe(360 * units.deg + 110 * units.deg + 360 * units.deg)
+    exhaust_cam_0
+        .add_lobe(360 * units.deg - 112 * units.deg + 0 * units.deg)
+        .add_lobe(360 * units.deg - 112 * units.deg + 480 * units.deg)
+        .add_lobe(360 * units.deg - 112 * units.deg + 240 * units.deg)
+        .add_lobe(360 * units.deg - 112 * units.deg + 600 * units.deg)
+        .add_lobe(360 * units.deg - 112 * units.deg + 120 * units.deg)
+        .add_lobe(360 * units.deg - 112 * units.deg + 360 * units.deg)
+
+    // Forced induction
+    engine.add_forced_induction(
+        turbocharger(
+            arrangement: "sequential",
+            compressor_diameter: 51.1026 * units.mm,
+            compressor_flow: 0.217623 * units.kg / units.sec,
+            turbine_ar: 1,
+            inertia: 0.0000134455963146,
+            bearings: "journal",
+            boost: 75.8423 * units.kPa,
+            blowoff_valve: true,
+            blowoff_type: "atmospheric",
+            boost_control: "electronic",
+            wastegate: "internal",
+            twin_scroll: false,
+            whistle_pitch: 1,
+            intercooler_effectiveness: 0.7,
+            charge_volume: 5.99469 * units.L,
+            sequential_speed: 3740 * units.rpm
+        )
+    )
+
+    function timing_curve(500 * units.rpm)
+    timing_curve
+        .add_sample(0 * units.rpm, 10 * units.deg)
+        .add_sample(500 * units.rpm, 10 * units.deg)
+        .add_sample(1000 * units.rpm, 10 * units.deg)
+        .add_sample(1500 * units.rpm, 12.3333 * units.deg)
+        .add_sample(2000 * units.rpm, 14.6667 * units.deg)
+        .add_sample(2500 * units.rpm, 17 * units.deg)
+        .add_sample(3000 * units.rpm, 19.3333 * units.deg)
+        .add_sample(3500 * units.rpm, 21.6667 * units.deg)
+        .add_sample(4000 * units.rpm, 24 * units.deg)
+        .add_sample(4500 * units.rpm, 24 * units.deg)
+        .add_sample(5000 * units.rpm, 24 * units.deg)
+        .add_sample(5500 * units.rpm, 24 * units.deg)
+        .add_sample(6000 * units.rpm, 24 * units.deg)
+        .add_sample(6500 * units.rpm, 24 * units.deg)
+        .add_sample(7000 * units.rpm, 24 * units.deg)
+        .add_sample(7500 * units.rpm, 24 * units.deg)
+        .add_sample(8000 * units.rpm, 24 * units.deg)
+
+    ignition_module ignition(
+        timing_curve: timing_curve,
+        rev_limit: 7000 * units.rpm,
+        limiter_duration: 0.1
+    )
+    ignition
+        .connect_wire(wires.wire1, 0 * units.deg)
+        .connect_wire(wires.wire2, 480 * units.deg)
+        .connect_wire(wires.wire3, 240 * units.deg)
+        .connect_wire(wires.wire4, 600 * units.deg)
+        .connect_wire(wires.wire5, 120 * units.deg)
+        .connect_wire(wires.wire6, 360 * units.deg)
+    engine.add_ignition_module(ignition)
+}
+
+private node t2jz_gte_vehicle {
+    alias output __out:
+        vehicle(
+            mass: 1510 * units.kg,
+            drag_coefficient: 0.3,
+            cross_sectional_area: 2.2 * units.m2,
+            diff_ratio: 3.7,
+            tire_radius: 0.31 * units.m,
+            rolling_resistance: 222.196,
+            max_brake_force: 14665 * units.N
+        );
+}
+
+private node t2jz_gte_transmission {
+    alias output __out:
+        transmission(max_clutch_torque: 1572.26 * units.lb_ft)
+            .add_gear(3.6)
+            .add_gear(2.2)
+            .add_gear(1.5)
+            .add_gear(1.15)
+            .add_gear(0.92)
+            .add_gear(0.75);
+}
+
+public node main {
+    set_engine(t2jz_gte_engine())
+    set_vehicle(t2jz_gte_vehicle())
+    set_transmission(t2jz_gte_transmission())
+}
+
+// Tuning notes. The designer's figures were set for kyan0s-git's physics
+// model; here the runner and header primary flow are 1.2 times the
+// designer's. On this version's dyno (boost-probe) the engine makes about
+// 326 lb-ft at 4000 rpm and 302 hp at 5600 rpm (323 hp at 6500 rpm), against
+// Toyota's 315 lb-ft at 4000 rpm and 320 hp at 5600 rpm. The second turbo
+// joins at 3740 rpm.
