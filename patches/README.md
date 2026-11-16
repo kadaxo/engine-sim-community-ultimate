@@ -35,6 +35,7 @@ Pinned commit: `8daecd0` on
 | `0015` | SDL windows larger than the screen being cut off on macOS, which doesn't shrink them: the window is fitted into the display's usable area and the size it really gets is recorded so the render targets match |
 | `0016` | Whole-buffer edits using `glBufferSubData`, which on macOS waits for the GPU each time a constant buffer is updated (about 12 frames per second): `glBufferData` gives the buffer new storage instead |
 | `0017` | The Direct3D devices needing the legacy D3DX runtime (`d3dx11_43.dll`), which Windows doesn't include, so programs failed to start on a clean install: shaders are compiled with `d3dcompiler_47.dll`, which Windows 10 and later include, and image files are read with SDL_image |
+| `0018` | A static SDL2 (vcpkg's default on macOS) failing to link, because the find modules leave out the system libraries and frameworks it needs: with `DELTA_SDL2_CMAKE_PACKAGE=ON` (set by the macOS release build) SDL2 and SDL2_image are linked through their CMake packages; off by default |
 Without 0001–0007 the port only builds on Linux/macOS; with them it builds on
 Windows (Direct3D 11) as well.
 

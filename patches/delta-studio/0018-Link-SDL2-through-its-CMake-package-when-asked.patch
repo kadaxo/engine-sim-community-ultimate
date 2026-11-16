@@ -1,0 +1,68 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: kadaxo <105596590+kadaxo@users.noreply.github.com>
+Date: Mon, 16 Nov 2026 22:15:00 +0300
+Subject: [PATCH] Link SDL2 through its CMake package when asked
+
+A static SDL2, such as vcpkg's default build on macOS, needs the system
+libraries and frameworks its CMake package lists (CoreAudio, IOKit,
+Metal and so on). The find modules give only the library file and Cocoa,
+so programs linking it failed with missing symbols.
+
+With DELTA_SDL2_CMAKE_PACKAGE=ON, SDL2 and SDL2_image are found through
+their CMake packages and linked as targets, imported globally so the
+programs that link delta-core see them too. The option is off by
+default, so other builds find SDL2 as before.
+---
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 114eeed0..13ff8e45 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -20,6 +20,10 @@
+ option(ENABLE_PLAT_SDL "Enable the SDL platform" ON)
+ cmake_dependent_option(ENABLE_PLAT_WIN32 "Enable the Win32 Platform" ON WIN32 OFF)
+ 
++# A static SDL2, such as vcpkg's on macOS, needs the system libraries and
++# frameworks its CMake package lists; the find modules give only the library
++option(DELTA_SDL2_CMAKE_PACKAGE "Link SDL2 and SDL2_image through their CMake packages" OFF)
++
+ if (ENABLE_PLAT_SDL OR ENABLE_OPENGL)
+     set(ENABLE_SDL ON)
+ endif()
+@@ -463,10 +467,33 @@
+     endif()
+ endif()
+ 
+-if (ENABLE_SDL)
++if (ENABLE_SDL AND DELTA_SDL2_CMAKE_PACKAGE)
++    # Global, so the programs linking delta-core see these targets (and the
++    # ones they depend on, such as PNG::PNG) too
++    set(CMAKE_FIND_PACKAGE_TARGETS_GLOBAL ON)
++    find_package(SDL2 CONFIG REQUIRED)
++    find_package(SDL2_image CONFIG REQUIRED)
++    unset(CMAKE_FIND_PACKAGE_TARGETS_GLOBAL)
++
++    # The targets carry the include directories (include and include/SDL2)
++    set(SDL2_INCLUDE_DIRS "")
++    set(SDL2_IMAGE_INCLUDE_DIRS "")
++    if (TARGET SDL2::SDL2)
++        set(SDL2_LIBRARIES SDL2::SDL2)
++    else()
++        set(SDL2_LIBRARIES SDL2::SDL2-static)
++    endif()
++    if (TARGET SDL2_image::SDL2_image)
++        set(SDL2_IMAGE_LIBRARIES SDL2_image::SDL2_image)
++    else()
++        set(SDL2_IMAGE_LIBRARIES SDL2_image::SDL2_image-static)
++    endif()
++elseif (ENABLE_SDL)
+     find_package(SDL2 REQUIRED)
+     find_package(SDL2_image REQUIRED)
++endif()
+ 
++if (ENABLE_SDL)
+     target_include_directories(delta-core PRIVATE
+         ${SDL2_INCLUDE_DIRS}
+         ${SDL2_IMAGE_INCLUDE_DIRS}
+-- 
+2.56.0.windows.2
+
