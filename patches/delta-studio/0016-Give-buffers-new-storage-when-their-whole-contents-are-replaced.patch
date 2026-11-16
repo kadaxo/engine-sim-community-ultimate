@@ -1,0 +1,39 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: kadaxo <105596590+kadaxo@users.noreply.github.com>
+Date: Mon, 16 Nov 2026 16:41:48 +0300
+Subject: [PATCH] Give buffers new storage when their whole contents are
+ replaced
+
+EditBufferData overwrote the buffer with glBufferSubData. When the GPU
+may still be reading that buffer, macOS's OpenGL (which runs on Metal)
+flushes and waits for the GPU, and constant buffers are edited for nearly
+every draw: on a MacBook Pro the app spent 82% of its main thread there
+and ran at about 12 frames per second. Replacing the whole buffer with
+glBufferData lets the driver use fresh storage without waiting.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/yds_opengl_device.cpp | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/src/yds_opengl_device.cpp b/src/yds_opengl_device.cpp
+index 992f967e..d76465b7 100644
+--- a/src/yds_opengl_device.cpp
++++ b/src/yds_opengl_device.cpp
+@@ -650,8 +650,12 @@ ysError ysOpenGLDevice::EditBufferData(ysGPUBuffer *buffer, char *data) {
+     ysOpenGLGPUBuffer *openglBuffer = static_cast<ysOpenGLGPUBuffer *>(buffer);
+     int target = openglBuffer->GetTarget();
+ 
++    // The whole buffer is replaced, so give it new storage instead of
++    // overwriting the old one: glBufferSubData on a buffer the GPU may still
++    // be reading makes some drivers (macOS's OpenGL on Metal) flush and wait
++    // for the GPU, and constant buffers are edited for nearly every draw
+     m_realContext->glBindBuffer(target, openglBuffer->m_bufferHandle);
+-    m_realContext->glBufferSubData(target, 0, openglBuffer->GetSize(), data);
++    m_realContext->glBufferData(target, openglBuffer->GetSize(), data, GL_DYNAMIC_DRAW);
+ 
+     // Restore Previous State
+     if (previous != buffer) {
+-- 
+2.56.0.windows.2
+
