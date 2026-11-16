@@ -104,9 +104,9 @@ else
         done
         rpath=$(readelf -d "$b" | sed -n 's/.*(R\(UN\)\{0,1\}PATH).*\[\(.*\)\]/\2/p')
         [ -z "$rpath" ] || problems+=("$(basename "$b") has a run path: $rpath")
-        glibc=$(objdump -T "$b" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)
-        glibcxx=$(objdump -T "$b" | grep -o 'GLIBCXX_[0-9.]*' | sort -uV | tail -1)
-        notice "$(basename "$b") needs $glibc and $glibcxx"
+        glibc=$(objdump -T "$b" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1 || true)
+        glibcxx=$(objdump -T "$b" | grep -o 'GLIBCXX_[0-9.]*' | sort -uV | tail -1 || true)
+        notice "$(basename "$b") needs $glibc and ${glibcxx:-no libstdc++ (linked in)}"
     done
 fi
 if [ ${#problems[@]} -gt 0 ]; then

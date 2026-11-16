@@ -11,7 +11,10 @@ licenses of everything else this download contains:
   the package: SDL2 and SDL2_image (zlib license; the Linux download uses the
   system's instead), libogg and libvorbis (BSD), LAME (mp3lame.txt, LGPL),
   Prism (ethindp-prism.txt, MPL-2.0) and the libraries they use. On Linux
-  those include GLib, glibmm, libsigc++ and libspeechd, which are LGPL too.
+  those include GLib, glibmm, libsigc++, libspeechd and gettext's libintl,
+  which are LGPL too.
+- The Linux programs also contain GCC's C++ library (libstdc++), which the
+  GCC Runtime Library Exception allows.
 
 On Windows, LAME is a separate DLL (libmp3lame.dll), so it can be replaced
 with another build of the same version. On macOS and Linux all of these
