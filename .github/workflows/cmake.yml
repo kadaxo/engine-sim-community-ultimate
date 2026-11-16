@@ -120,9 +120,10 @@ jobs:
         run: ctest --test-dir build -LE slow --output-on-failure
 
   # Screen reader output (Prism) on Linux and macOS: Speech Dispatcher, which
-  # Orca uses, on Linux; VoiceOver and the system voice on macOS. Separate
-  # from the jobs above so a Prism build problem can't hide a plain build
-  # break. The first run builds glib and glibmm from source on Linux.
+  # Orca uses, on Linux; VoiceOver and the system voice on macOS. Windows is
+  # speech-windows below. Separate from the jobs above so a Prism build
+  # problem can't hide a plain build break. The first run builds glib and
+  # glibmm from source on Linux.
   speech:
     strategy:
       fail-fast: false
@@ -209,3 +210,90 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build -LE slow --output-on-failure
+
+  # Screen reader output on Windows (NVDA, JAWS, Narrator and the system
+  # voice). Prism's port only builds as a static library, so it comes from
+  # the x64-windows-static-md triplet and SDL2 from the usual x64-windows
+  # one, both from the same pinned vcpkg.
+  speech-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source and submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Flex and Bison
+        shell: pwsh
+        run: |
+          $installed = $false
+          for ($attempt = 1; $attempt -le 4; $attempt++) {
+            choco install winflexbison3 --yes --no-progress
+            if ($LASTEXITCODE -eq 0) {
+              $installed = $true
+              break
+            }
+            if ($attempt -lt 4) {
+              Write-Warning "Chocolatey failed; retrying in 20 seconds"
+              Start-Sleep -Seconds 20
+            }
+          }
+          if (-not $installed) {
+            throw "Chocolatey could not install winflexbison3 after four attempts"
+          }
+          $flex = (Get-Command win_flex.exe -ErrorAction Stop).Source
+          $bison = (Get-Command win_bison.exe -ErrorAction Stop).Source
+          "FLEX_EXECUTABLE=$flex" | Out-File $env:GITHUB_ENV -Append
+          "BISON_EXECUTABLE=$bison" | Out-File $env:GITHUB_ENV -Append
+
+      - name: Restore built vcpkg packages
+        id: vcpkg-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/AppData/Local/vcpkg/archives
+          key: vcpkg-prism-${{ runner.os }}-${{ runner.arch }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('cmake/vcpkg-overlay-ports/**') }}
+
+      - name: Build SDL2 and Prism with vcpkg
+        shell: pwsh
+        run: |
+          $vcpkg = Join-Path $env:RUNNER_TEMP vcpkg
+          git clone https://github.com/microsoft/vcpkg.git $vcpkg
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          git -C $vcpkg checkout $env:VCPKG_COMMIT
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          & "$vcpkg/bootstrap-vcpkg.bat" -disableMetrics
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          & "$vcpkg/vcpkg.exe" install sdl2:x64-windows sdl2-image:x64-windows `
+            ethindp-prism:x64-windows-static-md `
+            "--overlay-ports=$env:GITHUB_WORKSPACE/cmake/vcpkg-overlay-ports"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          "VCPKG_ROOT_PINNED=$vcpkg" | Out-File $env:GITHUB_ENV -Append
+
+      - name: Save built vcpkg packages
+        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/AppData/Local/vcpkg/archives
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake -S . -B build -A x64 `
+            "-DFLEX_EXECUTABLE=$env:FLEX_EXECUTABLE" `
+            "-DBISON_EXECUTABLE=$env:BISON_EXECUTABLE" `
+            "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT_PINNED/scripts/buildsystems/vcpkg.cmake" `
+            "-DCMAKE_PREFIX_PATH=$env:VCPKG_ROOT_PINNED/installed/x64-windows-static-md" |
+            Tee-Object -FilePath configure.log
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          # Fail here, not silently, if Prism wasn't picked up
+          if (-not (Select-String -Path configure.log -SimpleMatch "Screen reader output: enabled (Prism)" -Quiet)) {
+            throw "Prism was not found"
+          }
+
+      - name: Build
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
+
+      - name: Test
+        run: ctest --test-dir build -C ${{ env.BUILD_TYPE }} -LE slow --output-on-failure
