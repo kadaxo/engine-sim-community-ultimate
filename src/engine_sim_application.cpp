@@ -41,7 +41,7 @@
 #include "../include/discord.h"
 #endif
 
-std::string EngineSimApplication::s_buildVersion = ENGINE_SIM_PROJECT_VERSION "a" "-" ENGINE_SIM_SYSTEM_NAME;
+std::string EngineSimApplication::s_buildVersion = ENGINE_SIM_PROJECT_VERSION "-community-" ENGINE_SIM_SYSTEM_NAME;
 
 namespace {
 bool AudioDiagEnabled() {

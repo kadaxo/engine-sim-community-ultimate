@@ -35,7 +35,7 @@ endif (DISCORD_ENABLED)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "cmake")
 
-project(engine-sim VERSION 0.1.12)
+project(engine-sim VERSION 0.2.0)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -522,3 +522,121 @@ if (NODE_EXECUTABLE)
         set_tests_properties(engine-builder-engines PROPERTIES LABELS slow TIMEOUT 1200)
     endif ()
 endif ()
+
+# ========================================================
+# RELEASE PACKAGE
+#
+# `cmake --install build --component release --prefix <dir>` lays out a folder
+# that runs on its own: the programs beside the engine scripts, the libraries
+# they load and the licenses. scripts/package-windows.ps1 checks it and zips
+# it (.github/workflows/release.yml). Other install rules (googletest,
+# discord-rpc) are in other components.
+
+set(ENGINE_SIM_RELEASE_PROGRAMS engine-sim-app)
+if (TARGET engine-sim-export)
+    list(APPEND ENGINE_SIM_RELEASE_PROGRAMS engine-sim-export)
+endif ()
+
+# vcpkg (or other) prefixes the build took libraries from
+set(ENGINE_SIM_LIBRARY_PREFIXES ${CMAKE_PREFIX_PATH})
+if (DEFINED VCPKG_INSTALLED_DIR AND DEFINED VCPKG_TARGET_TRIPLET)
+    list(APPEND ENGINE_SIM_LIBRARY_PREFIXES "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}")
+endif ()
+list(REMOVE_DUPLICATES ENGINE_SIM_LIBRARY_PREFIXES)
+
+if (WIN32 AND NOT CMAKE_VERSION VERSION_LESS 3.21)
+    # The DLLs the programs load (SDL2, and the encoders when they are DLLs),
+    # looked for beside the import libraries they were linked with
+    set(_release_dll_dirs)
+    foreach (_lib IN LISTS SDL2_LIBRARY SDL2_IMAGE_LIBRARY)
+        if (EXISTS "${_lib}")
+            get_filename_component(_dir "${_lib}" DIRECTORY)
+            list(APPEND _release_dll_dirs "${_dir}" "${_dir}/../bin")
+        endif ()
+    endforeach ()
+    foreach (_prefix IN LISTS ENGINE_SIM_LIBRARY_PREFIXES)
+        list(APPEND _release_dll_dirs "${_prefix}/bin")
+    endforeach ()
+
+    # Leave out Windows itself (API sets, system32, d3dcompiler_47 since
+    # Windows 10) and the C++ runtime, which comes from Visual Studio below.
+    # CMake matches DLL names in lowercase, but folders keep their case.
+    install(TARGETS ${ENGINE_SIM_RELEASE_PROGRAMS}
+        RUNTIME_DEPENDENCIES
+            PRE_EXCLUDE_REGEXES
+                "^api-ms-" "^ext-ms-" "^d3dcompiler_47\\.dll$"
+                "^vcruntime" "^msvcp" "^concrt" "^vccorlib" "^ucrtbase"
+            POST_EXCLUDE_REGEXES
+                ".*[/\\\\][Ss][Yy][Ss][Tt][Ee][Mm]32[/\\\\].*"
+                ".*[/\\\\][Ss][Yy][Ss][Ww][Oo][Ww]64[/\\\\].*"
+                ".*[/\\\\][Ww][Ii][Nn][Ss][Xx][Ss][/\\\\].*"
+            DIRECTORIES ${_release_dll_dirs}
+        RUNTIME DESTINATION . COMPONENT release)
+
+    if (MSVC)
+        # The Visual C++ runtime DLLs, so the app runs without the
+        # redistributable installer
+        set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION .)
+        set(CMAKE_INSTALL_SYSTEM_RUNTIME_COMPONENT release)
+        include(InstallRequiredSystemLibraries)
+    endif ()
+else ()
+    install(TARGETS ${ENGINE_SIM_RELEASE_PROGRAMS}
+        RUNTIME DESTINATION . COMPONENT release)
+endif ()
+
+# Engine scripts and the script library; the app finds them beside itself
+install(DIRECTORY assets es
+    DESTINATION . COMPONENT release
+    PATTERN "probe_*.mr" EXCLUDE)
+
+# delta-studio's shaders and the console font, at the paths delta.conf gives
+set(_delta_basic dependencies/submodules/delta-studio/engines/basic)
+install(DIRECTORY ${_delta_basic}/shaders/
+    DESTINATION delta/shaders COMPONENT release)
+install(DIRECTORY ${_delta_basic}/fonts/Silkscreen
+    DESTINATION delta/fonts COMPONENT release)
+# Installed from the source tree: a copy anywhere in the build folder could
+# end up beside the app being developed (build/Release with Visual Studio),
+# which would then read it
+install(FILES cmake/release/delta.conf
+    DESTINATION . COMPONENT release)
+
+# Documentation, and the engine builder at the path the guide links to
+install(FILES README.md COMMUNITY.md LICENSE RPM_SYNC.md
+    DESTINATION . COMPONENT release)
+install(DIRECTORY docs
+    DESTINATION . COMPONENT release)
+install(FILES
+        tools/engine-builder/index.html
+        tools/engine-builder/builder.js
+        tools/engine-builder/generator.js
+    DESTINATION tools/engine-builder COMPONENT release)
+
+# Licenses: this project's, the bundled libraries' and those of the packages
+# the build took from vcpkg (share/<port>/copyright)
+install(FILES cmake/release/licenses-readme.txt
+    DESTINATION licenses RENAME README.txt COMPONENT release)
+install(FILES LICENSE
+    DESTINATION licenses RENAME engine-sim.txt COMPONENT release)
+foreach (_dep IN ITEMS delta-studio piranha simple-2d-constraint-solver csv-io)
+    install(FILES dependencies/submodules/${_dep}/LICENSE
+        DESTINATION licenses RENAME ${_dep}.txt COMPONENT release)
+endforeach ()
+if (DISCORD_ENABLED)
+    install(FILES dependencies/discord/LICENSE
+        DESTINATION licenses RENAME discord-rpc.txt COMPONENT release)
+endif ()
+install(FILES "${_delta_basic}/fonts/Silkscreen/Kottke Silkscreen License.txt"
+    DESTINATION licenses RENAME silkscreen-font.txt COMPONENT release)
+foreach (_prefix IN LISTS ENGINE_SIM_LIBRARY_PREFIXES)
+    file(GLOB _copyrights "${_prefix}/share/*/copyright")
+    foreach (_copyright IN LISTS _copyrights)
+        get_filename_component(_port_dir "${_copyright}" DIRECTORY)
+        get_filename_component(_port "${_port_dir}" NAME)
+        if (NOT _port MATCHES "^vcpkg-")
+            install(FILES "${_copyright}"
+                DESTINATION licenses RENAME ${_port}.txt COMPONENT release)
+        endif ()
+    endforeach ()
+endforeach ()
