@@ -268,6 +268,7 @@ void UiElement::drawText(
     const Bounds renderBounds = unitsToPixels(getRenderBounds(bounds));
     const Point origin = renderBounds.getPosition(ref);
 
+    height = fitTextHeight(s, renderBounds.width(), height);
     m_app->getTextRenderer()->RenderText(
             s, origin.x, origin.y - height / 4, height);
 }
@@ -282,6 +283,7 @@ void UiElement::drawAlignedText(
     const Bounds renderBounds = unitsToPixels(getRenderBounds(bounds));
     const Point origin = renderBounds.getPosition(ref);
 
+    height = fitTextHeight(s, renderBounds.width(), height);
     const float textWidth = m_app->getTextRenderer()->CalculateWidth(s, height);
     const float textHeight = height;
 
@@ -305,7 +307,20 @@ void UiElement::drawCenteredText(
     const Bounds renderBounds = unitsToPixels(getRenderBounds(bounds));
     const Point origin = renderBounds.getPosition(ref);
 
+    height = fitTextHeight(s, renderBounds.width(), height);
     const float width = m_app->getTextRenderer()->CalculateWidth(s, height);
     m_app->getTextRenderer()->RenderText(
             s, origin.x - width / 2, origin.y - height / 4, height);
+}
+
+float UiElement::fitTextHeight(const std::string &s, float width, float height) const {
+    // Text sizes are chosen for a full-size window; in a smaller one a label
+    // can be wider than its box, so shrink it to fit. A box without width
+    // only places the text and doesn't limit it.
+    if (width <= 1.0f) return height;
+
+    const float textWidth = m_app->getTextRenderer()->CalculateWidth(s, height);
+    if (textWidth <= width) return height;
+
+    return height * (width / textWidth);
 }

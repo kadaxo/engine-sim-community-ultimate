@@ -5,6 +5,8 @@
 
 #include <sstream>
 #include <iomanip>
+#include <algorithm>
+#include <string>
 
 InfoCluster::InfoCluster() {
     m_engine = nullptr;
@@ -110,27 +112,47 @@ void InfoCluster::render() {
         titleBounds.getPosition(Bounds::tl),
         Bounds::tl);
 
-    Grid titleSplit;
-    titleSplit.h_cells = 1;
-    titleSplit.v_cells = 3;
-    drawAlignedText(
+    // The three lines are sized for a full-size window. In a smaller one
+    // they shrink together, so they stay inside the panel and clear of the
+    // buttons instead of running over both.
+    const Bounds textArea = titleTextBounds.inset(6.0f);
+    const std::string lines[] = {
         "ENGINE SIMULATOR",
-        titleSplit.get(titleTextBounds, 0, 0).inset(10.0f).move({ 0.0f, -31.0f }),
-        42.0f,
-        Bounds::bl,
-        Bounds::bl);
-    drawAlignedText(
         "YOUTUBE/ANGETHEGREAT",
-        titleSplit.get(titleTextBounds, 0, 1).inset(10.0f).move({ 0.0f, -5.0f }),
-        24.0f,
-        Bounds::tl,
-        Bounds::tl);
-    drawAlignedText(
-        "BUILD: v" + EngineSimApplication::getBuildVersion() + " // " __DATE__,
-        titleSplit.get(titleTextBounds, 0, 2).inset(10.0f).move({ 0.0f, 4.0f }),
-        16.0f,
-        Bounds::tl,
-        Bounds::tl);
+        "BUILD: v" + EngineSimApplication::getBuildVersion() + " // " __DATE__
+    };
+    const float sizes[] = { 42.0f, 24.0f, 16.0f };
+    const float gap = 6.0f;
+
+    // drawAlignedText puts the top of the text 0.75 of its size above the
+    // baseline, and the lines are capitals, so that is the height each takes
+    const float lineHeight = 0.75f;
+
+    float stackHeight = 2 * gap;
+    float widest = 0.0f;
+    for (int i = 0; i < 3; ++i) {
+        stackHeight += sizes[i] * lineHeight;
+        widest = (std::max)(widest, m_app->getTextRenderer()->CalculateWidth(lines[i], sizes[i]));
+    }
+
+    float scale = 1.0f;
+    if (stackHeight > 0.0f) scale = (std::min)(scale, textArea.height() / stackHeight);
+    if (widest > 0.0f) scale = (std::min)(scale, textArea.width() / widest);
+    scale = (std::max)(scale, 0.0f);
+
+    // Centred vertically in the space above the buttons
+    float offset = (textArea.height() - stackHeight * scale) / 2.0f;
+    for (int i = 0; i < 3; ++i) {
+        Bounds lineArea = textArea;
+        lineArea.move({ 0.0f, -offset });
+        drawAlignedText(
+            lines[i],
+            lineArea,
+            sizes[i] * scale,
+            Bounds::tl,
+            Bounds::tl);
+        offset += (sizes[i] * lineHeight + gap) * scale;
+    }
 
     const Bounds engineInfoBounds = grid.get(m_bounds, 0, 2, 6, 1);
     drawFrame(engineInfoBounds, 1.0f, m_app->getForegroundColor(), m_app->getBackgroundColor());

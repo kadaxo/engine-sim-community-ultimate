@@ -27,5 +27,6 @@ void UiButton::render() {
     }
 
     drawFrame(m_bounds, 1.0, m_app->getForegroundColor(), color);
-    drawAlignedText(m_text, m_bounds, m_fontSize, Bounds::center, Bounds::center);
+    // Inset so a label shrunk to fit a narrow button keeps clear of its frame
+    drawAlignedText(m_text, m_bounds.inset(4.0f), m_fontSize, Bounds::center, Bounds::center);
 }

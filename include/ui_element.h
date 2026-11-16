@@ -113,6 +113,9 @@ class UiElement {
                 float height,
                 const Point &ref = Bounds::tm);
 
+        // height, or less if the text would be wider than width
+        float fitTextHeight(const std::string &s, float width, float height) const;
+
     protected:
         std::vector<UiElement *> m_children;
         UiElement *m_parent;
