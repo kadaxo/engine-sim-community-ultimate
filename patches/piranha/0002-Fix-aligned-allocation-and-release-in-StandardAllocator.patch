@@ -1,0 +1,82 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: kyan0s-git <91159868+kyan0s-git@users.noreply.github.com>
+Date: Sun, 11 Oct 2026 16:22:33 +0000
+Subject: [PATCH] Fix aligned allocation and release in StandardAllocator
+
+_aligned_malloc takes the size first, but was called with the alignment
+first; std::aligned_alloc needs the size to be a multiple of the alignment,
+which macOS enforces; and aligned_free released the memory through the
+class's own free(), which deletes a void pointer. Allocate with
+_aligned_malloc(size, alignment) or posix_memalign and release with
+_aligned_free or std::free.
+
+From kyan0s-git/engine-sim 54cff76a ("Fix macOS build and undefined
+behaviour in vendored libraries").
+---
+diff --git a/include/standard_allocator.h b/include/standard_allocator.h
+--- a/include/standard_allocator.h
++++ b/include/standard_allocator.h
+@@ -10,6 +10,10 @@
+ #include <iostream>
+ #include <cstdlib>
+ 
++#ifdef _MSC_VER
++#include <malloc.h>
++#endif
++
+ namespace piranha {
+ 
+     class StandardAllocator {
+@@ -39,11 +43,7 @@ namespace piranha {
+                 }
+             }
+             else {
+-#ifdef _MSC_VER
+-                void *buffer = _aligned_malloc(alignment, sizeof(t_alloc) * n);
+-#else
+-                void *buffer = std::aligned_alloc(alignment, sizeof(t_alloc) * n);
+-#endif
++                void *buffer = alignedAllocate(sizeof(t_alloc) * n, alignment);
+                 
+                 if (n == 1) {
+                     newObject = TRACK(new (buffer) t_alloc);
+@@ -95,7 +95,7 @@ namespace piranha {
+                 memory[i].~t_alloc();
+             }
+ 
+-            free(FTRACK((void *)memory));
++            alignedRelease(FTRACK((void *)memory));
+         }
+ 
+         unsigned int getMaxUsage() const { return m_maxUsage; }
+@@ -103,6 +103,27 @@ namespace piranha {
+         int getLedger() const { return m_allocationLedger; }
+         unsigned int getCurrentUsage() const { return m_currentUsage; }
+ 
++    protected:
++        static void *alignedAllocate(size_t size, size_t alignment) {
++            void *buffer = nullptr;
++#ifdef _MSC_VER
++            buffer = _aligned_malloc(size, alignment);
++#else
++            if (alignment < sizeof(void *)) alignment = sizeof(void *);
++            if (posix_memalign(&buffer, alignment, size) != 0) buffer = nullptr;
++#endif
++            if (buffer == nullptr) throw std::bad_alloc();
++            return buffer;
++        }
++
++        static void alignedRelease(void *buffer) {
++#ifdef _MSC_VER
++            _aligned_free(buffer);
++#else
++            std::free(buffer);
++#endif
++        }
++
+     protected:
+         // Statistics counters
+         int m_allocationLedger;
+-- 
+2.56.0.windows.2
+

@@ -1,0 +1,36 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: kyan0s-git <91159868+kyan0s-git@users.noreply.github.com>
+Date: Sun, 11 Oct 2026 16:22:33 +0000
+Subject: [PATCH] Initialize the error code for unsupported animation file
+ versions
+
+ReadObjectAnimation and ReadTimeTagData only set the error for file version
+0, so any other version returned an uninitialized value.
+
+From kyan0s-git/engine-sim 54cff76a ("Fix macOS build and undefined
+behaviour in vendored libraries").
+---
+diff --git a/src/yds_tool_animation_file.cpp b/src/yds_tool_animation_file.cpp
+--- a/src/yds_tool_animation_file.cpp
++++ b/src/yds_tool_animation_file.cpp
+@@ -131,7 +131,7 @@ ysError ysToolAnimationFile::ReadObjectAnimation(ysObjectAnimationData **newObje
+     ysObjectAnimationData *object = new ysObjectAnimationData;
+     object->Clear();
+ 
+-    ysError error;
++    ysError error = ysError::UnsupportedFileVersion;
+ 
+     if (m_fileVersion == 0) {
+         error = ReadObjectAnimationVersion000(object);
+@@ -197,7 +197,7 @@ ysError ysToolAnimationFile::ReadTimeTagData(ysTimeTagData **newTimeTagData) {
+     ysTimeTagData *timeTagData = new ysTimeTagData;
+     timeTagData->Clear();
+ 
+-    ysError error;
++    ysError error = ysError::UnsupportedFileVersion;
+ 
+     if (m_fileVersion == 0) {
+         error = ReadTimeTagDataVersion000(timeTagData);
+-- 
+2.56.0.windows.2
+
