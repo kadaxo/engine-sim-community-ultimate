@@ -226,8 +226,9 @@ Run `engine-sim-export --help` for the full list. The most useful ones:
 ## Limitations
 
 * **Exhaust only.** engine-sim synthesizes the exhaust note, not intake
-  roar, induction or turbo noise, gear whine, tyres or wind. Layer those
-  separately.
+  roar, induction noise, gear whine, tyres or wind. Layer those separately.
+  The whistle, whine and blow-off of a turbocharged or supercharged engine
+  are mixed into the exhaust sound.
 * **Four-stroke cycle.** Loop lengths assume a 720° cycle, which is what
   engine-sim simulates.
 * **Model behaviour.** Levels and timbre are whatever the simulation

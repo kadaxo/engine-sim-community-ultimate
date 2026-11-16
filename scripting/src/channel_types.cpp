@@ -21,4 +21,4 @@ DEFINE_CHANNEL(ValvetrainChannel);
 DEFINE_CHANNEL(VehicleChannel);
 DEFINE_CHANNEL(TransmissionChannel);
 DEFINE_CHANNEL(ThrottleChannel);
-DEFINE_CHANNEL(CompressorChannel);
+DEFINE_CHANNEL(ForcedInductionChannel);

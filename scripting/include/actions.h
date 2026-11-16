@@ -16,7 +16,7 @@
 #include "ignition_module_node.h"
 #include "transmission_node.h"
 #include "vehicle_node.h"
-#include "compressor_node.h"
+#include "forced_induction_node.h"
 
 namespace es_script {
 
@@ -42,15 +42,15 @@ namespace es_script {
         piranha::pNodeInput m_engineInput = nullptr;
     };
 
-    class AddCompressorNode : public Node {
+    class AddForcedInductionNode : public Node {
     public:
-        AddCompressorNode() { /* void */ }
-        virtual ~AddCompressorNode() { /* void */ }
+        AddForcedInductionNode() { /* void */ }
+        virtual ~AddForcedInductionNode() { /* void */ }
 
     protected:
         virtual void registerInputs() {
             addInput("engine", &m_engine, InputTarget::Type::Object);
-            addInput("compressor", &m_compressor, InputTarget::Type::Object);
+            addInput("forced_induction", &m_forcedInduction, InputTarget::Type::Object);
 
             Node::registerInputs();
         }
@@ -58,11 +58,11 @@ namespace es_script {
         virtual void _evaluate() {
             readAllInputs();
 
-            m_engine->addCompressor(m_compressor);
+            m_engine->addForcedInduction(m_forcedInduction);
         }
 
     protected:
-        CompressorNode *m_compressor = nullptr;
+        ForcedInductionNode *m_forcedInduction = nullptr;
         EngineNode *m_engine = nullptr;
     };
 

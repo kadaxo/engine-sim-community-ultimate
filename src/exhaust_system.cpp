@@ -1,5 +1,6 @@
 #include "../include/exhaust_system.h"
 
+#include "../include/forced_induction.h"
 #include "../include/units.h"
 
 ExhaustSystem::ExhaustSystem() {
@@ -13,7 +14,7 @@ ExhaustSystem::ExhaustSystem() {
     m_flow = 0;
     m_index = -1;
     m_impulseResponse = nullptr;
-    m_outletFlowScale = 1.0;
+    m_forcedInduction = nullptr;
 }
 
 ExhaustSystem::~ExhaustSystem() {
@@ -52,7 +53,6 @@ void ExhaustSystem::initialize(const Parameters &params) {
     m_impulseResponse = params.impulseResponse;
     m_length = params.length;
     m_primaryTubeLength = params.primaryTubeLength;
-    m_outletFlowScale = 1.0;
 }
 
 void ExhaustSystem::destroy() {
@@ -74,9 +74,24 @@ void ExhaustSystem::process(double dt) {
     flowParams.dt = dt;
     flowParams.system_0 = &m_atmosphere;
     flowParams.system_1 = &m_system;
-    flowParams.k_flow = m_outletFlowRate * m_outletFlowScale;
+    flowParams.k_flow = m_outletFlowRate;
 
-    m_flow = m_system.flow(flowParams);
+    if (m_forcedInduction != nullptr) {
+        flowParams.k_flow = m_forcedInduction->getExhaustOutletFlowK(m_outletFlowRate);
+
+        const double P = m_system.pressure();
+        const double T = m_system.temperature();
+        const double hcr = m_system.heatCapacityRatio();
+        m_flow = m_system.flow(flowParams);
+
+        // Gas leaving through the outlet drives the turbine
+        if (m_flow < 0) {
+            m_forcedInduction->addExhaustFlow(-m_flow, T, P, hcr, m_outletFlowRate);
+        }
+    }
+    else {
+        m_flow = m_system.flow(flowParams);
+    }
 
     m_system.dissipateExcessVelocity();
     m_system.updateVelocity(dt, m_velocityDecay);

@@ -342,21 +342,18 @@ public node subaru_ej25 {
             .connect_wire(wires.wire2, (2.0 / 4.0) * cycle)
             .connect_wire(wires.wire4, (3.0 / 4.0) * cycle)
 
-    // Forced induction: a turbocharger on the collector, feeding the intake.
-    // Lag comes from turbine_inertia; the wastegate holds max_boost.
+    // Forced induction: a twin-scroll turbocharger on the exhaust outlet,
+    // feeding the intake through an intercooler. The wastegate holds 14 psi.
     turbocharger turbo(
-        intake: intake,
-        exhaust_system: exhaust0,
-        max_boost: 14.0 * units.psi,
-        intercooler_efficiency: 0.6,
-        turbine_inertia: 0.00002,
-        max_speed: 150000 * units.rpm,
-        exhaust_restriction: 0.55,
-        blow_off_valve: true,
-        blow_off_volume: 1.0,
-        whine_volume: 0.6
+        compressor_diameter: 60 * units.mm,
+        compressor_flow: 0.3 * units.kg / units.sec,
+        turbine_ar: 0.64,
+        twin_scroll: true,
+        boost: 14.0 * units.psi,
+        intercooler_effectiveness: 0.6,
+        blowoff_type: "atmospheric"
     )
-    engine.add_turbocharger(turbo)
+    engine.add_forced_induction(turbo)
 
     engine.add_ignition_module(ignition_module)
 }

@@ -87,7 +87,7 @@ add_library(engine-sim STATIC
     src/ignition_module.cpp
     src/impulse_response.cpp
     src/intake.cpp
-    src/compressor.cpp
+    src/forced_induction.cpp
     src/jitter_filter.cpp
     src/leveling_filter.cpp
     src/low_pass_filter.cpp
@@ -133,7 +133,7 @@ add_library(engine-sim STATIC
     include/ignition_module.h
     include/impulse_response.h
     include/intake.h
-    include/compressor.h
+    include/forced_induction.h
     include/jitter_filter.h
     include/leveling_filter.h
     include/low_pass_filter.h
@@ -176,7 +176,7 @@ if (PIRANHA_ENABLED)
         # Include files
         scripting/include/actions.h
         scripting/include/camshaft_node.h
-        scripting/include/compressor_node.h
+        scripting/include/forced_induction_node.h
         scripting/include/channel_types.h
         scripting/include/compiler.h
         scripting/include/connecting_rod_node.h
@@ -387,6 +387,7 @@ add_executable(engine-sim-test
     test/spoken_text_tests.cpp
     test/engine_list_tests.cpp
     test/data_root_tests.cpp
+    test/forced_induction_tests.cpp
 )
 
 target_link_libraries(engine-sim-test

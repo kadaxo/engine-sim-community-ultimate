@@ -593,3 +593,243 @@ TEST(EngineSessionTests, ScriptWithoutEngineReportsError) {
     EXPECT_FALSE(EngineSession::create(config, &error));
     EXPECT_NE(error.find("default.mr"), std::string::npos) << error;
 }
+
+// Forced induction, run in the example engines
+
+#include "../include/engine.h"
+#include "../include/forced_induction.h"
+#include "../include/units.h"
+
+namespace {
+
+    SessionConfig forcedInductionConfig(const char *file) {
+        SessionConfig config = defaultEngineConfig();
+        config.scriptPath = (fs::path(ENGINE_SIM_SOURCE_DIR)
+            / "assets" / "engines" / "forced-induction" / file).generic_string();
+        return config;
+    }
+
+    std::unique_ptr<EngineSession> startForcedInduction(const char *file) {
+        std::srand(1);
+        std::string error;
+        std::unique_ptr<EngineSession> session =
+            EngineSession::create(forcedInductionConfig(file), &error);
+        EXPECT_TRUE(session) << error;
+        if (session) session->setIgnition(true);
+        return session;
+    }
+
+    // Brings the dyno up to rpm at the given throttle
+    void holdAt(EngineSession *session, double rpm, double throttle) {
+        session->setThrottleImmediate(throttle);
+        for (int i = 0; i <= 50; ++i) {
+            session->setDynoHold(rpm * i / 50.0);
+            session->advance(0.01, nullptr, nullptr);
+        }
+    }
+
+    const ForcedInduction *forcedInduction(const EngineSession &session) {
+        return session.engine()->getForcedInduction();
+    }
+
+    double psi(double pressure) {
+        return pressure / units::psi;
+    }
+
+    // Power in one frequency (Goertzel), per sample
+    double tonePower(const std::vector<float> &x, double f) {
+        const double w = 2 * 3.14159265358979323846 * f / 44100.0;
+        const double c = 2 * std::cos(w);
+        double s1 = 0, s2 = 0;
+        for (const float v : x) {
+            const double s0 = v + c * s1 - s2;
+            s2 = s1;
+            s1 = s0;
+        }
+        const double p = s1 * s1 + s2 * s2 - c * s1 * s2;
+        return p / (static_cast<double>(x.size()) * x.size());
+    }
+
+    // How far a tone stands out from the frequencies around it [dB]
+    double toneProminence(const std::vector<float> &x, double f) {
+        double around = 0;
+        int n = 0;
+        for (double d = 40; d <= 160; d += 10) {
+            around += tonePower(x, f - d) + tonePower(x, f + d);
+            n += 2;
+        }
+        return 10 * std::log10(tonePower(x, f) / (around / n));
+    }
+
+    // Mean power over f +- halfWidth, for a tone that wavers in pitch
+    double bandPower(const std::vector<float> &x, double f, double halfWidth) {
+        double sum = 0;
+        int n = 0;
+        for (double d = -halfWidth; d <= halfWidth; d += 5) {
+            sum += tonePower(x, f + d);
+            ++n;
+        }
+        return sum / n;
+    }
+
+    double meanSquare(const std::vector<float> &x) {
+        double sum = 0;
+        for (const float v : x) sum += static_cast<double>(v) * v;
+        return sum / x.size();
+    }
+
+} /* namespace */
+
+TEST(ForcedInductionEngineTests, TurboSpoolsDownAfterLiftAndLagReturns) {
+    std::unique_ptr<EngineSession> session = startForcedInduction("subaru_ej25_twin_scroll_turbo.mr");
+    ASSERT_TRUE(session);
+    const ForcedInduction *fi = forcedInduction(*session);
+    ASSERT_NE(fi, nullptr);
+
+    holdAt(session.get(), 3000, 1.0);
+    session->advance(2.0, nullptr, nullptr);
+    const double loadedShaft = fi->getShaftSpeed();
+    EXPECT_GT(psi(fi->getBoost()), 12.0);
+
+    // Off the throttle the blow-off valve vents the charge and the wheel
+    // slows down (it used to keep spinning at full speed for minutes)
+    session->setThrottleImmediate(0.0);
+    session->advance(1.0, nullptr, nullptr);
+    EXPECT_LT(fi->getShaftSpeed(), 0.4 * loadedShaft);
+    EXPECT_LT(psi(fi->getBoost()), 1.0);
+
+    // So the next time the throttle opens, the boost has to build again
+    session->setThrottleImmediate(1.0);
+    session->advance(0.1, nullptr, nullptr);
+    EXPECT_LT(psi(fi->getBoost()), 7.0);
+}
+
+TEST(ForcedInductionEngineTests, WastegateHoldsBoostWithoutHunting) {
+    std::unique_ptr<EngineSession> session = startForcedInduction("subaru_ej25_twin_scroll_turbo.mr");
+    ASSERT_TRUE(session);
+    const ForcedInduction *fi = forcedInduction(*session);
+    ASSERT_NE(fi, nullptr);
+    const double target = psi(fi->getBoostTarget());
+
+    holdAt(session.get(), 4500, 0.15);
+    session->advance(1.0, nullptr, nullptr);
+
+    // Snap the throttle open and watch the boost for 2.5 s
+    session->setThrottleImmediate(1.0);
+    double peak = 0, low = 1e9, high = 0, sum = 0;
+    int n = 0;
+    for (int i = 0; i < 125; ++i) {
+        session->advance(0.02, nullptr, nullptr);
+        const double boost = psi(fi->getBoost());
+        peak = std::max(peak, boost);
+        if (i >= 75) {
+            low = std::min(low, boost);
+            high = std::max(high, boost);
+            sum += boost;
+            ++n;
+        }
+    }
+
+    EXPECT_LT(peak, target + 2.0) << "boost overshoots while the turbo spools";
+    EXPECT_LT(high - low, 1.5) << "boost hunts between " << low << " and " << high << " psi";
+    EXPECT_NEAR(sum / n, target, 1.0);
+}
+
+TEST(ForcedInductionEngineTests, RootsBlowerBoostsFromLowRpm) {
+    std::unique_ptr<EngineSession> session = startForcedInduction("gm_ls_supercharged.mr");
+    ASSERT_TRUE(session);
+    const ForcedInduction *fi = forcedInduction(*session);
+    ASSERT_NE(fi, nullptr);
+    EXPECT_TRUE(fi->isPositiveDisplacement());
+
+    holdAt(session.get(), 2000, 1.0);
+    session->advance(1.5, nullptr, nullptr);
+    const double low = psi(fi->getBoost());
+    EXPECT_GT(low, 2.5);
+    EXPECT_GT(fi->getDriveTorque(), 0.0);
+
+    holdAt(session.get(), 4500, 1.0);
+    session->advance(1.5, nullptr, nullptr);
+    EXPECT_GT(psi(fi->getBoost()), low);
+}
+
+TEST(ForcedInductionEngineTests, SuperchargerWhinesAtTheRotorLobeFrequency) {
+    std::unique_ptr<EngineSession> session = startForcedInduction("gm_ls_supercharged.mr");
+    ASSERT_TRUE(session);
+    const ForcedInduction *fi = forcedInduction(*session);
+    ASSERT_NE(fi, nullptr);
+
+    holdAt(session.get(), 4500, 1.0);
+    session->advance(1.0, nullptr, nullptr);
+    std::vector<float> on;
+    session->advance(0.5, &on, nullptr);
+
+    // A Roots rotor pack passes six lobes per turn
+    const double lobes = 6 * fi->getShaftSpeed() / (2 * 3.14159265358979323846);
+    EXPECT_GT(lobes, 800.0);
+    EXPECT_GT(toneProminence(on, lobes), 15.0) << "no whine at " << lobes << " Hz";
+
+    // Off the throttle the whine is a smaller part of the sound (it used to
+    // drown out the engine)
+    session->setThrottleImmediate(0.0);
+    session->advance(1.0, nullptr, nullptr);
+    std::vector<float> off;
+    session->advance(0.5, &off, nullptr);
+
+    const double onShare = 10 * std::log10(tonePower(on, lobes) / meanSquare(on));
+    const double offShare = 10 * std::log10(tonePower(off, lobes) / meanSquare(off));
+    EXPECT_LT(offShare, onShare - 3.0) << "on " << onShare << " dB, off " << offShare << " dB";
+}
+
+TEST(ForcedInductionEngineTests, TurboWhistleFadesAfterLift) {
+    std::unique_ptr<EngineSession> session = startForcedInduction("subaru_ej25_twin_scroll_turbo.mr");
+    ASSERT_TRUE(session);
+    const ForcedInduction *fi = forcedInduction(*session);
+    ASSERT_NE(fi, nullptr);
+
+    // The synthesizer puts the whistle at 400 Hz + 2.4 times the shaft
+    // speed in turns per second
+    auto pitch = [fi]() {
+        return 400 + 2.4 * fi->getShaftSpeed() / (2 * 3.14159265358979323846);
+    };
+
+    holdAt(session.get(), 4500, 1.0);
+    session->advance(1.5, nullptr, nullptr);
+
+    // The pitch follows the shaft speed, which moves with the boost, so
+    // each 50 ms slice is measured at the pitch of its own moment
+    double whistle = 0, around = 0, total = 0, meanPitch = 0;
+    for (int i = 0; i < 10; ++i) {
+        const double p0 = pitch();
+        std::vector<float> slice;
+        session->advance(0.05, &slice, nullptr);
+        const double p = 0.5 * (p0 + pitch());
+        meanPitch += p / 10;
+
+        whistle += bandPower(slice, p, 20);
+        double nearby = 0;
+        int n = 0;
+        // Clear of the band of air noise around the tone (about +-140 Hz)
+        for (double d = 400; d <= 800; d += 25) {
+            nearby += tonePower(slice, p - d) + tonePower(slice, p + d);
+            n += 2;
+        }
+        around += nearby / n;
+        total += meanSquare(slice);
+    }
+    EXPECT_GT(meanPitch, 3000.0);
+    EXPECT_GT(10 * std::log10(whistle / around), 10.0) << "no whistle near " << meanPitch << " Hz";
+
+    // After the throttle closes the turbo winds down and the whistle goes
+    // (it used to stay at full pitch and volume)
+    session->setThrottleImmediate(0.0);
+    session->releaseDyno();
+    session->advance(3.0, nullptr, nullptr);
+    std::vector<float> after;
+    session->advance(0.5, &after, nullptr);
+
+    const double onShare = 10 * std::log10(whistle / total);
+    const double afterShare = 10 * std::log10(bandPower(after, meanPitch, 150) / meanSquare(after));
+    EXPECT_LT(afterShare, onShare - 15.0) << "on " << onShare << " dB, after " << afterShare << " dB";
+    EXPECT_LT(fi->getWhineLevel(), 0.05);
+}

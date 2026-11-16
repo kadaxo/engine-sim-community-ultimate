@@ -6,6 +6,8 @@
 #include "gas_system.h"
 #include "impulse_response.h"
 
+class ForcedInduction;
+
 class ExhaustSystem : public Part {
     friend class Engine;
 
@@ -42,15 +44,15 @@ class ExhaustSystem : public Part {
 
         inline GasSystem *getSystem() { return &m_system; }
 
-        // Scale on the outlet flow constant. A turbine in the tailpipe lowers it.
-        inline void setOutletFlowScale(double scale) { m_outletFlowScale = scale; }
-        inline double getOutletFlowScale() const { return m_outletFlowScale; }
+        // The outlet flows through the turbine(s) of a turbocharger
+        void setForcedInduction(ForcedInduction *forcedInduction) { m_forcedInduction = forcedInduction; }
 
     protected:
         GasSystem m_atmosphere;
         GasSystem m_system;
 
         ImpulseResponse *m_impulseResponse;
+        ForcedInduction *m_forcedInduction;
 
         double m_length;
         double m_primaryTubeLength;
@@ -62,7 +64,6 @@ class ExhaustSystem : public Part {
         int m_index;
 
         double m_flow;
-        double m_outletFlowScale;
 };
 
 #endif /* ATG_ENGINE_SIM_EXHAUST_SYSTEM_H */

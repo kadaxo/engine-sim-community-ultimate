@@ -28,7 +28,8 @@ Fixes made while merging: Direct3D and Win32 build errors in the SDL port of del
 
 | What | From |
 | --- | --- |
-| Superchargers and turbochargers (`docs/forced-induction.md`), `units.psi` fix, `boost-probe` headless tool | [Oblongy/engine-sim](https://github.com/Oblongy/engine-sim) |
+| Turbochargers and superchargers (`docs/forced-induction.md`): Roots, twin-screw and centrifugal superchargers, single, twin and sequential turbos, wastegate, blow-off and bypass valves, intercooler, and their whine, whistle and blow-off sounds. Ported to this version's gas model, with the wastegate control retuned so boost doesn't hunt or overshoot | [kyan0s-git/engine-sim](https://github.com/kyan0s-git/engine-sim) |
+| `units.psi` fix, `boost-probe` headless tool | [Oblongy/engine-sim](https://github.com/Oblongy/engine-sim) |
 | Camshaft `reduction_ratio` (2-stroke and steam engines) and intake `atmosphere_pressure`/`atmosphere_temperature` | Alexey Egorov ([Evil-Spirit/engine-sim](https://github.com/Evil-Spirit/engine-sim), upstream PR #309) |
 | Smart (rev-matched) shifting (behind the `K` toggle, off by default), instant/average fuel consumption (`P`), odometer, clutch and throttle logic moved out of the UI | Oleg Solovyov ([Mc-Pain/engine-sim](https://github.com/Mc-Pain/engine-sim)) |
 | Articulated-rod geometry, road drag when reversing, ignition events at the crank-angle wrap, crank-side rod damping, frame-rate independent UI smoothing and controls, rendering guards | Samuel ([Samzax/engine-sim](https://github.com/Samzax/engine-sim), 12 commits) |
@@ -65,7 +66,7 @@ Each script was compiled and run headlessly (cranks, idles and holds 1500 rpm on
 | Toyota 4A-GE (AE86) | 4FX ([forfex](https://github.com/forfex/engine-sim)) |
 | Porsche 992 GT3 | csaba.hegedus ([csabigee](https://github.com/csabigee/engine-sim)) |
 | Subaru EJ25 street exhaust | [Samzax](https://github.com/Samzax/engine-sim) |
-| GM LS supercharged, Subaru EJ25 twin-scroll turbo | [Oblongy](https://github.com/Oblongy/engine-sim) |
+| GM LS supercharged, Subaru EJ25 twin-scroll turbo (moved to the kyan0s-git forced induction) | [Oblongy](https://github.com/Oblongy/engine-sim) |
 | MTU MB 871 Ka-501 tank diesel (by pilot01 and LTSP6.1.1 on Archangel Motors' template) | barolig ([Sness00/engine-sim](https://github.com/Sness00/engine-sim)) |
 | 2005 Toyota Corolla XRS 2ZZ-GE (lift switch at 6000 rpm) | [sillysigmabollocks](https://github.com/sillysigmabollocks/engine-sim-test) |
 

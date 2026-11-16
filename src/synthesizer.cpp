@@ -9,6 +9,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <algorithm>
 #include <vector>
 
 #undef min
@@ -29,6 +30,8 @@ long long AudioDiagTimeMs() {
 Synthesizer::Synthesizer() {
     m_inputChannels = nullptr;
     m_inputChannelCount = 0;
+    m_auxChannelCount = 0;
+    m_totalChannelCount = 0;
     m_inputBufferSize = 0;
     m_inputWriteOffset = 0.0;
     m_inputSamplesRead = 0;
@@ -44,6 +47,13 @@ Synthesizer::Synthesizer() {
     m_run = true;
     m_thread = nullptr;
     m_filters = nullptr;
+
+    m_whinePhase = 0;
+    m_vibratoPhase = 0;
+    m_flutterPhase = 0;
+    m_fiCounter = 0;
+    m_mixEnvelope = 0;
+    m_fiNoiseState = 0x9E3779B9u;
 }
 
 Synthesizer::~Synthesizer() {
@@ -54,6 +64,8 @@ Synthesizer::~Synthesizer() {
 
 void Synthesizer::initialize(const Parameters &p) {
     m_inputChannelCount = p.inputChannelCount;
+    m_auxChannelCount = p.auxChannelCount;
+    m_totalChannelCount = p.inputChannelCount + p.auxChannelCount;
     m_inputBufferSize = p.inputBufferSize;
     m_inputWriteOffset = p.inputBufferSize;
     m_audioBufferSize = p.audioBufferSize;
@@ -68,11 +80,23 @@ void Synthesizer::initialize(const Parameters &p) {
     m_processed = true;
 
     m_audioBuffer.initialize(p.audioBufferSize);
-    m_inputChannels = new InputChannel[p.inputChannelCount];
-    for (int i = 0; i < p.inputChannelCount; ++i) {
+    m_inputChannels = new InputChannel[m_totalChannelCount];
+    for (int i = 0; i < m_totalChannelCount; ++i) {
         m_inputChannels[i].transferBuffer = new float[p.inputBufferSize];
         m_inputChannels[i].data.initialize(p.inputBufferSize);
     }
+
+    // Forced induction sounds. Their noise has its own fixed seed: drawing
+    // it from rand() would shift the random numbers the combustion uses, and
+    // so change every engine's sound and power for a given seed.
+    m_whinePhase = 0;
+    m_vibratoPhase = 0;
+    m_flutterPhase = 0;
+    m_fiCounter = 0;
+    m_mixEnvelope = 0;
+    m_fiNoiseState = 0x9E3779B9u;
+    m_whistleBand = m_whooshBand = m_flutterBand = Bandpass();
+    m_blowoffBand1 = m_blowoffBand2 = m_wastegateBand = Bandpass();
 
     m_filters = new ProcessingFilters[p.inputChannelCount];
     for (int i = 0; i < p.inputChannelCount; ++i) {
@@ -145,9 +169,12 @@ void Synthesizer::endAudioRenderingThread() {
 void Synthesizer::destroy() {
     m_audioBuffer.destroy();
 
-    for (int i = 0; i < m_inputChannelCount; ++i) {
+    for (int i = 0; i < m_totalChannelCount; ++i) {
         delete[] m_inputChannels[i].transferBuffer;
         m_inputChannels[i].data.destroy();
+    }
+
+    for (int i = 0; i < m_inputChannelCount; ++i) {
         m_filters[i].convolution.destroy();
     }
 
@@ -158,6 +185,8 @@ void Synthesizer::destroy() {
     m_filters = nullptr;
 
     m_inputChannelCount = 0;
+    m_auxChannelCount = 0;
+    m_totalChannelCount = 0;
 }
 
 int Synthesizer::readAudioOutput(int samples, int16_t *buffer) {
@@ -232,9 +261,13 @@ void Synthesizer::writeInput(const double *data) {
         m_inputWriteOffset -= (double)m_inputBufferSize;
     }
 
-    for (int i = 0; i < m_inputChannelCount; ++i) {
+    for (int i = 0; i < m_totalChannelCount; ++i) {
         RingBuffer<float> &buffer = m_inputChannels[i].data;
         const double lastInputSample = m_inputChannels[i].lastInputSample;
+
+        // Control channels are interpolated only; the exhaust channels are
+        // also low-pass filtered
+        const bool aux = (i >= m_inputChannelCount);
         const size_t baseIndex = buffer.writeIndex();
         const double distance =
             inputDistance(m_inputWriteOffset, m_lastInputSampleOffset);
@@ -246,7 +279,9 @@ void Synthesizer::writeInput(const double *data) {
             const double f = s / distance;
             const double sample = lastInputSample * (1 - f) + data[i] * f;
 
-            buffer.write(m_filters[i].antialiasing.fast_f(static_cast<float>(sample)));
+            buffer.write(aux
+                ? static_cast<float>(sample)
+                : m_filters[i].antialiasing.fast_f(static_cast<float>(sample)));
         }
 
         m_inputChannels[i].lastInputSample = data[i];
@@ -258,7 +293,7 @@ void Synthesizer::writeInput(const double *data) {
 void Synthesizer::endInputBlock() {
     std::unique_lock<std::mutex> lk(m_inputLock); 
 
-    for (int i = 0; i < m_inputChannelCount; ++i) {
+    for (int i = 0; i < m_totalChannelCount; ++i) {
         m_inputChannels[i].data.removeBeginning(m_inputSamplesRead);
     }
 
@@ -298,7 +333,7 @@ void Synthesizer::renderAudio() {
         std::max(0, targetAudioBufferSamples - (int)m_audioBuffer.size()),
         (int)m_inputChannels[0].data.size());
 
-    for (int i = 0; i < m_inputChannelCount; ++i) {
+    for (int i = 0; i < m_totalChannelCount; ++i) {
         m_inputChannels[i].data.read(n, m_inputChannels[i].transferBuffer);
     }
     
@@ -386,7 +421,146 @@ float Synthesizer::renderRawSample(int inputSample) {
         signal += v;
     }
 
+    signal += renderForcedInduction(inputSample, signal);
+
     return m_antialiasing.fast_f(signal);
+}
+
+void Synthesizer::Bandpass::set(float f, float q, float fs) {
+    const float w0 = 2.0f * 3.14159265f * std::clamp(f, 20.0f, 0.45f * fs) / fs;
+    const float alpha = std::sin(w0) / (2.0f * q);
+    const float a0 = 1.0f + alpha;
+    b0 = alpha / a0;
+    b2 = -alpha / a0;
+    a1 = -2.0f * std::cos(w0) / a0;
+    a2 = (1.0f - alpha) / a0;
+}
+
+float Synthesizer::Bandpass::process(float x) {
+    const float y = b0 * x + b2 * x2 - a1 * y1 - a2 * y2;
+    x2 = x1; x1 = x;
+    y2 = y1; y1 = y;
+    if (std::fpclassify(y1) == FP_SUBNORMAL) y1 = 0;
+    return y;
+}
+
+float Synthesizer::fiNoise() {
+    // xorshift32, uniform in [-1, 1]
+    m_fiNoiseState ^= m_fiNoiseState << 13;
+    m_fiNoiseState ^= m_fiNoiseState >> 17;
+    m_fiNoiseState ^= m_fiNoiseState << 5;
+    return static_cast<float>(m_fiNoiseState / 4294967295.0 * 2.0 - 1.0);
+}
+
+// Turbocharger and supercharger sounds (from kyan0s-git/engine-sim), driven
+// by control channels from the simulation: [0] shaft or rotor frequency [Hz]
+// (times the whistle pitch), [1] whine level, [2] blow-off flow,
+// [3] compressor flow, [4] surge, [5] external wastegate venting, [6] mode
+// (10 * type + blow-off type; types 1 turbo, 2 Roots, 3 twin-screw,
+// 4 centrifugal; blow-off 0 vented, 1 recirculating, 2 none)
+float Synthesizer::renderForcedInduction(int inputSample, float signal) {
+    if (m_auxChannelCount < ForcedInductionChannelCount) return 0.0f;
+
+    const float *aux[ForcedInductionChannelCount];
+    for (int k = 0; k < ForcedInductionChannelCount; ++k) {
+        aux[k] = m_inputChannels[m_inputChannelCount + k].transferBuffer;
+    }
+
+    const int mode = static_cast<int>(std::lround(aux[6][inputSample]));
+    const int type = mode / 10;
+    const int blowoffType = mode % 10;
+    if (type == 0) return 0.0f;
+
+    const float volume = m_audioParameters.forcedInductionVolume;
+    const float fs = m_audioSampleRate;
+    const float envelopeDecay = 1.0f - 1.0f / (0.3f * fs);
+    const float floor = 0.08f * m_audioParameters.levelerTarget;
+    const double twoPi = 2 * 3.14159265358979323846;
+
+    // The sounds follow the loudness of the engine (with a floor so that a
+    // blow-off on a quiet overrun is still heard)
+    const float a = std::abs(signal);
+    m_mixEnvelope = std::max(a * (1 - envelopeDecay) + m_mixEnvelope * envelopeDecay, 0.0f);
+    const float reference = 0.8f * m_mixEnvelope + floor;
+
+    const float shaft = std::max(aux[0][inputSample], 0.0f);
+    const float whine = std::max(aux[1][inputSample], 0.0f);
+    const float blowoff = std::max(aux[2][inputSample], 0.0f);
+    const float flow = std::max(aux[3][inputSample], 0.0f);
+    const float surge = std::max(aux[4][inputSample], 0.0f);
+    const float wastegate = std::max(aux[5][inputSample], 0.0f);
+
+    // Filter centres follow the shaft speed; updated every 32 samples
+    float tonal = 0;
+    if (type == 1 || type == 4) {
+        const float pitch = std::clamp(400.0f + ((type == 1) ? 2.4f : 2.0f) * shaft, 300.0f, 9000.0f);
+        if ((m_fiCounter++ & 31) == 0) {
+            m_whistleBand.set(pitch, 18.0f, fs);
+            m_whooshBand.set(500.0f + 0.35f * pitch, 0.9f, fs);
+        }
+
+        // A slightly wavering tone inside a narrow band of air noise
+        m_vibratoPhase += twoPi * 5.3 / fs;
+        if (m_vibratoPhase > twoPi) m_vibratoPhase -= twoPi;
+        m_whinePhase += twoPi * pitch * (1.0 + 0.003 * std::sin(m_vibratoPhase)) / fs;
+        if (m_whinePhase > twoPi) m_whinePhase -= twoPi;
+
+        const float tone = static_cast<float>(std::sin(m_whinePhase));
+        const float air = 5.0f * m_whistleBand.process(fiNoise());
+        const float toneShare = (type == 4) ? 0.65f : 0.45f;
+        tonal += whine * (toneShare * tone + (1.0f - toneShare) * air);
+        tonal += 0.45f * flow * flow * m_whooshBand.process(fiNoise());
+    }
+    else {
+        // Supercharger rotor whine: lobe passing frequency with harmonics
+        const double lobes = (type == 2) ? 6.0 : 5.0;
+        const double f = std::min(shaft * lobes, 0.2 * fs);
+        m_whinePhase += twoPi * f / fs;
+        if (m_whinePhase > twoPi) m_whinePhase -= twoPi;
+        const double p = m_whinePhase;
+        float tone = 0;
+        if (type == 2) {
+            tone = static_cast<float>(std::sin(p) + 0.55 * std::sin(2 * p) + 0.35 * std::sin(3 * p) + 0.2 * std::sin(4 * p));
+        }
+        else {
+            tone = static_cast<float>(std::sin(p) + 0.45 * std::sin(3 * p) + 0.25 * std::sin(5 * p));
+        }
+
+        if ((m_fiCounter++ & 31) == 0) {
+            m_whistleBand.set(static_cast<float>(2.0 * f + 200.0), 6.0f, fs);
+        }
+        tonal += whine * (0.45f * tone + 1.5f * m_whistleBand.process(fiNoise()));
+    }
+
+    // Compressor surge without a blow-off valve: a fluttering chop
+    float bursts = 0;
+    if (surge > 0.01f) {
+        m_flutterPhase += twoPi * (11.0 + 7.0 * surge) / fs;
+        if (m_flutterPhase > twoPi) m_flutterPhase -= twoPi;
+        const float gate = static_cast<float>(std::pow(std::max(std::sin(m_flutterPhase), 0.0), 3.0));
+        if ((m_fiCounter & 31) == 1) m_flutterBand.set(380.0f, 1.6f, fs);
+        bursts += 2.0f * surge * gate * m_flutterBand.process(fiNoise());
+    }
+
+    // Blow-off: a sharp vented "pssh" or a soft recirculating whoosh
+    if (blowoff > 0.001f) {
+        if ((m_fiCounter & 31) == 2) {
+            m_blowoffBand1.set(blowoffType == 1 ? 1100.0f : 2600.0f, blowoffType == 1 ? 1.2f : 0.7f, fs);
+            m_blowoffBand2.set(6500.0f, 1.3f, fs);
+        }
+        const float r = fiNoise();
+        bursts += (blowoffType == 1)
+            ? 0.7f * blowoff * m_blowoffBand1.process(r)
+            : blowoff * (1.6f * m_blowoffBand1.process(r) + 0.8f * m_blowoffBand2.process(r));
+    }
+
+    // External wastegate venting through its own pipe
+    if (wastegate > 0.01f) {
+        if ((m_fiCounter & 31) == 3) m_wastegateBand.set(1500.0f, 2.5f, fs);
+        bursts += 0.6f * wastegate * m_wastegateBand.process(fiNoise());
+    }
+
+    return volume * (tonal * (1.1f * m_mixEnvelope + 0.4f * floor) + bursts * reference * 1.5f);
 }
 
 int16_t Synthesizer::renderAudio(int inputSample) {
@@ -425,7 +599,7 @@ int Synthesizer::renderOffline(std::vector<float> &output) {
             m_inputBufferSize,
             static_cast<int>(m_inputChannels[0].data.size()));
 
-        for (int i = 0; i < m_inputChannelCount; ++i) {
+        for (int i = 0; i < m_totalChannelCount; ++i) {
             m_inputChannels[i].data.read(n, m_inputChannels[i].transferBuffer);
             m_inputChannels[i].data.removeBeginning(n);
         }

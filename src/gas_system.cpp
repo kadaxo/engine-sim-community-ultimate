@@ -521,6 +521,14 @@ double GasSystem::flow(const FlowParameters &params) {
     return flow * direction;
 }
 
+void GasSystem::inject(double n, double T, const Mix &mix) {
+    if (n <= 0) return;
+
+    const double bulk_E_k_0 = bulkKineticEnergy();
+    gainN(n, kineticEnergyPerMol(T, m_degreesOfFreedom), mix);
+    m_state.E_k += (bulkKineticEnergy() - bulk_E_k_0);
+}
+
 double GasSystem::flow(double k_flow, double dt, double P_env, double T_env, const Mix &mix) {
     const double maxFlow = pressureEquilibriumMaxFlow(P_env, T_env);
     double flow = dt * flowRate(

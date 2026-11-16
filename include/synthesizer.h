@@ -19,6 +19,11 @@
 
 class Synthesizer {
     public:
+        // Control channels a simulation writes after its exhaust channels to
+        // drive the turbocharger and supercharger sounds, see
+        // renderForcedInduction()
+        static constexpr int ForcedInductionChannelCount = 7;
+
         struct AudioParameters {
             float volume = 1.0f;
             float convolution = 1.0f;
@@ -32,10 +37,17 @@ class Synthesizer {
             float levelerMaxGain = 10.0f;
             float levelerMinGain = 0.00001f;
             LevelingFilter::Mode levelerMode = LevelingFilter::Mode::Loudness;
+
+            // Turbocharger/supercharger whine and blow-off noise
+            float forcedInductionVolume = 1.0f;
         };
 
         struct Parameters {
             int inputChannelCount = 1;
+
+            // Control channels written after the exhaust channels: 0, or
+            // ForcedInductionChannelCount
+            int auxChannelCount = 0;
             int inputBufferSize = 1024;
             int audioBufferSize = 44100;
             float inputSampleRate = 10000;
@@ -107,12 +119,37 @@ class Synthesizer {
     protected:
         float renderRawSample(int inputSample);
 
+        // Turbocharger and supercharger sounds for one output sample, from
+        // the control channels; signal is the engine sound of that sample,
+        // whose loudness the sounds follow.
+        float renderForcedInduction(int inputSample, float signal);
+
+        struct Bandpass {
+            float b0 = 0, b2 = 0, a1 = 0, a2 = 0;
+            float x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+            void set(float f, float q, float fs);
+            float process(float x);
+        };
+
+        float fiNoise();
+
+        double m_whinePhase;
+        double m_vibratoPhase;
+        double m_flutterPhase;
+        unsigned int m_fiCounter;
+        float m_mixEnvelope;
+        uint32_t m_fiNoiseState;
+        Bandpass m_whistleBand, m_whooshBand, m_flutterBand;
+        Bandpass m_blowoffBand1, m_blowoffBand2, m_wastegateBand;
+
     //protected:
         ButterworthLowPassFilter<float> m_antialiasing;
         LevelingFilter m_levelingFilter;
         InputChannel *m_inputChannels;
         AudioParameters m_audioParameters;
         int m_inputChannelCount;
+        int m_auxChannelCount;
+        int m_totalChannelCount;
         int m_inputBufferSize;
         int m_inputSamplesRead;
         int m_latency;

@@ -5,6 +5,8 @@
 
 #include "gas_system.h"
 
+class ForcedInduction;
+
 class Intake : public Part {
     public:
         struct Parameters {
@@ -65,14 +67,13 @@ class Intake : public Part {
         double m_flowRate;
         double m_totalFuelInjected;
 
-        // Pressure and temperature of the air the intake draws from: ambient
-        // unless a compressor feeds this intake.
-        inline void setSource(double pressure, double temperature) {
-            m_sourcePressure = pressure;
-            m_sourceTemperature = temperature;
-        }
-        inline double getSourcePressure() const { return m_sourcePressure; }
-        inline double getSourceTemperature() const { return m_sourceTemperature; }
+        // The throttle draws from the compressor's charge air instead of the
+        // atmosphere when the engine is boosted
+        void setForcedInduction(ForcedInduction *forcedInduction) { m_forcedInduction = forcedInduction; }
+        ForcedInduction *getForcedInduction() const { return m_forcedInduction; }
+
+        // Mixture of air and fuel drawn through the throttle
+        GasSystem::Mix getFuelAirMix() const;
 
         // Ambient conditions configured in the script (atmosphere_pressure/temperature)
         inline double getAtmospherePressure() const { return m_atmospherePressure; }
@@ -91,8 +92,7 @@ class Intake : public Part {
         double m_atmosphereTemperature;
 
         GasSystem m_atmosphere;
-        double m_sourcePressure;
-        double m_sourceTemperature;
+        ForcedInduction *m_forcedInduction;
 };
 
 #endif /* ATG_ENGINE_SIM_INTAKE_H */

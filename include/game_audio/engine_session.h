@@ -111,6 +111,9 @@ namespace game_audio {
         double time() const { return m_time; }
         double appliedThrottle() const { return m_throttle; }
 
+        // The simulated engine, for reading its state (gauges, boost)
+        const Engine *engine() const { return m_engine; }
+
     private:
         EngineSession() = default;
 

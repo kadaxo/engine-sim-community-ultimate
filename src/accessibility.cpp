@@ -499,9 +499,8 @@ spoken_text::Readings Accessibility::read() {
             ? 0.0
             : r.airFlow / theoreticalAirPerSecond;
 
-        for (int i = 0; i < engine->getCompressorCount(); ++i) {
-            const double boost = engine->getCompressor(i)->getBoost();
-            if (!r.hasCompressor || boost > r.boost) r.boost = boost;
+        if (engine->getForcedInduction() != nullptr) {
+            r.boost = engine->getForcedInduction()->getBoost();
             r.hasCompressor = true;
         }
 

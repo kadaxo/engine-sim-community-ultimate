@@ -1,5 +1,6 @@
 #include "../include/intake.h"
 
+#include "../include/forced_induction.h"
 #include "../include/units.h"
 
 #include <cmath>
@@ -17,8 +18,7 @@ Intake::Intake() {
     m_runnerLength = 0;
     m_atmospherePressure = units::pressure(1.0, units::atm);
     m_atmosphereTemperature = units::celcius(25.0);
-    m_sourcePressure = m_atmospherePressure;
-    m_sourceTemperature = m_atmosphereTemperature;
+    m_forcedInduction = nullptr;
 }
 
 Intake::~Intake() {
@@ -57,25 +57,25 @@ void Intake::initialize(Parameters &params) {
     m_runnerFlowRate = params.RunnerFlowRate;
     m_atmospherePressure = params.AtmospherePressure;
     m_atmosphereTemperature = params.AtmosphereTemperature;
-
-    // Ambient air unless a compressor feeds this intake (see Compressor)
-    m_sourcePressure = m_atmospherePressure;
-    m_sourceTemperature = m_atmosphereTemperature;
 }
 
 void Intake::destroy() {
     /* void */
 }
 
-void Intake::process(double dt) {
+GasSystem::Mix Intake::getFuelAirMix() const {
     const double ideal_afr = 0.8 * m_molecularAfr * 4;
-    const double current_afr = (m_system.mix().p_o2 + m_system.mix().p_inert) / m_system.mix().p_fuel;
-
     const double p_air = ideal_afr / (1 + ideal_afr);
+
     GasSystem::Mix fuelAirMix;
     fuelAirMix.p_fuel = 1 - p_air;
     fuelAirMix.p_inert = p_air * 0.75;
     fuelAirMix.p_o2 = p_air * 0.25;
+    return fuelAirMix;
+}
+
+void Intake::process(double dt) {
+    const GasSystem::Mix fuelAirMix = getFuelAirMix();
 
     const double idle_afr = 2.0;
     const double p_idle_air = idle_afr / (1 + idle_afr);
@@ -94,17 +94,34 @@ void Intake::process(double dt) {
     flowParams.direction_y = -1.0;
     flowParams.dt = dt;
 
-    m_atmosphere.reset(m_sourcePressure, m_sourceTemperature, fuelAirMix);
-    flowParams.system_0 = &m_atmosphere;
-    flowParams.system_1 = &m_system;
-    flowParams.k_flow = flowAttenuation * m_inputFlowK;
-    m_flow = m_system.flow(flowParams);
+    double idleCircuitFlow = 0;
+    if (m_forcedInduction != nullptr) {
+        // Boosted: the throttle and the idle circuit draw from the charge
+        // air, which already carries the mixture
+        GasSystem *charge = m_forcedInduction->getChargeSystem();
+        flowParams.crossSectionArea_0 = m_crossSectionArea;
+        flowParams.system_0 = charge;
+        flowParams.system_1 = &m_system;
+        flowParams.k_flow = flowAttenuation * m_inputFlowK;
+        m_flow = GasSystem::flow(flowParams);
 
-    m_atmosphere.reset(m_sourcePressure, m_sourceTemperature, fuelMix);
-    flowParams.system_0 = &m_atmosphere;
-    flowParams.system_1 = &m_system;
-    flowParams.k_flow = m_idleFlowK;
-    const double idleCircuitFlow = m_system.flow(flowParams);
+        flowParams.k_flow = m_idleFlowK;
+        idleCircuitFlow = GasSystem::flow(flowParams);
+        fuelMix = fuelAirMix;
+    }
+    else {
+        m_atmosphere.reset(m_atmospherePressure, m_atmosphereTemperature, fuelAirMix);
+        flowParams.system_0 = &m_atmosphere;
+        flowParams.system_1 = &m_system;
+        flowParams.k_flow = flowAttenuation * m_inputFlowK;
+        m_flow = m_system.flow(flowParams);
+
+        m_atmosphere.reset(m_atmospherePressure, m_atmosphereTemperature, fuelMix);
+        flowParams.system_0 = &m_atmosphere;
+        flowParams.system_1 = &m_system;
+        flowParams.k_flow = m_idleFlowK;
+        idleCircuitFlow = m_system.flow(flowParams);
+    }
 
     m_system.dissipateExcessVelocity();
     m_system.updateVelocity(dt, m_velocityDecay);

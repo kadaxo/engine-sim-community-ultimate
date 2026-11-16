@@ -3,6 +3,12 @@
 // pressure, shaft speed, dyno torque and supercharger drive load.
 //
 //   boost-probe <main.mr> [rpm ...]
+//
+// With --snap it checks the response instead: it cruises at <rpm> on the
+// dyno, snaps the throttle open, lifts off, then lets the engine idle and
+// revs it with no load, printing boost and shaft speed every 0.1 s.
+//
+//   boost-probe <main.mr> --snap <rpm>
 #include "../scripting/include/compiler.h"
 #include "../include/transmission.h"
 #include "../include/units.h"
@@ -14,17 +20,22 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <string>
 #include <thread>
 #include <vector>
 
 int main(int argc, char **argv) {
     if (argc < 2) {
-        std::fprintf(stderr, "usage: boost-probe <main.mr> [rpm ...]\n");
+        std::fprintf(stderr, "usage: boost-probe <main.mr> [rpm ...]\n       boost-probe <main.mr> --snap <rpm>\n");
         return 2;
     }
 
     std::vector<double> rpms;
-    for (int i = 2; i < argc; ++i) rpms.push_back(std::atof(argv[i]));
+    double snapRpm = 0;
+    for (int i = 2; i < argc; ++i) {
+        if (std::string(argv[i]) == "--snap" && i + 1 < argc) snapRpm = std::atof(argv[++i]);
+        else rpms.push_back(std::atof(argv[i]));
+    }
     if (rpms.empty()) rpms = { 2000, 3000, 4000, 5000, 6000 };
 
     // Resolve imports relative to the script first; the compiler also searches es/
@@ -85,10 +96,9 @@ int main(int argc, char **argv) {
     }
     sim->startAudioRenderingThread();
 
-    std::printf("engine \"%s\"  %.2f L  compressors=%d\n",
+    std::printf("engine \"%s\"  %.2f L\n",
         engine->getName().c_str(),
-        engine->getDisplacement() / units::L,
-        engine->getCompressorCount());
+        engine->getDisplacement() / units::L);
 
     engine->getIgnitionModule()->m_enabled = true;
     sim->m_starterMotor.m_enabled = true;
@@ -110,11 +120,61 @@ int main(int argc, char **argv) {
     sim->m_starterMotor.m_enabled = false;
     std::printf("started: %.0f rpm\n", units::toRpm(engine->getSpeed()));
 
+    ForcedInduction *fi = engine->getForcedInduction();
+    if (fi != nullptr) {
+        std::printf("%s\n", fi->getDescription().c_str());
+    }
+
+    if (snapRpm > 0) {
+        auto row = [&](const char *phase, double t) {
+            double boost = 0, shaft = 0, wastegate = 0, blowoff = 0;
+            if (fi != nullptr) {
+                boost = fi->getBoost() / units::psi;
+                shaft = units::toRpm(fi->getShaftSpeed()) / 1000.0;
+                wastegate = fi->getWastegateOpening();
+                blowoff = fi->getBlowoffOpening();
+            }
+            std::printf("%-8s %4.1f s  %5.0f rpm  boost %6.2f psi  shaft %6.1fk rpm  wastegate %4.2f  blow-off %4.2f  map %5.1f kPa  dyno %6.1f lb-ft\n",
+                phase, t, units::toRpm(engine->getSpeed()), boost, shaft, wastegate, blowoff,
+                engine->getManifoldPressure() / units::kPa,
+                sim->getFilteredDynoTorque() / units::ft_lb);
+        };
+
+        sim->m_dyno.m_enabled = true;
+        sim->m_dyno.m_hold = true;
+        sim->m_dyno.m_rotationSpeed = units::rpm(snapRpm);
+        for (int f = 0; f < 60 * 4; ++f) { engine->setSpeedControl(0.15); frame(); }
+        row("cruise", 0);
+        for (int f = 1; f <= 60 * 4; ++f) {
+            engine->setSpeedControl(1.0); frame();
+            if (f % 6 == 0) row("snap", f / 60.0);
+        }
+        for (int f = 1; f <= 60 * 3; ++f) {
+            engine->setSpeedControl(0.0); frame();
+            if (f % 6 == 0) row("lift", f / 60.0);
+        }
+
+        // Idle, then rev with no load
+        sim->m_dyno.m_enabled = false;
+        sim->m_dyno.m_hold = false;
+        for (int f = 0; f < 60 * 3; ++f) { engine->setSpeedControl(0.0); frame(); }
+        row("idle", 0);
+        for (int f = 1; f <= 60 * 1; ++f) {
+            engine->setSpeedControl(1.0); frame();
+            if (f % 6 == 0) row("free rev", f / 60.0);
+            if (engine->getRpm() > 6000) break;
+        }
+
+        sim->endAudioRenderingThread();
+        sim->destroy();
+        return 0;
+    }
+
     sim->m_dyno.m_enabled = true;
     sim->m_dyno.m_hold = true;
 
-    std::printf("%6s %6s %8s %7s %7s %8s %8s %6s\n",
-        "rpm", "t(s)", "boost_psi", "ratio", "shaft_k", "chg_C", "dyno_ftlb", "drive");
+    std::printf("%6s %6s %8s %7s %6s %7s %8s %8s %6s\n",
+        "rpm", "t(s)", "boost_psi", "map_kPa", "valve", "shaft_k", "chg_C", "dyno_ftlb", "drive");
 
     for (double target : rpms) {
         sim->m_dyno.m_rotationSpeed = units::rpm(target);
@@ -123,19 +183,17 @@ int main(int argc, char **argv) {
             frame();
 
             if (f % 60 == 59) {
-                double boost = 0, ratio = 1, shaft = 0, charge = 25, drive = 0;
-                if (engine->getCompressorCount() > 0) {
-                    Compressor *c = engine->getCompressor(0);
-                    boost = c->getBoost() / units::psi;
-                    ratio = c->getPressureRatio();
-                    shaft = units::toRpm(c->getShaftSpeed()) / 1000.0;
-                    charge = c->getChargeTemperature() - 273.15;
-                    drive = c->getDriveTorque() / units::ft_lb;
+                double boost = 0, wastegate = 0, shaft = 0, charge = 25, drive = 0;
+                if (fi != nullptr) {
+                    boost = fi->getBoost() / units::psi;
+                    wastegate = fi->isTurbocharger() ? fi->getWastegateOpening() : fi->getBypassOpening();
+                    shaft = units::toRpm(fi->getShaftSpeed()) / 1000.0;
+                    charge = fi->getChargeTemperature() - 273.15;
+                    drive = fi->getDriveTorque() / units::ft_lb;
                 }
-                std::printf("%6.0f %6.1f %8.2f %7.2f %7.1f %8.0f %8.1f %6.1f\n",
-                    units::toRpm(engine->getSpeed()), (f + 1) / 60.0, boost, ratio,
-                    shaft, charge, sim->getFilteredDynoTorque() / units::ft_lb, drive);
-            }
+                std::printf("%6.0f %6.1f %8.2f %7.1f %6.2f %7.1f %8.0f %8.1f %6.1f\n",
+                    units::toRpm(engine->getSpeed()), (f + 1) / 60.0, boost, engine->getManifoldPressure() / units::kPa, wastegate,
+                    shaft, charge, sim->getFilteredDynoTorque() / units::ft_lb, drive);            }
         }
     }
 
