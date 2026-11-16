@@ -69,6 +69,7 @@ add_library(engine-sim STATIC
     src/convolution_filter.cpp
     src/cylinder_bank.cpp
     src/cylinder_head.cpp
+    src/data_root.cpp
     src/delay_filter.cpp
     src/derivative_filter.cpp
     src/direct_throttle_linkage.cpp
@@ -140,6 +141,7 @@ add_library(engine-sim STATIC
     include/piston.h
     include/piston_engine_simulator.h
     include/simulator.h
+    include/data_root.h
     include/engine_list.h
     include/spoken_text.h
     include/standard_valvetrain.h
@@ -384,6 +386,7 @@ add_executable(engine-sim-test
     test/synthesizer_tests.cpp
     test/spoken_text_tests.cpp
     test/engine_list_tests.cpp
+    test/data_root_tests.cpp
 )
 
 target_link_libraries(engine-sim-test

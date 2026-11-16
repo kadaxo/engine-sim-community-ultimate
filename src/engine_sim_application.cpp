@@ -16,6 +16,7 @@
 #include "../include/file_dialog.h"
 #include "../include/engine_list.h"
 #include "../include/engine_script.h"
+#include "../include/data_root.h"
 
 #include "../scripting/include/compiler.h"
 
@@ -137,14 +138,17 @@ EngineSimApplication::~EngineSimApplication() {
 }
 
 bool EngineSimApplication::initialize(void *instance, ysContextObject::DeviceAPI api) {
-    dbasic::Path modulePath = dbasic::GetModulePath();
+    // The folder the app is in, not the one it was started from
+    // (dbasic::GetModulePath() gives the working directory)
+    const std::filesystem::path exeDir = data_root::executableDirectory();
+    dbasic::Path modulePath = exeDir.empty()
+        ? dbasic::GetModulePath()
+        : dbasic::Path(exeDir.string());
 
-    // Check the env var for where to load fixed data from
-    if (getenv("ENGINE_SIM_DATA_ROOT") != nullptr) {
-        m_dataRoot = getenv("ENGINE_SIM_DATA_ROOT");
-    } else {
-        m_dataRoot = ENGINE_SIM_DATA_ROOT;
-    }
+    // Fixed data: the env var, else found from where the app is, else the
+    // path set at build time (see data_root::find)
+    m_dataRoot = data_root::find(
+        getenv("ENGINE_SIM_DATA_ROOT"), ENGINE_SIM_DATA_ROOT, exeDir).string();
 
     // Grab the userdata folder (input files that aren't from fixed data)
     if (getenv("XDG_DATA_HOME") != nullptr) {

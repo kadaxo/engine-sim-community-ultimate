@@ -3,6 +3,7 @@
 // the interactive application. See docs/game-audio-export.md.
 
 #include "../../include/game_audio/exporter.h"
+#include "../../include/data_root.h"
 
 #include <cstdint>
 #include <cstdlib>
@@ -11,12 +12,6 @@
 #include <sstream>
 #include <string>
 #include <vector>
-
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
-#endif
 
 namespace fs = std::filesystem;
 
@@ -108,24 +103,6 @@ Misc
         catch (const std::exception &) {
             return false;
         }
-    }
-
-    fs::path executableDirectory(const char *argv0) {
-#ifdef _WIN32
-        std::wstring buffer(MAX_PATH, L'\0');
-        for (;;) {
-            const DWORD n = GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
-            if (n == 0) break;
-            if (n < buffer.size()) {
-                buffer.resize(n);
-                return fs::path(buffer).parent_path();
-            }
-            buffer.resize(buffer.size() * 2);
-        }
-#endif
-        std::error_code ec;
-        const fs::path p = fs::absolute(argv0, ec);
-        return ec ? fs::current_path() : p.parent_path();
     }
 
     // Walks up from `start` looking for the engine-sim script library.
@@ -295,8 +272,9 @@ int main(int argc, char **argv) {
         break;
     }
 
-    const fs::path exeDir = executableDirectory(argv[0]);
     std::error_code ec;
+    fs::path exeDir = data_root::executableDirectory(argv[0]);
+    if (exeDir.empty()) exeDir = fs::current_path(ec);
 
     // Locate the repository (for the default script and the "es" library):
     // next to the script first, then relative to the executable, then the
