@@ -174,7 +174,12 @@ bool EngineSimApplication::initialize(void *instance, ysContextObject::DeviceAPI
         m_outputPath.CreateDir();
     }
 
-    std::string enginePath = m_dataRoot.Append("dependencies/submodules/delta-studio/engines/basic").ToString();
+    // delta-studio's shaders and fonts: in delta/ in the downloads (see the
+    // release package in CMakeLists.txt), in the submodule in a source tree
+    std::string enginePath = m_dataRoot.Append("delta").ToString();
+    if (!m_dataRoot.Append("delta/shaders").Exists()) {
+        enginePath = m_dataRoot.Append("dependencies/submodules/delta-studio/engines/basic").ToString();
+    }
     m_assetPath = m_dataRoot.Append("assets").ToString();
 
     // Read in local config to pick replacement locations

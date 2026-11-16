@@ -284,7 +284,15 @@ int main(int argc, char **argv) {
     if (!options.session.scriptPath.empty()) {
         haveRoot = findRepositoryRoot(fs::path(options.session.scriptPath).parent_path(), &root);
     }
-    if (!haveRoot) haveRoot = findRepositoryRoot(exeDir, &root);
+    if (!haveRoot) {
+        // Beside or above the executable, or in Contents/Resources when it
+        // is inside the macOS app
+        const fs::path found = data_root::find(nullptr, "", exeDir);
+        if (!found.empty() && data_root::isDataRoot(found)) {
+            root = found;
+            haveRoot = true;
+        }
+    }
     if (!haveRoot) haveRoot = findRepositoryRoot(fs::current_path(ec), &root);
 
     if (options.session.scriptPath.empty()) {
