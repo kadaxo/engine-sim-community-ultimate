@@ -7,6 +7,21 @@
 #include <chrono>
 #include <vector>
 
+#ifdef ENGINE_SIM_STATIC_GLIB
+// Prism's Linux backend uses glibmm, linked here as static libraries with
+// GLib. A static link doesn't run start-up code in dependency order, and
+// glibmm's static objects create GLib quarks before GLib's own constructor
+// has set up the quark table, so GLib then aborts at start
+// ("g_quark_init: assertion failed"). GLib's initialization (glib_init,
+// which runs once) goes first from a constructor with a higher priority;
+// in a static link its hidden symbol is still reachable.
+extern "C" void glib_init(void);
+
+__attribute__((constructor(101))) static void initializeGlibFirst() {
+    glib_init();
+}
+#endif
+
 namespace {
     // Backends that reach a screen reader, which speaks and brailles the text
     // with the user's own settings. UIA covers Narrator and other screen

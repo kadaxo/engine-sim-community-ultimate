@@ -344,6 +344,14 @@ if (TARGET prism::prism)
     target_compile_definitions(engine-sim-speech PRIVATE ENGINE_SIM_SPEECH)
     target_link_libraries(engine-sim-speech PRIVATE prism::prism)
     message(STATUS "Screen reader output: enabled (Prism)")
+
+    # On Linux Prism brings GLib and glibmm; vcpkg builds them as static
+    # libraries, whose start-up code then needs ordering (screen_reader.cpp)
+    if (UNIX AND NOT APPLE AND DEFINED VCPKG_INSTALLED_DIR AND DEFINED VCPKG_TARGET_TRIPLET
+            AND EXISTS "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib/libglib-2.0.a"
+            AND NOT EXISTS "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib/libglib-2.0.so")
+        target_compile_definitions(engine-sim-speech PRIVATE ENGINE_SIM_STATIC_GLIB)
+    endif ()
 else ()
     message(STATUS "Screen reader output: Prism not found, disabled")
 endif ()
