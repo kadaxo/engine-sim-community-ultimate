@@ -32,6 +32,7 @@ Pinned commit: `8daecd0` on
 | `0012` | `ysToolAnimationFile` returning an uninitialized error code for animation file versions other than 0, by kyan0s-git ([kyan0s-git/engine-sim](https://github.com/kyan0s-git/engine-sim)) |
 | `0013` | The GLSL shaders needing OpenGL 4.2 for their `layout(binding = N)` qualifiers while macOS only provides 4.1, so the app crashed on start: shaders are rewritten to GLSL 4.10 when loaded and their bindings set after linking, uniform blocks use `std140`, and the SDL context asks for a forward-compatible core profile with a 4.1 fallback, by kyan0s-git ([kyan0s-git/engine-sim](https://github.com/kyan0s-git/engine-sim)) |
 | `0014` | Error messages (such as a shader compiler log) not reaching error handlers, which only got the error number |
+| `0015` | SDL windows larger than the screen being cut off on macOS, which doesn't shrink them: the window is fitted into the display's usable area and the size it really gets is recorded so the render targets match |
 Without 0001–0007 the port only builds on Linux/macOS; with them it builds on
 Windows (Direct3D 11) as well.
 

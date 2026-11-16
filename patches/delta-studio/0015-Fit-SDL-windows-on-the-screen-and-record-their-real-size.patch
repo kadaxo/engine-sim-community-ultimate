@@ -1,0 +1,69 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: kadaxo <105596590+kadaxo@users.noreply.github.com>
+Date: Mon, 16 Nov 2026 16:35:03 +0300
+Subject: [PATCH] Fit SDL windows on the screen and record their real size
+
+macOS doesn't shrink a window that is larger than the screen, so a
+1920x1080 window on a smaller display was drawn at full size and the
+top and right of the picture were cut off. The window is now fitted into
+the usable area of its display, title bar included, and the size it
+really gets is recorded so the render targets match it. Window creation
+failures now return SDL's error.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/yds_sdl_window.cpp | 32 ++++++++++++++++++++++++++++++++
+ 1 file changed, 32 insertions(+)
+
+diff --git a/src/yds_sdl_window.cpp b/src/yds_sdl_window.cpp
+index 579604ef..1dd06ba3 100644
+--- a/src/yds_sdl_window.cpp
++++ b/src/yds_sdl_window.cpp
+@@ -1,5 +1,7 @@
+ #include "../include/yds_sdl_window.h"
+ 
++#include <algorithm>
++
+ ysSdlWindow::ysSdlWindow() : ysWindow(Platform::Sdl) {
+     /* void */
+ }
+@@ -52,6 +54,36 @@ ysError ysSdlWindow::InitializeWindow(ysWindow *parent, std::string title, Windo
+     }
+ 
+     m_window = SDL_CreateWindow(title.c_str(), x, y, width, height, flags);
++    if (m_window == nullptr) {
++        return YDS_ERROR_RETURN_MSG(ysError::NoWindowSystem, SDL_GetError());
++    }
++
++    // A window larger than the screen isn't shrunk to fit on macOS, so part of
++    // what was drawn was never seen. Fit the window, title bar included, into
++    // the usable area of its display (outside the menu bar and the Dock).
++    SDL_Rect usable;
++    const int display = SDL_GetWindowDisplayIndex(m_window);
++    if (display >= 0 && SDL_GetDisplayUsableBounds(display, &usable) == 0) {
++        int top = 0, left = 0, bottom = 0, right = 0;
++        SDL_GetWindowBordersSize(m_window, &top, &left, &bottom, &right);
++
++        const int maxWidth = usable.w - left - right;
++        const int maxHeight = usable.h - top - bottom;
++        if (maxWidth > 0 && maxHeight > 0 && (width > maxWidth || height > maxHeight)) {
++            width = std::min(width, maxWidth);
++            height = std::min(height, maxHeight);
++            SDL_SetWindowSize(m_window, width, height);
++            SDL_SetWindowPosition(
++                m_window,
++                usable.x + left + (maxWidth - width) / 2,
++                usable.y + top + (maxHeight - height) / 2);
++        }
++    }
++
++    // Record the size the window really got, so rendering matches it
++    int actualWidth = width, actualHeight = height;
++    SDL_GetWindowSize(m_window, &actualWidth, &actualHeight);
++    SetWindowSize(actualWidth, actualHeight);
+ 
+     return YDS_ERROR_RETURN(ysError::None);
+ }
+-- 
+2.56.0.windows.2
+
