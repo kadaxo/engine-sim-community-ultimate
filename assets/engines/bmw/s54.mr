@@ -238,7 +238,7 @@ public node S54 {
     performer_rpm_intake intake(
         carburetor_cfm: 800.0,
         idle_flow_rate_cfm: 0.001,
-        idle_throttle_plate_position: 0.945, // start at 0.963, go to -> 0.97
+        idle_throttle_plate_position: 0.981, // idles near 1600 rpm in neutral; 0.983 stalls
         throttle_gamma: 1.5
     )
 

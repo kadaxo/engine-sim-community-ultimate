@@ -457,3 +457,9 @@ public node zil_130_transmission {
         .add_gear(2.29)   // 3rd
         .add_gear(1.00);  // 4th (direct)
 }
+
+public node main {
+    set_engine(zil_130())
+    set_vehicle(zil_130_vehicle())
+    set_transmission(zil_130_transmission())
+}

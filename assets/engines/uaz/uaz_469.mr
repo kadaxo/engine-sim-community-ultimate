@@ -396,3 +396,9 @@ public node uaz_469_transmission_low {
         .add_gear(1.55 * 1.94)   // 3rd low: 3.01
         .add_gear(1.00 * 1.94);  // 4th low: 1.94
 }
+
+public node main {
+    set_engine(uaz_469())
+    set_vehicle(uaz_469_vehicle())
+    set_transmission(uaz_469_transmission())
+}

@@ -9,6 +9,12 @@
 // revs it with no load, printing boost and shaft speed every 0.1 s.
 //
 //   boost-probe <main.mr> --snap <rpm>
+//
+// With --idle it starts the engine with no gas, leaves it in neutral with
+// the throttle closed for 20 s and fails (exit code 3) if it settles above
+// half its redline.
+//
+//   boost-probe <main.mr> --idle
 #include "../scripting/include/compiler.h"
 #include "../include/transmission.h"
 #include "../include/units.h"
@@ -26,14 +32,16 @@
 
 int main(int argc, char **argv) {
     if (argc < 2) {
-        std::fprintf(stderr, "usage: boost-probe <main.mr> [rpm ...]\n       boost-probe <main.mr> --snap <rpm>\n");
+        std::fprintf(stderr, "usage: boost-probe <main.mr> [rpm ...]\n       boost-probe <main.mr> --snap <rpm>\n       boost-probe <main.mr> --idle\n");
         return 2;
     }
 
     std::vector<double> rpms;
     double snapRpm = 0;
+    bool idleMode = false;
     for (int i = 2; i < argc; ++i) {
         if (std::string(argv[i]) == "--snap" && i + 1 < argc) snapRpm = std::atof(argv[++i]);
+        else if (std::string(argv[i]) == "--idle") idleMode = true;
         else rpms.push_back(std::atof(argv[i]));
     }
     if (rpms.empty()) rpms = { 2000, 3000, 4000, 5000, 6000 };
@@ -112,7 +120,16 @@ int main(int argc, char **argv) {
         std::this_thread::sleep_for(std::chrono::milliseconds(16));
     };
 
-    // Crank until it fires and idles.
+    // Crank until it fires and idles. --idle first starts it the way a player
+    // does with no gas: the starter held with the throttle closed until the
+    // engine catches (half again its starter speed) or for two seconds.
+    if (idleMode) {
+        const double caught = 1.5 * units::toRpm(engine->getStarterSpeed());
+        for (int i = 0; i < 60 * 2 && engine->getRpm() < caught; ++i) {
+            engine->setSpeedControl(0.0);
+            frame();
+        }
+    }
     for (int i = 0; i < 60 * 6 && engine->getRpm() < 600.0; ++i) {
         engine->setSpeedControl(0.2);
         frame();
@@ -123,6 +140,39 @@ int main(int argc, char **argv) {
     ForcedInduction *fi = engine->getForcedInduction();
     if (fi != nullptr) {
         std::printf("%s\n", fi->getDescription().c_str());
+    }
+
+    if (idleMode) {
+        // Neutral, no throttle: where the engine settles after starting,
+        // from the average of the last five seconds
+        double settledSum = 0;
+        int settledFrames = 0;
+        for (int f = 1; f <= 60 * 20; ++f) {
+            engine->setSpeedControl(0.0);
+            frame();
+            if (f > 60 * 15) {
+                settledSum += engine->getRpm();
+                ++settledFrames;
+            }
+            if (f % 30 == 0) {
+                std::printf("idle %4.1f s  %5.0f rpm  throttle %.3f  map %5.1f kPa\n",
+                    f / 60.0, engine->getRpm(), engine->getThrottle(),
+                    engine->getManifoldPressure() / units::kPa);
+            }
+        }
+
+        const double settled = settledSum / settledFrames;
+        const double redline = units::toRpm(engine->getRedline());
+        sim->endAudioRenderingThread();
+        sim->destroy();
+
+        std::printf("settled at %.0f rpm, redline %.0f rpm\n", settled, redline);
+        if (settled > 0.5 * redline) {
+            std::printf("FAIL: with the throttle closed it runs above half its redline\n");
+            return 3;
+        }
+
+        return 0;
     }
 
     if (snapRpm > 0) {

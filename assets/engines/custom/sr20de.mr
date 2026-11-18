@@ -224,7 +224,7 @@ public node sr20 {
     performer_rpm_intake intake(
         carburetor_cfm: 510.0,
         idle_flow_rate_cfm: 0.1,
-        idle_throttle_plate_position: 0.94, // start at 0.963, go to -> 0.97
+        idle_throttle_plate_position: 0.9935, // idles near 950 rpm in neutral
         throttle_gamma: 2.0
     )
 

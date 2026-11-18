@@ -44,7 +44,7 @@ Already covered by the port, so not merged separately: Ange's own dyno torque in
 
 ### Engines and themes
 
-Each script was compiled and run headlessly (cranks, idles and holds 1500 rpm on the dyno) before being added.
+Each script was compiled and run headlessly (cranks, idles and holds 1500 rpm on the dyno) before being added. `ctest` (label `slow`) also loads every engine the way the engine list does, starts it with no gas and checks that it settles below half its redline in neutral. That check found the SR20DE, Jeep 4.0 I6, RB25DET and BMW S54 revving toward redline with the throttle closed, so their closed throttle plates now shut further (they idle at about 900 to 1600 rpm). It also found that the UAZ-469 and ZIL-130 couldn't be loaded; they now have the `main` node that sets their engine, vehicle and transmission.
 
 | Engines | From |
 | --- | --- |

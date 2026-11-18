@@ -422,6 +422,43 @@ if (PIRANHA_ENABLED)
     add_executable(shift-probe tools/shift_probe.cpp)
     target_link_libraries(shift-probe engine-sim engine-sim-script-interpreter)
     target_include_directories(shift-probe PUBLIC dependencies/submodules)
+
+    # Every engine the engine list offers (a script that declares an engine,
+    # see src/engine_list.cpp), loaded the way the app loads it
+    # (include/engine_script.h), started with no gas and left in neutral must
+    # settle below half its redline. One test per script, so ctest -j runs
+    # them side by side; ctest -LE slow leaves them out.
+    file(GLOB_RECURSE ENGINE_SCRIPTS CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/assets/engines/*.mr")
+    foreach (ENGINE_SCRIPT ${ENGINE_SCRIPTS})
+        file(READ "${ENGINE_SCRIPT}" ENGINE_SOURCE)
+        if (NOT ENGINE_SOURCE MATCHES "(^|[^A-Za-z0-9_])engine[ \t\r\n]+[A-Za-z_][A-Za-z0-9_]*[ \t\r\n]*\\(")
+            continue()
+        endif ()
+
+        if (ENGINE_SOURCE MATCHES "public[ \t\r\n]+node[ \t\r\n]+main[^A-Za-z0-9_]")
+            set(ENGINE_CALL "main()")
+        else ()
+            string(REGEX MATCHALL "public[ \t\r\n]+node[ \t\r\n]+[A-Za-z_][A-Za-z0-9_]*" ENGINE_NODES "${ENGINE_SOURCE}")
+            if (NOT ENGINE_NODES)
+                continue()
+            endif ()
+            list(GET ENGINE_NODES -1 ENGINE_NODE)
+            string(REGEX REPLACE "^public[ \t\r\n]+node[ \t\r\n]+" "" ENGINE_NODE "${ENGINE_NODE}")
+            set(ENGINE_CALL "set_engine(${ENGINE_NODE}())")
+        endif ()
+
+        file(RELATIVE_PATH ENGINE_NAME "${PROJECT_SOURCE_DIR}/assets/engines" "${ENGINE_SCRIPT}")
+        string(REGEX REPLACE "\\.mr$" "" ENGINE_NAME "${ENGINE_NAME}")
+        string(REPLACE " " "_" ENGINE_NAME "${ENGINE_NAME}")
+        set(ENGINE_WRAPPER "${CMAKE_CURRENT_BINARY_DIR}/engine-idle/${ENGINE_NAME}.mr")
+        file(WRITE "${ENGINE_WRAPPER}"
+            "import \"engine_sim.mr\"\nimport \"${ENGINE_SCRIPT}\"\n${ENGINE_CALL}\n")
+
+        add_test(NAME engine-idle/${ENGINE_NAME}
+            COMMAND boost-probe "${ENGINE_WRAPPER}" --idle
+            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+        set_tests_properties(engine-idle/${ENGINE_NAME} PROPERTIES LABELS slow TIMEOUT 300)
+    endforeach ()
 endif (PIRANHA_ENABLED)
 
 # ========================================================
