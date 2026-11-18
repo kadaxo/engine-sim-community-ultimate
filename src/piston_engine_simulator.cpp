@@ -181,6 +181,10 @@ void PistonEngineSimulator::loadSimulation(Engine *engine, Vehicle *vehicle, Tra
     m_starterMotor.m_rotationSpeed = -m_engine->getStarterSpeed();
     m_system->addConstraint(&m_starterMotor);
 
+    // A negative starter speed makes the engine run counter-clockwise; the
+    // dyno hold then drives that way too
+    m_dyno.m_holdDirection = (m_engine->getStarterSpeed() < 0) ? -1.0 : 1.0;
+
     // Superchargers load the crankshaft with their drive torque
     if (m_engine->getForcedInduction() != nullptr) {
         m_system->addForceGenerator(m_engine->getForcedInduction());

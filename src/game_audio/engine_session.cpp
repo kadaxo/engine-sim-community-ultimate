@@ -229,7 +229,10 @@ std::unique_ptr<game_audio::EngineSession> game_audio::EngineSession::create(
     session->m_transmission->setClutchPressure(1.0);
 
     if (config.starterRpm > 0) {
-        simulator->m_starterMotor.m_rotationSpeed = -units::rpm(config.starterRpm);
+        // Keep the script's direction: a counter-clockwise engine's starter
+        // turns the other way
+        const double direction = (simulator->m_starterMotor.m_rotationSpeed > 0) ? -1.0 : 1.0;
+        simulator->m_starterMotor.m_rotationSpeed = -direction * units::rpm(config.starterRpm);
     }
     session->m_crankThrottle = std::clamp(config.crankThrottle, 0.0, 1.0);
 

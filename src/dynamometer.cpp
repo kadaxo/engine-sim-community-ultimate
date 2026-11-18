@@ -9,6 +9,7 @@ Dynamometer::Dynamometer() : atg_scs::Constraint(1, 1) {
     m_ks = 10.0;
     m_kd = 1.0;
     m_maxTorque = units::torque(10000.0, units::ft_lb);
+    m_holdDirection = 1.0;
 
     m_enabled = false;
     m_hold = false;
@@ -40,7 +41,7 @@ void Dynamometer::calculate(Output *output, atg_scs::SystemState *state) {
         // Hold the crank at speed in the engine's running direction (the
         // starter's), not whichever way it happens to be turning: started from
         // rest, that sign is rounding noise and could run the engine backwards.
-        output->v_bias[0] = m_rotationSpeed;
+        output->v_bias[0] = m_holdDirection * m_rotationSpeed;
         output->limits[0][0] = -m_maxTorque;
         output->limits[0][1] = m_maxTorque;
     }

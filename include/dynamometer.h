@@ -19,6 +19,10 @@ class Dynamometer : public atg_scs::Constraint {
         double m_kd;
         double m_maxTorque;
 
+        // 1 for engines that run clockwise, -1 for counter-clockwise ones
+        // (a negative starter_speed); the hold drives the crank this way
+        double m_holdDirection;
+
         bool m_hold;
         bool m_enabled;
 };

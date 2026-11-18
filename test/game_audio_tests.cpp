@@ -558,6 +558,39 @@ TEST(EngineSessionTests, DynoHoldRunsForwardAtAnySimulationFrequency) {
     }
 }
 
+TEST(EngineSessionTests, DynoHoldRunsCounterClockwiseEnginesForward) {
+    // Ange's B18C runs counter-clockwise (a negative starter speed), as Honda
+    // engines do. The hold must drive it that way, also when the starter speed
+    // is set from outside the script (engine-sim-export --starter-rpm).
+    const fs::path script = fs::path(ENGINE_SIM_SOURCE_DIR) / "assets" / "engines" / "atg-video-1" / "05_honda_vtec.mr";
+    for (const double starterRpm : { 0.0, 300.0 }) {
+        std::srand(3);
+        SessionConfig config = defaultEngineConfig();
+        config.scriptPath = script.generic_string();
+        config.starterRpm = starterRpm;
+        std::string error;
+        std::unique_ptr<EngineSession> session = EngineSession::create(config, &error);
+        ASSERT_TRUE(session) << error;
+
+        session->setIgnition(true);
+        session->setThrottleImmediate(1.0);
+        for (int i = 0; i <= 50; ++i) {
+            session->setDynoHold(3000 * i / 50.0);
+            session->advance(0.01, nullptr, nullptr);
+        }
+        session->advance(0.5, nullptr, nullptr);
+
+        std::vector<TelemetrySample> telemetry;
+        session->advance(0.25, nullptr, &telemetry);
+        ASSERT_FALSE(telemetry.empty());
+        double torque = 0;
+        for (const TelemetrySample &sample : telemetry) torque += sample.dynoTorque;
+        torque /= telemetry.size();
+        EXPECT_GT(torque, 50.0) << "starter " << starterRpm << " rpm";
+        EXPECT_NEAR(session->rpm(), 3000, 3000 * 0.03) << "starter " << starterRpm << " rpm";
+    }
+}
+
 TEST(EngineSessionTests, MissingScriptReportsError) {
     SessionConfig config = defaultEngineConfig();
     config.scriptPath = "this/does/not/exist.mr";
