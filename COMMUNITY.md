@@ -53,7 +53,6 @@ Each script was compiled and run headlessly (cranks, idles and holds 1500 rpm on
 | Volvo 2.5 I5 | Kestin Goforth ([kForth](https://github.com/kForth/engine-sim)) |
 | McLaren-Honda MP4/4 (RA168E) | Finn Ericson ([ioramastudio](https://github.com/ioramastudio/engine-sim-APPLE_ARM)) |
 | LADA Niva VAZ-21214, UAZ-469, Ural IMZ-8.103, ZIL-130 | [tjvjk](https://github.com/tjvjk/engine-sim-macos) |
-| Steam and small 2-stroke samples (`engines/steam`) | Alexey Egorov ([Evil-Spirit](https://github.com/Evil-Spirit/engine-sim)) |
 | Husqvarna 701 | Kees ([KeesTucker](https://github.com/KeesTucker/engine-sim)) |
 | Ferrari 499P, Porsche 992 GT3 4.0 flat-6 | Thomas Vaté ([Durb0](https://github.com/Durb0/engine-sim)) |
 | Chevy 427 L88, Hemi 392, Viper V10, Lamborghini V10, AMG M177, 540 blown monster truck V8, RB26DETT, Porsche 3.8 flat-6 | Andrew McOlash ([amcolash](https://github.com/amcolash/engine-sim)) |

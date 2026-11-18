@@ -396,6 +396,7 @@ add_executable(engine-sim-test
     test/engine_list_tests.cpp
     test/data_root_tests.cpp
     test/forced_induction_tests.cpp
+    test/starter_motor_tests.cpp
 )
 
 target_link_libraries(engine-sim-test

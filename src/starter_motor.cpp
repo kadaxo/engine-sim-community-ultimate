@@ -2,6 +2,8 @@
 
 #include "../include/units.h"
 
+#include <cmath>
+
 StarterMotor::StarterMotor() : atg_scs::Constraint(1, 1) {
     m_ks = 10.0;
     m_kd = 1.0;
@@ -34,12 +36,16 @@ void StarterMotor::calculate(Output *output, atg_scs::SystemState *state) {
 
     output->v_bias[0] = -m_rotationSpeed;
 
+    // Only the torque's size counts. A negative starter_torque would give
+    // the solver a lower limit above the upper one, and it would then push
+    // at full torque with no speed limit for as long as the starter is held.
+    const double maxTorque = std::abs(m_maxTorque);
     if (m_rotationSpeed < 0) {
-        output->limits[0][0] = m_enabled ? -m_maxTorque : 0.0;
+        output->limits[0][0] = m_enabled ? -maxTorque : 0.0;
         output->limits[0][1] = 0.0;
     }
     else {
         output->limits[0][0] = 0.0;
-        output->limits[0][1] = m_enabled ? m_maxTorque : 0.0;
+        output->limits[0][1] = m_enabled ? maxTorque : 0.0;
     }
 }

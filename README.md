@@ -15,7 +15,7 @@ It is not a scientific tool: it is designed to sound and respond like an engine,
 - **About 100 engines**, including dozens of community engine scripts, each checked to compile and run, and 7 extra UI themes.
 - **Forced induction**: turbochargers (with lag, wastegate and blow-off valve) and Roots, twin-screw or centrifugal superchargers, with their whistle, whine and blow-off sounds ([docs/forced-induction.md](docs/forced-induction.md)).
 - **Driving**: smart gear shifting (rev-matched shifts, `K`), brakes (`.`), average or instant fuel consumption and an odometer.
-- **More engine types**: camshaft reduction ratio, `sparks_per_cycle` and intake atmosphere for two-stroke and steam engines and altitude setups, and a VTEC switch that changes cams only while each valve is closed.
+- **More engine types**: camshaft reduction ratio, `sparks_per_cycle` and intake atmosphere for two-stroke engines and altitude setups, and a VTEC switch that changes cams only while each valve is closed.
 - **Steady sound**: an optional loudness-based volume leveler (`L`), fixes for audio underruns and a data race in the synthesizer, and a UDP rpm input ([RPM_SYNC.md](RPM_SYNC.md)).
 - **Works with screen readers.** Speech and braille through NVDA, JAWS, Narrator and others, keys that read out every gauge, a spoken engine list, and keyboard alternatives for everything the mouse did. See the [accessibility guide](docs/accessibility.html).
 - **Builds on Windows, Linux and macOS** with no Boost dependency, plus fixes to the physics, rendering and memory handling. The macOS app has been tried on an Apple Silicon Mac, and the Linux app on Ubuntu 22.04 (under WSL).
