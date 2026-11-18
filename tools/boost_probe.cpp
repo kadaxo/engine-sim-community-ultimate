@@ -15,6 +15,13 @@
 // half its redline.
 //
 //   boost-probe <main.mr> --idle
+//
+// With --crank it checks the starter: the cranking speed it holds with the
+// ignition off, then how soon the engine fires and whether it keeps running
+// once the starter lets go. --starter-speed <rpm> replaces the script's
+// starter speed in any mode.
+//
+//   boost-probe <main.mr> --crank [--starter-speed <rpm>]
 #include "../scripting/include/compiler.h"
 #include "../include/transmission.h"
 #include "../include/units.h"
@@ -32,16 +39,20 @@
 
 int main(int argc, char **argv) {
     if (argc < 2) {
-        std::fprintf(stderr, "usage: boost-probe <main.mr> [rpm ...]\n       boost-probe <main.mr> --snap <rpm>\n       boost-probe <main.mr> --idle\n");
+        std::fprintf(stderr, "usage: boost-probe <main.mr> [rpm ...]\n       boost-probe <main.mr> --snap <rpm>\n       boost-probe <main.mr> --idle\n       boost-probe <main.mr> --crank [--starter-speed <rpm>]\n");
         return 2;
     }
 
     std::vector<double> rpms;
     double snapRpm = 0;
     bool idleMode = false;
+    bool crankMode = false;
+    double starterSpeed = 0;
     for (int i = 2; i < argc; ++i) {
         if (std::string(argv[i]) == "--snap" && i + 1 < argc) snapRpm = std::atof(argv[++i]);
         else if (std::string(argv[i]) == "--idle") idleMode = true;
+        else if (std::string(argv[i]) == "--crank") crankMode = true;
+        else if (std::string(argv[i]) == "--starter-speed" && i + 1 < argc) starterSpeed = std::atof(argv[++i]);
         else rpms.push_back(std::atof(argv[i]));
     }
     if (rpms.empty()) rpms = { 2000, 3000, 4000, 5000, 6000 };
@@ -96,6 +107,7 @@ int main(int argc, char **argv) {
     Simulator *sim = engine->createSimulator(vehicle, transmission);
     engine->calculateDisplacement();
     sim->setSimulationFrequency(engine->getSimulationFrequency());
+    if (starterSpeed > 0) sim->m_starterMotor.m_rotationSpeed = -units::rpm(starterSpeed);
 
     // One-sample impulse so the synthesizer renders (and drains) without wave files.
     static int16_t impulse[1] = { 32767 };
@@ -119,6 +131,55 @@ int main(int argc, char **argv) {
         sim->readAudioOutput(735, audio);
         std::this_thread::sleep_for(std::chrono::milliseconds(16));
     };
+
+    if (crankMode) {
+        // The starter alone: ignition off, throttle closed
+        engine->getIgnitionModule()->m_enabled = false;
+        double sum = 0, low = 1e9, high = 0, reach = -1;
+        int n = 0;
+        std::vector<double> trace;
+        for (int f = 1; f <= 60 * 4; ++f) {
+            engine->setSpeedControl(0.0);
+            frame();
+            trace.push_back(engine->getRpm());
+            if (f > 60 * 2) {
+                const double r = engine->getRpm();
+                sum += r; ++n;
+                low = std::fmin(low, r);
+                high = std::fmax(high, r);
+            }
+        }
+        const double cranking = sum / n;
+        const bool clockwise = engine->isSpinningCw();
+        for (size_t i = 0; i < trace.size(); ++i) {
+            if (trace[i] >= 0.9 * cranking) { reach = (i + 1) / 60.0; break; }
+        }
+
+        // Ignition on, starter still held until it fires (or 3 s), then let go
+        engine->getIgnitionModule()->m_enabled = true;
+        const double firedAt = std::fmax(1.3 * cranking, cranking + 200);
+        double fired = -1;
+        for (int f = 1; f <= 60 * 3; ++f) {
+            engine->setSpeedControl(0.0);
+            frame();
+            if (engine->getRpm() > firedAt) { fired = f / 60.0; break; }
+        }
+        sim->m_starterMotor.m_enabled = false;
+        for (int f = 0; f < 60 * 3; ++f) { engine->setSpeedControl(0.0); frame(); }
+        const double after = engine->getRpm();
+
+        std::printf("starter %.0f lb-ft  %.0f rpm\n",
+            std::abs(sim->m_starterMotor.m_maxTorque) / units::ft_lb,
+            -units::toRpm(sim->m_starterMotor.m_rotationSpeed));
+        std::printf("cranking %.0f rpm (%.0f-%.0f), 90%% after %.2f s, %s\n", cranking, low, high, reach,
+            clockwise ? "clockwise" : "counter-clockwise");
+        std::printf("fired %s%.2f s; 3 s after release %.0f rpm\n",
+            fired < 0 ? "never, " : "after ", fired < 0 ? 3.0 : fired, after);
+
+        sim->endAudioRenderingThread();
+        sim->destroy();
+        return 0;
+    }
 
     // Crank until it fires and idles. --idle first starts it the way a player
     // does with no gas: the starter held with the throttle closed until the
