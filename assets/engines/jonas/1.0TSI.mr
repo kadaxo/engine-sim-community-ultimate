@@ -128,7 +128,7 @@ public node ea211 {
     engine engine(
         name: "VW 1.0 TSI (EA211 I3)",
         starter_torque: 70 * units.lb_ft,
-        starter_speed: 1500 * units.rpm,
+        starter_speed: 250 * units.rpm,
         redline: 7000 * units.rpm,
         fuel: fuel(
             turbulence_to_flame_speed_ratio: turbulence_to_flame_speed_ratio(),

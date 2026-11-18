@@ -121,7 +121,7 @@ public node ej22 {
     engine engine(
         name: "Subaru EJ22 2.2 16V",
         starter_torque: 200 * units.lb_ft,
-		starter_speed: 900 * units.rpm,
+		starter_speed: 300 * units.rpm,
         redline: 7000 * units.rpm,
         fuel: fuel(
             max_turbulence_effect: 4.0,

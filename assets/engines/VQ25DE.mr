@@ -134,7 +134,7 @@ public node vq35de {
     engine engine(
         name: "~VQ35DE~",
         starter_torque: 70 * units.lb_ft,
-        starter_speed: 700 * units.rpm,
+        starter_speed: 300 * units.rpm,
         redline: 6800 * units.rpm,
         throttle_gamma: 2.0
     )

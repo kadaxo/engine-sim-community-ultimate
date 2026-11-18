@@ -176,7 +176,7 @@ public node S58B30T0 {
     engine engine(
         name: "BMW S58B30T0",
         starter_torque: 500 * units.lb_ft,
-        starter_speed: 1000 * units.rpm,
+        starter_speed: 250 * units.rpm,
         redline: 7600 * units.rpm,
         fuel: fuel(
             max_turbulence_effect: 2.5,

@@ -97,7 +97,7 @@ public node gt3 {
     engine engine(
         name: "Porsche 911 GT3 (992) V2",
         starter_torque: 200 * units.lb_ft,
-		starter_speed: 1200 * units.rpm,
+		starter_speed: 250 * units.rpm,
         redline: 9050 * units.rpm,
         fuel: fuel(
             max_turbulence_effect: 0.99,

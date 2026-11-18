@@ -168,7 +168,7 @@ public node mr20de {
     engine engine(
         name: "Nissan mr20de",
         starter_torque: 150 * units.lb_ft,
-        starter_speed: 850 * units.rpm,
+        starter_speed: 250 * units.rpm,
         redline: 6500 * units.rpm,
         fuel: fuel(
             max_turbulence_effect: 4.0

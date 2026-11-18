@@ -177,7 +177,7 @@ public node Nissan_Rb25 {
     engine engine(
         name: "Nissan RB25DET",
         starter_torque: 150 * units.lb_ft,
-        starter_speed: 750 * units.rpm,
+        starter_speed: 250 * units.rpm,
         redline: 8500 * units.rpm,
         fuel: fuel(
                     max_turbulence_effect: 3.0,
