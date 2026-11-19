@@ -1,0 +1,100 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: kyan0s-git <91159868+kyan0s-git@users.noreply.github.com>
+Date: Tue, 17 Nov 2026 19:03:39 +0000
+Subject: [PATCH] Give each thread its own error call stack
+
+ysErrorSystem kept one call stack for the whole program. The simulation
+thread writes the audio through it while the main thread renders, so
+increments and decrements were lost and the stack level drifted until it
+wrote outside its array (the asserts are compiled out of release builds):
+random crashes that grew more likely the longer the app ran. Found with
+ThreadSanitizer. The stacks are now per thread and bounds checked, and
+Destroy() no longer uses delete[] on a single object.
+
+From kyan0s-git/engine-sim 18b5fcf6 ("Fix a cross-thread memory
+corruption, overlapping settings rows, turbo whistle, Roots sizing").
+---
+diff --git a/include/yds_error_system.h b/include/yds_error_system.h
+--- a/include/yds_error_system.h
++++ b/include/yds_error_system.h
+@@ -24,7 +24,9 @@ public:
+     void StackRaise(const char *callName);
+     void StackDescend();
+ 
+-    const char *GetCall() const { return (m_stackLevel > 0) ? m_callStack[m_stackLevel - 1] : "<NO CALL>"; }
++    const char *GetCall() const {
++        return (s_stackLevel > 0 && s_stackLevel <= MAX_STACK_LEVEL) ? s_callStack[s_stackLevel - 1] : "<NO CALL>";
++    }
+ 
+     template<typename T_ErrorHandler>
+     ysError AttachErrorHandler(T_ErrorHandler **handler) {
+@@ -41,8 +43,11 @@ public:
+ protected:
+     ysDynamicArray<ysErrorHandler, 4> m_errorHandlers;
+ 
+-    int m_stackLevel;
+-    const char *m_callStack[MAX_STACK_LEVEL];
++    // Each thread has its own call stack: the audio is written from the
++    // simulation thread while the main thread renders, and a shared stack
++    // lost increments and decrements until its level ran outside the array
++    static thread_local int s_stackLevel;
++    static thread_local const char *s_callStack[MAX_STACK_LEVEL];
+ };
+ 
+ #define _YDS_WIDE(_String) L ## _String
+diff --git a/src/yds_error_system.cpp b/src/yds_error_system.cpp
+--- a/src/yds_error_system.cpp
++++ b/src/yds_error_system.cpp
+@@ -5,6 +5,8 @@
+ #include <assert.h>
+ 
+ ysErrorSystem *ysErrorSystem::g_instance = nullptr;
++thread_local int ysErrorSystem::s_stackLevel = 0;
++thread_local const char *ysErrorSystem::s_callStack[ysErrorSystem::MAX_STACK_LEVEL] = {};
+ 
+ ysErrorSystem::ysErrorSystem() {
+     if (g_instance != nullptr) {
+@@ -12,9 +14,6 @@ ysErrorSystem::ysErrorSystem() {
+     }
+ 
+     g_instance = this;
+-
+-    memset((void *)m_callStack, 0, sizeof(m_callStack));
+-    m_stackLevel = 0;
+ }
+ 
+ ysErrorSystem::~ysErrorSystem() {
+@@ -27,7 +26,8 @@ ysErrorSystem *ysErrorSystem::GetInstance() {
+ }
+ 
+ void ysErrorSystem::Destroy() {
+-    delete [] g_instance;
++    delete g_instance;
++    g_instance = nullptr;
+ }
+ 
+ ysError ysErrorSystem::RaiseError(ysError error, unsigned int line, ysObject *object, const char *file, const char *msg, bool affectStack) {
+@@ -41,18 +41,16 @@ ysError ysErrorSystem::RaiseError(ysError error, unsigned int line, ysObject *ob
+         StackDescend();
+     }
+ 
+-    assert(m_stackLevel >= 0);
+-
+     return error;
+ }
+ 
+ void ysErrorSystem::StackRaise(const char *callName) {
+-    assert(m_stackLevel >= 0);
+-
+-    m_callStack[m_stackLevel] = callName;
+-    m_stackLevel++;
++    if (s_stackLevel >= 0 && s_stackLevel < MAX_STACK_LEVEL) {
++        s_callStack[s_stackLevel] = callName;
++    }
++    s_stackLevel++;
+ }
+ 
+ void ysErrorSystem::StackDescend() {
+-    --m_stackLevel;
++    if (s_stackLevel > 0) --s_stackLevel;
+ }
