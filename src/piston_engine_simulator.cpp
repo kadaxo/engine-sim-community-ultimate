@@ -205,6 +205,30 @@ double PistonEngineSimulator::getAverageOutputSignal() const {
     return sum / m_engine->getExhaustSystemCount();
 }
 
+// Each cylinder's exhaust pulse reaches the outlet after its header primary
+// and exhaust pipe at the speed of sound. The filters run once per simulation
+// step, so they are sized at the simulation frequency (they were sized at a
+// fixed 10 kHz, which made the delays wrong at every other rate), and again
+// when it changes.
+void PistonEngineSimulator::initializeDelayFilters() {
+    const int cylinderCount = m_engine->getCylinderCount();
+    for (int i = 0; i < cylinderCount; ++i) {
+        Piston *piston = m_engine->getChamber(i)->getPiston();
+        CylinderHead *head = m_engine->getChamber(i)->getCylinderHead();
+        ExhaustSystem *exhaust = head->getExhaustSystem(piston->getCylinderIndex());
+        const double exhaustLength =
+            head->getHeaderPrimaryLength(piston->getCylinderIndex())
+            + exhaust->getLength();
+        const double speedOfSound = 343.0 * units::m / units::sec;
+        const double delay = exhaustLength / speedOfSound;
+        m_delayFilters[i].initialize(delay, static_cast<double>(getSimulationFrequency()));
+    }
+}
+
+void PistonEngineSimulator::simulationFrequencyChanged() {
+    if (m_delayFilters != nullptr && m_engine != nullptr) initializeDelayFilters();
+}
+
 void PistonEngineSimulator::placeAndInitialize() {
     const int cylinderCount = m_engine->getCylinderCount();
     for (int i = 0; i < cylinderCount; ++i) {
@@ -225,17 +249,9 @@ void PistonEngineSimulator::placeAndInitialize() {
             m_engine->getChamber(i)->getVolume(),
             units::celcius(25.0)
         );
-
-        Piston *piston = m_engine->getChamber(i)->getPiston();
-        CylinderHead *head = m_engine->getChamber(i)->getCylinderHead();
-        ExhaustSystem *exhaust = head->getExhaustSystem(piston->getCylinderIndex());
-        const double exhaustLength =
-            head->getHeaderPrimaryLength(piston->getCylinderIndex())
-            + exhaust->getLength();
-        const double speedOfSound = 343.0 * units::m / units::sec;
-        const double delay = exhaustLength / speedOfSound;
-        m_delayFilters[i].initialize(delay, 10000.0);
     }
+
+    initializeDelayFilters();
 
     m_engine->getIgnitionModule()->reset();
 

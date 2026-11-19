@@ -42,6 +42,8 @@ class PistonEngineSimulator : public Simulator {
 
     protected:
         void placeAndInitialize();
+        void initializeDelayFilters();
+        virtual void simulationFrequencyChanged() override;
         void placeCylinder(int i);
         
     protected:

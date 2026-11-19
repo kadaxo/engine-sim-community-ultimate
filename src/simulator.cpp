@@ -168,6 +168,13 @@ int Simulator::readAudioOutput(int samples, int16_t *target) {
     return m_synthesizer.readAudioOutput(samples, target);
 }
 
+void Simulator::setSimulationFrequency(int frequency) {
+    if (frequency == m_simulationFrequency) return;
+
+    m_simulationFrequency = frequency;
+    simulationFrequencyChanged();
+}
+
 void Simulator::endFrame() {
     m_synthesizer.endInputBlock();
 }

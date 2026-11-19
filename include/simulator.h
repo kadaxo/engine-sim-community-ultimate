@@ -55,7 +55,7 @@ public:
     Vehicle *getVehicle() const { return m_vehicle; }
     atg_scs::RigidBodySystem *getSystem() { return m_system; }
 
-    void setSimulationFrequency(int frequency) { m_simulationFrequency = frequency; }
+    void setSimulationFrequency(int frequency);
     int getSimulationFrequency() const { return m_simulationFrequency; }
 
     double getTimestep() const { return 1.0 / m_simulationFrequency; }
@@ -89,6 +89,10 @@ protected:
     void initializeSynthesizer();
     virtual void simulateStep_();
     virtual void writeToSynthesizer() = 0;
+
+    // Called when setSimulationFrequency changes the rate, for filters that
+    // run once per simulation step
+    virtual void simulationFrequencyChanged() { /* void */ }
 
     atg_scs::RigidBodySystem *m_system;
 
