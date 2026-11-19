@@ -251,3 +251,18 @@ public node add_forced_induction {
 
     _add_forced_induction(forced_induction: forced_induction, engine: this)
 }
+
+// Diesel injection
+private node _add_diesel_injection => __engine_sim__add_diesel_injection {
+    input diesel_injection [diesel_injection_channel];
+    input engine [engine];
+}
+
+// A diesel_injection() for this engine
+public node add_diesel_injection {
+    input diesel_injection;
+    input this;
+    alias output __out: this;
+
+    _add_diesel_injection(diesel_injection: diesel_injection, engine: this)
+}

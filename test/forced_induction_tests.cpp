@@ -122,6 +122,65 @@ TEST_F(ForcedInductionTest, TurbochargerNeedsExhaustEnergy) {
     EXPECT_LE(fi.getShaftSpeed(), fi.getMaxSpeed() + 1.0);
 }
 
+// The turbine's size shows in its flow constant (the restriction at the
+// exhaust outlets); how that spools the turbo in an engine, where a smaller
+// turbine raises the pressure ahead of it, is in the game audio tests
+// (DieselEngineTests)
+TEST_F(ForcedInductionTest, VariableGeometryVanesCloseBelowTheBoostTarget) {
+    ForcedInduction::Parameters params;
+    params.type = ForcedInduction::Type::Turbocharger;
+    params.compressorFlow = 0.25;
+    params.compressorDiameter = 0.055;
+    params.turbineAr = 0.9;
+    params.boost = units::pressure(0.8, units::bar);
+
+    ForcedInduction::Parameters vgtParams = params;
+    vgtParams.variableGeometry = true;
+
+    ForcedInduction fixed, vgt;
+    fixed.initialize(params);
+    vgt.initialize(vgtParams);
+    EXPECT_TRUE(vgt.hasVariableGeometry());
+    EXPECT_FALSE(fixed.hasVariableGeometry());
+
+    // With no wastegate, the open vanes pass the compressor's whole flow:
+    // twice a fixed turbine sized for a wastegate
+    EXPECT_NEAR(vgt.getExhaustOutletFlowK(0.0), 2.0 * fixed.getExhaustOutletFlowK(0.0),
+        1e-6 * fixed.getExhaustOutletFlowK(0.0));
+
+    // Below the boost target the vanes close, to a quarter of the A/R
+    const double open = vgt.getExhaustOutletFlowK(0.0);
+    connect(&vgt);
+    const double dt = 1.0 / 20000;
+    for (int i = 0; i < 1.0 / dt; ++i) step(&vgt, dt);
+    EXPECT_LT(vgt.getVaneOpening(), 0.01);
+    EXPECT_NEAR(vgt.getExhaustOutletFlowK(0.0) / open, std::pow(0.25, 0.9), 0.01);
+    EXPECT_EQ(vgt.getWastegateOpening(), 0.0);
+    EXPECT_EQ(vgt.getDescription(), "Variable geometry turbocharger");
+}
+
+TEST_F(ForcedInductionTest, TurbineDiameterSetsTheTurbineFlow) {
+    ForcedInduction::Parameters params;
+    params.type = ForcedInduction::Type::Turbocharger;
+    params.compressorFlow = 0.3;
+
+    ForcedInduction::Parameters small = params, large = params, matched = params;
+    small.turbineDiameter = 0.040;
+    large.turbineDiameter = 0.065;
+    matched.turbineDiameter = 0.054;    // goes with a 0.3 kg/s compressor
+
+    ForcedInduction a, b, c, d;
+    a.initialize(small);
+    b.initialize(large);
+    c.initialize(matched);
+    d.initialize(params);
+
+    // Flow goes with the wheel's area
+    EXPECT_NEAR(b.getExhaustOutletFlowK(0.0) / a.getExhaustOutletFlowK(0.0), std::pow(65.0 / 40.0, 2.0), 1e-3);
+    EXPECT_NEAR(c.getExhaustOutletFlowK(0.0) / d.getExhaustOutletFlowK(0.0), 1.0, 1e-6);
+}
+
+
 TEST_F(ForcedInductionTest, BlowoffValveVentsWhenTheThrottleCloses) {
     ForcedInduction::Parameters params;
     params.type = ForcedInduction::Type::Centrifugal;

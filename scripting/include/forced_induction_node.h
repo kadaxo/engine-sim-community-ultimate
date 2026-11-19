@@ -38,6 +38,10 @@ namespace es_script {
             params.compressorEfficiency = m_compressorEfficiency;
             params.maxSpeed = m_maxSpeed;
             params.turbineAr = m_turbineAr;
+            params.turbineDiameter = m_turbineDiameter;
+            params.variableGeometry = m_variableGeometry;
+            params.minTurbineAr = m_minTurbineAr;
+            params.soundAfterTurbine = (m_exhaustSound == "after_turbine");
             params.turbineEfficiency = m_turbineEfficiency;
             params.inertia = m_inertia;
             params.ballBearings = (m_bearings == "ball");
@@ -73,6 +77,10 @@ namespace es_script {
             addInput("compressor_efficiency", &m_compressorEfficiency);
             addInput("max_speed", &m_maxSpeed);
             addInput("turbine_ar", &m_turbineAr);
+            addInput("turbine_diameter", &m_turbineDiameter);
+            addInput("variable_geometry", &m_variableGeometry);
+            addInput("min_turbine_ar", &m_minTurbineAr);
+            addInput("exhaust_sound", &m_exhaustSound);
             addInput("turbine_efficiency", &m_turbineEfficiency);
             addInput("inertia", &m_inertia);
             addInput("bearings", &m_bearings);
@@ -105,6 +113,10 @@ namespace es_script {
         double m_compressorEfficiency = 0.75;
         double m_maxSpeed = 0.0;
         double m_turbineAr = 0.64;
+        double m_turbineDiameter = 0.0;
+        bool m_variableGeometry = false;
+        double m_minTurbineAr = 0.0;
+        std::string m_exhaustSound = "before_turbine";
         double m_turbineEfficiency = 0.7;
         double m_inertia = 3e-5;
         std::string m_bearings = "journal";

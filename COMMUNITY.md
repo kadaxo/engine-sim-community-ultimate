@@ -40,6 +40,8 @@ Fixes made while merging: Direct3D and Win32 build errors in the SDL port of del
 | `sparks_per_cycle` for two-stroke ignition, and leaks of the displacement scratch arrays, jitter history and crankshaft links on every engine load | [karpuzikov](https://github.com/karpuzikov/engine-sim) |
 | VTEC switches each valve between cams only while it is closed, so the lift no longer jumps mid-opening | [sillysigmabollocks](https://github.com/sillysigmabollocks/engine-sim-test) |
 
+Added on top: diesel engines (`docs/diesel.md`), with injection into the cylinders, no throttle, an idle and maximum speed governor, an ignition delay, a premixed and a mixing burn, a pilot injection, and the engine block's knock and the injector ticks in the sound; and for the turbochargers, variable geometry turbines, a turbine wheel size and an exhaust sound heard after the turbine. The diesel fuel's properties follow the MTU tank diesel script by pilot01 and LTSP6.1.1.
+
 Already covered by the port, so not merged separately: Ange's own dyno torque index fix (still only in a PR ref), KeesTucker's stale-assert removal, the earlier Linux/compiler fixes by xorgy (PR #220), yangosoft, Pinim04, Fraxoor, LukasACH, Beacroxx and arf20, and Hochmah's teardown, RingBuffer and clang fixes.
 
 ### Engines and themes

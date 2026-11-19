@@ -22,3 +22,4 @@ DEFINE_CHANNEL(VehicleChannel);
 DEFINE_CHANNEL(TransmissionChannel);
 DEFINE_CHANNEL(ThrottleChannel);
 DEFINE_CHANNEL(ForcedInductionChannel);
+DEFINE_CHANNEL(DieselInjectionChannel);

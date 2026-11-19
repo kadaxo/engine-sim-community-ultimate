@@ -141,6 +141,11 @@ const VALVES = {
     2: 'Two valves per cylinder (older and pushrod engines)'
 };
 
+const INJECTION = {
+    common_rail: 'Common rail with a pilot injection (modern, quieter)',
+    mechanical: 'Mechanical pump without a pilot injection (older, harder knock)'
+};
+
 // The form, section by section. `unit` is spoken with the label; numbers are
 // in the units shown to the user and converted when the script is written.
 const SECTIONS = [
@@ -158,7 +163,7 @@ const SECTIONS = [
             { id: 'limiterTime', label: 'Rev limiter cut time', unit: 'seconds', min: 0.01, max: 1, step: 0.01, help: 'How long each cut lasts. Short cuts (0.05) bounce fast like a modern car, long ones (0.5) drop far.' },
             { id: 'starterSpeed', label: 'Starter cranking speed', unit: 'rpm', min: 100, max: 1500, step: 10, help: 'Real starters crank at about 200 to 300 rpm.' },
             { id: 'flywheel', label: 'Flywheel mass', unit: 'kilograms', min: 0.5, max: 100, step: 0.1, help: 'A light flywheel revs up and down quickly, a heavy one slowly.' },
-            { id: 'fuel', label: 'Fuel', type: 'select', options: () => Object.fromEntries(Object.entries(FUELS).map(([k, v]) => [k, v.label])), help: 'Diesel engines here still use the spark timing below.' }
+            { id: 'fuel', label: 'Fuel', type: 'select', options: () => Object.fromEntries(Object.entries(FUELS).map(([k, v]) => [k, v.label])), help: 'A diesel has no throttle: the pedal sets the fuel, which lights by itself in the hot compressed air. Its settings are in the Diesel injection section.' }
         ]
     },
     {
@@ -179,7 +184,15 @@ const SECTIONS = [
             { id: 'throttleFlow', label: 'Throttle body flow', unit: 'cubic feet per minute', min: 50, max: 3000, step: 10, help: 'How much air the throttle passes when wide open. Too small and the engine runs out of breath at high rpm.' },
             { id: 'runnerLength', label: 'Intake runner length', unit: 'millimeters', min: 50, max: 1500, step: 5, help: 'Long runners help low rpm torque, short ones high rpm power.' },
             { id: 'plenumVolume', label: 'Intake plenum volume', unit: 'liters', min: 0.1, max: 20, step: 0.05, help: '' },
-            { id: 'idleOpening', label: 'Throttle opening at idle', unit: 'percent', min: 0, max: 5, step: 0.01, help: 'Sets the idle speed. Raise it if the engine stalls, lower it if it idles too fast.' }
+            { id: 'idleOpening', label: 'Throttle opening at idle', unit: 'percent', min: 0, max: 5, step: 0.01, help: 'Sets the idle speed. Raise it if the engine stalls, lower it if it idles too fast. Diesels don\'t use it: their governor holds the idle.' }
+        ]
+    },
+    {
+        id: 'diesel', title: 'Diesel injection (diesel fuel only)',
+        fields: [
+            { id: 'dieselIdleSpeed', label: 'Diesel idle speed', unit: 'rpm', min: 300, max: 2000, step: 10, help: 'The governor holds this speed with the fuel when the pedal is up.' },
+            { id: 'injection', label: 'Injection system', type: 'select', options: () => INJECTION, help: 'A small pilot injection before the main one makes a modern diesel quieter.' },
+            { id: 'dieselNoise', label: 'Diesel clatter loudness', unit: 'times', min: 0, max: 5, step: 0.05, help: '1 is the knock the combustion makes. 0 leaves the engine block silent.' }
         ]
     },
     {
@@ -196,8 +209,8 @@ const SECTIONS = [
     {
         id: 'ignition', title: 'Ignition',
         fields: [
-            { id: 'timingIdle', label: 'Ignition timing at idle', unit: 'degrees before top dead center', min: 0, max: 40, step: 0.5, help: '' },
-            { id: 'timingMax', label: 'Ignition timing at full advance', unit: 'degrees before top dead center', min: 0, max: 60, step: 0.5, help: 'Usually 30 to 38 for petrol engines.' },
+            { id: 'timingIdle', label: 'Ignition timing at idle', unit: 'degrees before top dead center', min: 0, max: 40, step: 0.5, help: 'For a diesel, this is when the main injection starts: about 2 to 8 at idle.' },
+            { id: 'timingMax', label: 'Ignition timing at full advance', unit: 'degrees before top dead center', min: 0, max: 60, step: 0.5, help: 'Usually 30 to 38 for petrol engines, and an injection timing of 10 to 20 for diesels.' },
             { id: 'timingMaxRpm', label: 'Full advance reached at', unit: 'rpm', min: 1000, max: 15000, step: 100, help: '' }
         ]
     },
@@ -222,7 +235,11 @@ const SECTIONS = [
     }
 ];
 
+// Diesel settings for scripts saved before they existed
+const DIESEL_DEFAULTS = { dieselIdleSpeed: 750, injection: 'common_rail', dieselNoise: 1 };
+
 const BASE = {
+    ...DIESEL_DEFAULTS,
     exhaustRouting: 'per_bank', valves: '4', fuel: 'gasoline', impulseResponse: 'mild_exhaust_0',
     limiterTime: 0.08, starterSpeed: 250, camAdvance: 0, idleOpening: 0.2, exhaustVolume: 1,
     collectorDiameter: 55, pipeLength: 2500, timingIdle: 12, timingMax: 34,
@@ -342,7 +359,8 @@ const PRESETS = {
             intakeDuration: 200, exhaustDuration: 196, intakeLift: 8, exhaustLift: 7.5,
             lobeSeparation: 114, throttleFlow: 450, runnerLength: 350, plenumVolume: 1.2,
             primaryLength: 500, timingIdle: 6, timingMax: 20, timingMaxRpm: 3000, mass: 1450,
-            finalDrive: 3.4, gears: '3.8, 2.1, 1.3, 0.9, 0.7, 0.58', clutchTorque: 500, idleOpening: 0.3
+            finalDrive: 3.4, gears: '3.8, 2.1, 1.3, 0.9, 0.7, 0.58', clutchTorque: 500, idleOpening: 0.3,
+            dieselIdleSpeed: 800, injection: 'common_rail', dieselNoise: 1
         }
     }
 };
@@ -594,7 +612,8 @@ function generate(values) {
     out.push(`        dyno_min_speed: ${num(Math.min(1000, redline * 0.2), 0)} * units.rpm,`);
     out.push(`        dyno_max_speed: ${num(redline, 0)} * units.rpm,`);
     out.push(`        fuel: ${FUELS[v.fuel].script(num(turbulenceEffect(redline), 2))},`);
-    out.push('        throttle_gamma: 2.0,');
+    // A diesel's pedal sets the fuel, which goes with the torque
+    out.push(`        throttle_gamma: ${v.fuel === 'diesel' ? '1.0' : '2.0'},`);
     out.push('        hf_gain: 0.01,');
     out.push('        noise: 1.0,');
     out.push('        jitter: 0.4,');
@@ -764,6 +783,21 @@ function generate(values) {
         out.push(`        .connect_wire(wires.wire${c.number}, ${num(c.firing, 3)} * units.deg)`);
     }
     out.push('    engine.add_ignition_module(ignition)');
+
+    // Diesel injection: the timing curve above is the injection timing, and
+    // the governor holds the idle and cuts the fuel at the rev limit
+    if (v.fuel === 'diesel') {
+        const pilot = v.injection !== 'mechanical';
+        out.push('');
+        out.push('    diesel_injection injection(');
+        out.push(`        idle_speed: ${num(v.dieselIdleSpeed, 0)} * units.rpm,`);
+        out.push(`        max_speed: ${num(v.revLimit, 0)} * units.rpm,`);
+        out.push(`        pilot_injection: ${pilot},`);
+        out.push(`        combustion_noise: ${num(v.dieselNoise, 2)},`);
+        out.push(`        injector_noise: ${num(v.dieselNoise, 2)}`);
+        out.push('    )');
+        out.push('    engine.add_diesel_injection(injection)');
+    }
     out.push('}');
     out.push('');
 
@@ -805,7 +839,9 @@ function readSavedValues(scriptText) {
         if (!line.startsWith(SAVED_VALUES_PREFIX)) continue;
         try {
             const saved = JSON.parse(line.slice(SAVED_VALUES_PREFIX.length));
-            return (saved && typeof saved.values === 'object') ? saved.values : null;
+            return (saved && typeof saved.values === 'object')
+                ? { ...DIESEL_DEFAULTS, ...saved.values }
+                : null;
         }
         catch (e) {
             return null;
@@ -827,7 +863,7 @@ function summary(values) {
 }
 
 return {
-    FORMAT_VERSION, LAYOUTS, FUELS, IMPULSE_RESPONSES, EXHAUST_ROUTING, VALVES, SECTIONS,
+    FORMAT_VERSION, LAYOUTS, FUELS, IMPULSE_RESPONSES, EXHAUST_ROUTING, VALVES, INJECTION, SECTIONS,
     PRESETS, DEFAULT_PRESET, turbulenceEffect, parseGears, validate, crankLayout, generate,
     readSavedValues, fileName, summary
 };

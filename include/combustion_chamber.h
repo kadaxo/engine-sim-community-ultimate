@@ -36,6 +36,28 @@ class CombustionChamber : public atg_scs::ForceGenerator {
             GasSystem::Mix globalMix;
         };
 
+        // One diesel injection and its combustion (see diesel_injection.h).
+        // Amounts of fuel are in moles, angles are crank angles since the
+        // first injection started.
+        struct DieselEvent {
+            bool active = false;
+            bool ignited = false;
+            bool mainStarted = false;
+            double angle = 0.0;
+            double mainStart = 0.0;
+            double rate = 0.0;          // injection rate [mol/s]
+            double pilotFuel = 0.0;
+            double mainFuel = 0.0;
+            double pilotInjected = 0.0;
+            double mainInjected = 0.0;
+            double delayProgress = 0.0; // ignites at 1
+            double pending = 0.0;       // sprayed in, not lit yet
+            double premixed = 0.0;      // lit, burning at once
+            double mixing = 0.0;        // lit, burning as it mixes with the air
+            double premixedShare = 0.0;
+            double efficiency = 1.0;
+        };
+
         struct FrictionModelParams {
             double frictionCoeff = 0.06;
             double breakawayFriction = units::force(50, units::N);
@@ -70,6 +92,14 @@ class CombustionChamber : public atg_scs::ForceGenerator {
 
         double lastEventAfr() const;
 
+        // Diesel injection: fuel sprayed into this cylinder since the last
+        // reset [mol], and injections started since the last pop (the
+        // injector ticks)
+        double getDieselFuelInjected() const { return m_dieselFuelInjected; }
+        void resetDieselFuelInjected() { m_dieselFuelInjected = 0; }
+        int popInjectorTicks();
+        const DieselEvent &getDieselEvent() const { return m_diesel; }
+
         double getLastIterationExhaustFlow() const { return m_exhaustFlow; }
 
         void resetLastTimestepExhaustFlow() { m_lastTimestepTotalExhaustFlow = 0; }
@@ -93,6 +123,13 @@ class CombustionChamber : public atg_scs::ForceGenerator {
     protected:
         double calculateFrictionForce(double v) const;
         void updateCycleStates();
+
+        void startDieselInjection();
+        void burnDiesel(double dt);
+
+        DieselEvent m_diesel;
+        double m_dieselFuelInjected;
+        int m_injectorTicks;
 
         double m_intakeFlowRate;
         double m_exhaustFlowRate;

@@ -10,6 +10,7 @@
 #include "fuel_node.h"
 #include "throttle_nodes.h"
 #include "forced_induction_node.h"
+#include "diesel_injection_node.h"
 
 #include "engine_sim.h"
 
@@ -106,7 +107,12 @@ namespace es_script {
                 m_cylinderBanks[i]->connectRodAssemblies(&context);
             }
 
-            // After the intakes, exhausts and crankshafts exist
+            // After the intakes, exhausts and crankshafts exist. The diesel
+            // injection first: the forced induction takes the intakes' mixture
+            if (m_dieselInjection != nullptr) {
+                m_dieselInjection->generate(engine);
+            }
+
             if (m_forcedInduction != nullptr) {
                 m_forcedInduction->generate(engine);
             }
@@ -149,6 +155,10 @@ namespace es_script {
             m_forcedInduction = forcedInduction;
         }
 
+        void addDieselInjection(DieselInjectionNode *dieselInjection) {
+            m_dieselInjection = dieselInjection;
+        }
+
         int getIgnitionModuleCount() const {
             return m_ignitionModule == nullptr
                 ? 0
@@ -188,6 +198,7 @@ namespace es_script {
         ThrottleNode *m_throttle = nullptr;
         IgnitionModuleNode *m_ignitionModule = nullptr;
         ForcedInductionNode *m_forcedInduction = nullptr;
+        DieselInjectionNode *m_dieselInjection = nullptr;
         FuelNode *m_fuel = nullptr;
 
         Engine::Parameters m_parameters;

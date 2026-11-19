@@ -54,6 +54,11 @@ Synthesizer::Synthesizer() {
     m_fiCounter = 0;
     m_mixEnvelope = 0;
     m_fiNoiseState = 0x9E3779B9u;
+
+    m_tickEnvelope = 0;
+    m_lastTick = 0;
+    m_engineNoiseState = 0x85EBCA6Bu;
+    m_engineNoiseFiltersSet = false;
 }
 
 Synthesizer::~Synthesizer() {
@@ -97,6 +102,12 @@ void Synthesizer::initialize(const Parameters &p) {
     m_fiNoiseState = 0x9E3779B9u;
     m_whistleBand = m_whooshBand = m_flutterBand = Bandpass();
     m_blowoffBand1 = m_blowoffBand2 = m_wastegateBand = Bandpass();
+
+    m_blockBand1 = m_blockBand2 = m_tickBand = m_tickRing = Bandpass();
+    m_tickEnvelope = 0;
+    m_lastTick = 0;
+    m_engineNoiseState = 0x85EBCA6Bu;
+    m_engineNoiseFiltersSet = false;
 
     m_filters = new ProcessingFilters[p.inputChannelCount];
     for (int i = 0; i < p.inputChannelCount; ++i) {
@@ -143,10 +154,14 @@ void Synthesizer::initializeImpulseResponse(
 
     const unsigned int sampleCount = std::min(10000U, clippedLength);
     m_filters[index].convolution.initialize(sampleCount);
+    double energy = 0;
     for (unsigned int i = 0; i < sampleCount; ++i) {
-        m_filters[index].convolution.getImpulseResponse()[i] =
-            volume * impulseResponse[i] / INT16_MAX;
+        const float h = volume * impulseResponse[i] / INT16_MAX;
+        m_filters[index].convolution.getImpulseResponse()[i] = h;
+        energy += static_cast<double>(h) * h;
     }
+
+    m_filters[index].impulseGain = static_cast<float>(std::sqrt(energy));
 }
 
 void Synthesizer::startAudioRenderingThread() {
@@ -421,7 +436,9 @@ float Synthesizer::renderRawSample(int inputSample) {
         signal += v;
     }
 
-    signal += renderForcedInduction(inputSample, signal);
+    const float exhaust = signal;
+    signal += renderForcedInduction(inputSample, exhaust);
+    signal += renderEngineNoise(inputSample, exhaust);
 
     return m_antialiasing.fast_f(signal);
 }
@@ -561,6 +578,72 @@ float Synthesizer::renderForcedInduction(int inputSample, float signal) {
     }
 
     return volume * (tonal * (1.1f * m_mixEnvelope + 0.4f * floor) + bursts * reference * 1.5f);
+}
+
+// A diesel's engine noise, driven by two control channels from the
+// simulation, both in the exhaust channels' units (the simulation scales
+// them by the same per-cylinder gains): [0] the cylinders' combustion
+// pressure rise, which rings the engine block, and [1] the injector ticks'
+// level on the steps an injection starts. Both then get the impulse
+// responses' mean gain, so the noise sits with the exhaust at any volume
+// setting but doesn't follow its loudness: the knock stands out at idle,
+// where the exhaust is quiet, as a real diesel's does. Engines without
+// diesel injection leave both at zero, which renders exact silence.
+float Synthesizer::renderEngineNoise(int inputSample, float signal) {
+    (void)signal;
+    if (m_auxChannelCount < AuxChannelCount) return 0.0f;
+
+    const float *rise = m_inputChannels[m_inputChannelCount + ForcedInductionChannelCount].transferBuffer;
+    const float *tick = m_inputChannels[m_inputChannelCount + ForcedInductionChannelCount + 1].transferBuffer;
+    const float x = rise[inputSample];
+    const float t = tick[inputSample];
+
+    if (x == 0.0f && t == 0.0f && m_tickEnvelope == 0.0f && !m_engineNoiseFiltersSet) {
+        return 0.0f;
+    }
+
+    const float fs = m_audioSampleRate;
+    if (!m_engineNoiseFiltersSet) {
+        // The block and head ring around 1.4 and 3 kHz; the injector's
+        // needle and solenoid click higher
+        m_blockBand1.set(1400.0f, 1.2f, fs);
+        m_blockBand2.set(3000.0f, 2.5f, fs);
+        m_tickBand.set(6500.0f, 2.0f, fs);
+        m_tickRing.set(3600.0f, 14.0f, fs);
+        m_engineNoiseFiltersSet = true;
+    }
+
+    float gain = 0;
+    for (int i = 0; i < m_inputChannelCount; ++i) gain += m_filters[i].impulseGain;
+    gain /= std::max(m_inputChannelCount, 1);
+    const float convAmount = m_audioParameters.convolution;
+    gain = convAmount * gain + (1 - convAmount);
+
+    const float block = m_blockBand1.process(x) + 0.6f * m_blockBand2.process(x);
+
+    // Ticks: a short burst on each injection start. The control channel
+    // ramps up over a few samples; the burst takes its peak.
+    float ring = 0.0f;
+    if (t > m_lastTick) {
+        ring = t - m_lastTick;
+        m_tickEnvelope = std::max(m_tickEnvelope, t);
+    }
+    m_lastTick = t;
+
+    float ticks = 0.0f;
+    if (m_tickEnvelope > 0.0f) {
+        m_engineNoiseState ^= m_engineNoiseState << 13;
+        m_engineNoiseState ^= m_engineNoiseState >> 17;
+        m_engineNoiseState ^= m_engineNoiseState << 5;
+        const float r = static_cast<float>(m_engineNoiseState / 4294967295.0 * 2.0 - 1.0);
+
+        ticks = m_tickEnvelope * 1.5f * m_tickBand.process(r);
+        m_tickEnvelope *= 1.0f - 1.0f / (0.0008f * fs);
+        if (m_tickEnvelope < 1e-6f * std::abs(t) || m_tickEnvelope < 1e-12f) m_tickEnvelope = 0.0f;
+    }
+    ticks += 4.0f * m_tickRing.process(ring);
+
+    return gain * (block + ticks);
 }
 
 int16_t Synthesizer::renderAudio(int inputSample) {

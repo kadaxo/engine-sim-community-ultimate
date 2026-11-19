@@ -128,6 +128,35 @@ double GasSystem::react(double n, const Mix &mix) {
     return a_n_fuel;
 }
 
+double GasSystem::burnInjectedFuel(double n_fuel, double o2PerFuel) {
+    if (n_fuel <= 0 || o2PerFuel <= 0) return 0;
+
+    const double system_n = n();
+    const double system_n_o2 = n_o2();
+    const double system_n_inert = n_inert();
+    const double system_n_fuel = this->n_fuel();
+
+    const double a_n_o2 = std::fmin(system_n_o2, n_fuel * o2PerFuel);
+    const double a_n_fuel = a_n_o2 / o2PerFuel;
+    if (a_n_fuel <= 0) return 0;
+
+    // Same product ratio as react(): (16 CO2 + 18 H2O) / (25 O2 + 2 C8H16)
+    constexpr double output_input_ratio = (16.0 + 18.0) / (25 + 2);
+    const double products_n = output_input_ratio * (a_n_fuel + a_n_o2);
+
+    // The fuel wasn't part of the gas, so only the oxygen leaves it
+    const double new_system_n = system_n - a_n_o2 + products_n;
+    m_state.n_mol = new_system_n;
+
+    if (new_system_n > 0) {
+        m_state.mix.p_fuel = system_n_fuel / new_system_n;
+        m_state.mix.p_o2 = (system_n_o2 - a_n_o2) / new_system_n;
+        m_state.mix.p_inert = (system_n_inert + products_n) / new_system_n;
+    }
+
+    return a_n_fuel;
+}
+
 double GasSystem::flowConstant(
     double targetFlowRate,
     double P,

@@ -902,3 +902,153 @@ TEST(ForcedInductionEngineTests, DesignerEnginesReachTheirBoost) {
         EXPECT_LT(high - low, 1.5) << e.file << ": boost hunts between " << low << " and " << high << " psi";
     }
 }
+
+// Diesel injection, run in the example turbodiesel
+
+namespace {
+
+    const char *const DieselExample = "diesel_2_0_common_rail_vgt.mr";
+
+    // The example with some of its diesel_injection settings replaced, as a
+    // script in the temporary folder
+    SessionConfig dieselVariant(const char *name, const std::vector<std::pair<std::string, std::string>> &replace) {
+        const fs::path source = fs::path(ENGINE_SIM_SOURCE_DIR) / "assets" / "engines" / "forced-induction" / DieselExample;
+        std::ifstream in(source, std::ios::binary);
+        std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        for (const auto &r : replace) {
+            const size_t at = text.find(r.first);
+            EXPECT_NE(at, std::string::npos) << r.first;
+            if (at != std::string::npos) text.replace(at, r.first.size(), r.second);
+        }
+
+        const fs::path file = fs::temp_directory_path() / (std::string("engine-sim-diesel-") + name + ".mr");
+        std::ofstream(file, std::ios::binary) << text;
+
+        SessionConfig config = defaultEngineConfig();
+        config.scriptPath = file.generic_string();
+        return config;
+    }
+
+    std::unique_ptr<EngineSession> startDiesel(const SessionConfig &config) {
+        std::srand(1);
+        std::string error;
+        std::unique_ptr<EngineSession> session = EngineSession::create(config, &error);
+        EXPECT_TRUE(session) << error;
+        if (!session) return session;
+
+        // Started like a player does: the starter with the pedal up
+        session->setIgnition(true);
+        session->setThrottleImmediate(0.0);
+        session->setStarter(true);
+        EXPECT_TRUE(session->advanceUntil([](const EngineSession &s) { return s.rpm() > 600; }, 3.0, nullptr, nullptr));
+        session->setStarter(false);
+        return session;
+    }
+
+    // RMS between two frequencies, through two band-pass stages (one lets
+    // through too much of the exhaust's much louder low end)
+    double bandRms(const std::vector<float> &x, double lo, double hi) {
+        const double f0 = std::sqrt(lo * hi), q = f0 / (hi - lo);
+        const double w = 2 * 3.14159265358979323846 * f0 / 44100.0, a = std::sin(w) / (2 * q), a0 = 1 + a;
+        const double b0 = a / a0, b2 = -a / a0, a1 = -2 * std::cos(w) / a0, a2 = (1 - a) / a0;
+        std::vector<double> y(x.begin(), x.end());
+        for (int stage = 0; stage < 2; ++stage) {
+            double x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+            for (double &v : y) {
+                const double out = b0 * v + b2 * x2 - a1 * y1 - a2 * y2;
+                x2 = x1; x1 = v; y2 = y1; y1 = out;
+                v = out;
+            }
+        }
+
+        double sum = 0;
+        for (const double v : y) sum += v * v;
+        return std::sqrt(sum / y.size());
+    }
+
+} /* namespace */
+
+TEST(DieselEngineTests, IdlesOnItsGovernorWithoutVacuum) {
+    std::unique_ptr<EngineSession> session = startDiesel(forcedInductionConfig(DieselExample));
+    ASSERT_TRUE(session);
+    ASSERT_NE(session->engine()->getDieselInjection(), nullptr);
+
+    session->advance(6.0, nullptr, nullptr);
+    EXPECT_NEAR(session->rpm(), 800, 60);
+
+    // No throttle plates: the manifold stays at the outside pressure
+    EXPECT_GT(session->engine()->getManifoldPressure(), units::pressure(95, units::kPa));
+}
+
+TEST(DieselEngineTests, OverrunCutsTheFuel) {
+    std::unique_ptr<EngineSession> session = startDiesel(forcedInductionConfig(DieselExample));
+    ASSERT_TRUE(session);
+    const Engine *engine = session->engine();
+
+    holdAt(session.get(), 2500, 1.0);
+    session->advance(1.0, nullptr, nullptr);
+    const double before = engine->getTotalFuelMassConsumed();
+    session->advance(0.5, nullptr, nullptr);
+    EXPECT_GT(engine->getTotalFuelMassConsumed(), before);
+
+    // Pedal up above the idle speed: no fuel at all
+    session->setThrottleImmediate(0.0);
+    session->advance(0.5, nullptr, nullptr);
+    const double coasting = engine->getTotalFuelMassConsumed();
+    session->advance(0.5, nullptr, nullptr);
+    EXPECT_EQ(engine->getTotalFuelMassConsumed(), coasting);
+
+    // Let go of the dyno: it slows down to its idle, where the governor
+    // starts injecting again
+    session->releaseDyno();
+    session->advance(4.0, nullptr, nullptr);
+    EXPECT_NEAR(session->rpm(), 800, 80);
+    EXPECT_GT(engine->getTotalFuelMassConsumed(), coasting);
+}
+
+TEST(DieselEngineTests, VariableGeometryTurboBoostsFromLowRpm) {
+    std::unique_ptr<EngineSession> session = startDiesel(forcedInductionConfig(DieselExample));
+    ASSERT_TRUE(session);
+    const ForcedInduction *fi = forcedInduction(*session);
+    ASSERT_NE(fi, nullptr);
+    EXPECT_TRUE(fi->hasVariableGeometry());
+
+    // At 1750 rpm the vanes close far enough to reach the full boost, then
+    // open a little to hold it; there is no wastegate
+    holdAt(session.get(), 1750, 1.0);
+    session->advance(6.0, nullptr, nullptr);
+    EXPECT_NEAR(psi(fi->getBoost()), psi(fi->getBoostTarget()), 1.5);
+    EXPECT_GT(fi->getVaneOpening(), 0.0);
+    EXPECT_LT(fi->getVaneOpening(), 1.0);
+    EXPECT_EQ(fi->getWastegateOpening(), 0.0);
+
+    // The same turbo with a fixed housing only gets there at higher rpm
+    std::unique_ptr<EngineSession> fixed = startDiesel(dieselVariant("fixed", { { "variable_geometry: true", "variable_geometry: false" } }));
+    ASSERT_TRUE(fixed);
+    holdAt(fixed.get(), 1750, 1.0);
+    fixed->advance(6.0, nullptr, nullptr);
+    EXPECT_LT(psi(forcedInduction(*fixed)->getBoost()), 0.5 * psi(fi->getBoostTarget()));
+}
+
+TEST(DieselEngineTests, PilotInjectionSoftensTheKnock) {
+    // The knock is the block ringing, in 1 to 3.5 kHz; it stands out most at
+    // idle, where the exhaust is quiet
+    auto knock = [](const SessionConfig &config) {
+        std::unique_ptr<EngineSession> session = startDiesel(config);
+        EXPECT_TRUE(session);
+        if (!session) return 0.0;
+        session->advance(3.0, nullptr, nullptr);
+        std::vector<float> audio;
+        session->advance(2.0, &audio, nullptr);
+        return bandRms(audio, 1000, 3500) / std::sqrt(meanSquare(audio));
+    };
+
+    const double pilot = knock(forcedInductionConfig(DieselExample));
+    const double noPilot = knock(dieselVariant("no-pilot", { { "pilot_injection: true", "pilot_injection: false" } }));
+    const double silent = knock(dieselVariant("silent", {
+        { "combustion_noise: 1.0", "combustion_noise: 0.0" },
+        { "injector_noise: 1.0", "injector_noise: 0.0" } }));
+
+    EXPECT_GT(20 * std::log10(pilot / silent), 3.0) << "the knock isn't heard";
+    EXPECT_GT(20 * std::log10(noPilot / pilot), 3.0) << "the pilot injection doesn't soften it";
+}

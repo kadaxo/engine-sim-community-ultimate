@@ -1,0 +1,371 @@
+// A 2.0 litre common rail turbodiesel four with a variable geometry turbo, in
+// the class of the 140 PS engines in mid-size cars and vans: here about
+// 320 Nm from 1750 to 3000 rpm and 150 PS at 3500. Its injection, governor
+// and combustion are diesel_injection's (docs/diesel.md); the turbo's vanes
+// hold the boost without a wastegate (docs/forced-induction.md).
+//
+// Made from the engine builder's diesel preset; the turbo and the burning
+// efficiency, which sets the torque, were added by hand, so the builder can't
+// reopen it.
+
+import "engine_sim.mr"
+
+units units()
+constants constants()
+impulse_response_library ir_lib()
+label cycle(2 * 360 * units.deg)
+
+private node eb_2_0_common_rail_turbodiesel_i4_variable_geometry_turbo_wires {
+    output wire1: ignition_wire();
+    output wire2: ignition_wire();
+    output wire3: ignition_wire();
+    output wire4: ignition_wire();
+}
+
+private node eb_2_0_common_rail_turbodiesel_i4_variable_geometry_turbo_head {
+    input intake_camshaft;
+    input exhaust_camshaft;
+    input chamber_volume;
+    input intake_runner_volume: 133.1 * units.cc;
+    input intake_runner_cross_section_area: 13.78 * units.cm2;
+    input exhaust_runner_volume: 44.4 * units.cc;
+    input exhaust_runner_cross_section_area: 9.84 * units.cm2;
+    input flow_attenuation: 0.8871;
+    input lift_scale: 0.9419;
+    input flip_display: false;
+    alias output __out: head;
+
+    function intake_flow(50 * units.thou)
+    intake_flow
+        .add_flow_sample(0 * lift_scale, 0 * flow_attenuation)
+        .add_flow_sample(50 * lift_scale, 58 * flow_attenuation)
+        .add_flow_sample(100 * lift_scale, 103 * flow_attenuation)
+        .add_flow_sample(150 * lift_scale, 156 * flow_attenuation)
+        .add_flow_sample(200 * lift_scale, 214 * flow_attenuation)
+        .add_flow_sample(250 * lift_scale, 249 * flow_attenuation)
+        .add_flow_sample(300 * lift_scale, 268 * flow_attenuation)
+        .add_flow_sample(350 * lift_scale, 280 * flow_attenuation)
+        .add_flow_sample(400 * lift_scale, 280 * flow_attenuation)
+        .add_flow_sample(450 * lift_scale, 281 * flow_attenuation)
+
+    function exhaust_flow(50 * units.thou)
+    exhaust_flow
+        .add_flow_sample(0 * lift_scale, 0 * flow_attenuation)
+        .add_flow_sample(50 * lift_scale, 37 * flow_attenuation)
+        .add_flow_sample(100 * lift_scale, 72 * flow_attenuation)
+        .add_flow_sample(150 * lift_scale, 113 * flow_attenuation)
+        .add_flow_sample(200 * lift_scale, 160 * flow_attenuation)
+        .add_flow_sample(250 * lift_scale, 196 * flow_attenuation)
+        .add_flow_sample(300 * lift_scale, 222 * flow_attenuation)
+        .add_flow_sample(350 * lift_scale, 235 * flow_attenuation)
+        .add_flow_sample(400 * lift_scale, 245 * flow_attenuation)
+        .add_flow_sample(450 * lift_scale, 246 * flow_attenuation)
+
+    generic_cylinder_head head(
+        chamber_volume: chamber_volume,
+        intake_runner_volume: intake_runner_volume,
+        intake_runner_cross_section_area: intake_runner_cross_section_area,
+        exhaust_runner_volume: exhaust_runner_volume,
+        exhaust_runner_cross_section_area: exhaust_runner_cross_section_area,
+        intake_port_flow: intake_flow,
+        exhaust_port_flow: exhaust_flow,
+        valvetrain: standard_valvetrain(
+            intake_camshaft: intake_camshaft,
+            exhaust_camshaft: exhaust_camshaft
+        ),
+        flip_display: flip_display
+    )
+}
+
+private node eb_2_0_common_rail_turbodiesel_i4_variable_geometry_turbo_camshaft_0 {
+    input intake_lobe_profile;
+    input exhaust_lobe_profile;
+    input intake_lobe_center;
+    input exhaust_lobe_center;
+    input base_radius;
+    output intake_cam: _intake_cam;
+    output exhaust_cam: _exhaust_cam;
+
+    camshaft_parameters params(advance: 0.0, base_radius: base_radius)
+    camshaft _intake_cam(params, lobe_profile: intake_lobe_profile)
+    camshaft _exhaust_cam(params, lobe_profile: exhaust_lobe_profile)
+
+    label rot360(360 * units.deg)
+    _exhaust_cam
+        .add_lobe(rot360 - exhaust_lobe_center + 0.0 * units.deg) // cylinder 1
+        .add_lobe(rot360 - exhaust_lobe_center + 540.0 * units.deg) // cylinder 2
+        .add_lobe(rot360 - exhaust_lobe_center + 180.0 * units.deg) // cylinder 3
+        .add_lobe(rot360 - exhaust_lobe_center + 360.0 * units.deg) // cylinder 4
+    _intake_cam
+        .add_lobe(rot360 + intake_lobe_center + 0.0 * units.deg) // cylinder 1
+        .add_lobe(rot360 + intake_lobe_center + 540.0 * units.deg) // cylinder 2
+        .add_lobe(rot360 + intake_lobe_center + 180.0 * units.deg) // cylinder 3
+        .add_lobe(rot360 + intake_lobe_center + 360.0 * units.deg) // cylinder 4
+}
+
+public node eb_2_0_common_rail_turbodiesel_i4_variable_geometry_turbo_engine {
+    alias output __out: engine;
+
+    engine engine(
+        name: "2.0 common rail turbodiesel I4 (variable geometry turbo)",
+        starter_torque: 129 * units.lb_ft,
+        starter_speed: 250 * units.rpm,
+        redline: 4500 * units.rpm,
+        dyno_min_speed: 900 * units.rpm,
+        dyno_max_speed: 4500 * units.rpm,
+        fuel: fuel(
+            name: "Diesel",
+            molecular_mass: 167.3 * units.g,
+            energy_density: 45.68 * units.kJ / units.g,
+            density: 845.0 * units.g / units.L,
+            molecular_afr: 17.75,
+            max_burning_efficiency: 0.45,
+            burning_efficiency_randomness: 0.5,
+            max_turbulence_effect: 2.0,
+            max_dilution_effect: 10.0
+        ),
+        throttle_gamma: 1.0,
+        hf_gain: 0.01,
+        noise: 1.0,
+        jitter: 0.4,
+        simulation_frequency: 10000
+    )
+
+    eb_2_0_common_rail_turbodiesel_i4_variable_geometry_turbo_wires wires()
+
+    label bore(81.0 * units.mm)
+    label stroke(95.5 * units.mm)
+    label rod_length(144.0 * units.mm)
+    label rod_mass(450 * units.g)
+    label compression_height(30.78 * units.mm)
+    label crank_mass(11.1 * units.kg)
+    label flywheel_mass(11.0 * units.kg)
+    label flywheel_radius(7 * units.inch)
+
+    label crank_moment(disk_moment_of_inertia(mass: crank_mass, radius: stroke / 2))
+    label flywheel_moment(disk_moment_of_inertia(mass: flywheel_mass, radius: flywheel_radius))
+    label other_moment(disk_moment_of_inertia(mass: 6.0 * units.kg, radius: 6.0 * units.cm))
+
+    crankshaft c0(
+        throw: stroke / 2,
+        flywheel_mass: flywheel_mass,
+        mass: crank_mass,
+        friction_torque: 3.94 * units.lb_ft,
+        moment_of_inertia: crank_moment + flywheel_moment + other_moment,
+        position_x: 0.0,
+        position_y: 0.0,
+        tdc: 90 * units.deg
+    )
+
+    // Firing order 1-3-4-2
+    rod_journal rj1(angle: 0.0 * units.deg)
+    rod_journal rj2(angle: 180.0 * units.deg)
+    rod_journal rj3(angle: 180.0 * units.deg)
+    rod_journal rj4(angle: 0.0 * units.deg)
+    c0
+        .add_rod_journal(rj1)
+        .add_rod_journal(rj2)
+        .add_rod_journal(rj3)
+        .add_rod_journal(rj4)
+
+    piston_parameters piston_params(
+        mass: 209 * units.g,
+        compression_height: compression_height,
+        wrist_pin_position: 0.0,
+        displacement: 0.0
+    )
+
+    connecting_rod_parameters cr_params(
+        mass: rod_mass,
+        moment_of_inertia: rod_moment_of_inertia(mass: rod_mass, length: rod_length),
+        center_of_mass: 0.0,
+        length: rod_length
+    )
+
+    cylinder_bank_parameters bank_params(
+        bore: bore,
+        deck_height: stroke / 2 + rod_length + compression_height
+    )
+
+    intake intake(
+        plenum_volume: 1.2 * units.L,
+        plenum_cross_section_area: 15.7 * units.cm2,
+        intake_flow_rate: k_carb(900.0),
+        runner_flow_rate: k_carb(155.0),
+        runner_length: 350.0 * units.mm,
+        idle_flow_rate: k_carb(0.0),
+        molecular_afr: 23.0,
+        idle_throttle_plate_position: 0.997,
+        velocity_decay: 0.5
+    )
+
+    exhaust_system_parameters es_params(
+        outlet_flow_rate: k_carb(1000.0),
+        primary_tube_length: 500.0 * units.mm,
+        primary_flow_rate: k_carb(299.0),
+        collector_cross_section_area: circle_area(27.5 * units.mm),
+        velocity_decay: 1.0
+    )
+
+    exhaust_system exhaust0(
+        es_params,
+        length: 2500.0 * units.mm,
+        audio_volume: 1.0,
+        impulse_response: ir_lib.mild_exhaust_0
+    )
+
+    harmonic_cam_lobe intake_lobe(
+        duration_at_50_thou: 200.0 * units.deg,
+        gamma: 1.1,
+        lift: 8.0 * units.mm,
+        steps: 100
+    )
+    harmonic_cam_lobe exhaust_lobe(
+        duration_at_50_thou: 196.0 * units.deg,
+        gamma: 1.1,
+        lift: 7.5 * units.mm,
+        steps: 100
+    )
+
+    eb_2_0_common_rail_turbodiesel_i4_variable_geometry_turbo_camshaft_0 camshaft0(
+        intake_lobe_profile: intake_lobe,
+        exhaust_lobe_profile: exhaust_lobe,
+        intake_lobe_center: 114.0 * units.deg,
+        exhaust_lobe_center: 114.0 * units.deg,
+        base_radius: 16.2 * units.mm
+    )
+
+    cylinder_bank b0(bank_params, angle: 0.0 * units.deg)
+    b0
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.05)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj1,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire1,
+            primary_length: 30.0 * units.mm,
+            sound_attenuation: 0.95
+        )
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.08)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj2,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire2,
+            primary_length: 18.0 * units.mm,
+            sound_attenuation: 1
+        )
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.1)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj3,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire3,
+            primary_length: 18.0 * units.mm,
+            sound_attenuation: 0.93
+        )
+        .add_cylinder(
+            piston: piston(piston_params, blowby: k_28inH2O(0.05)),
+            connecting_rod: connecting_rod(cr_params),
+            rod_journal: rj4,
+            intake: intake,
+            exhaust_system: exhaust0,
+            ignition_wire: wires.wire4,
+            primary_length: 30.0 * units.mm,
+            sound_attenuation: 0.9
+        )
+        .set_cylinder_head(eb_2_0_common_rail_turbodiesel_i4_variable_geometry_turbo_head(
+            chamber_volume: 31.75 * units.cc,
+            intake_camshaft: camshaft0.intake_cam,
+            exhaust_camshaft: camshaft0.exhaust_cam,
+            flip_display: false
+        ))
+    engine.add_cylinder_bank(b0)
+
+    engine.add_crankshaft(c0)
+
+    function timing_curve(1000 * units.rpm)
+    timing_curve
+        .add_sample(0 * units.rpm, 6.0 * units.deg)
+        .add_sample(500 * units.rpm, 6.0 * units.deg)
+        .add_sample(1000 * units.rpm, 6.0 * units.deg)
+        .add_sample(1500 * units.rpm, 9.5 * units.deg)
+        .add_sample(2000 * units.rpm, 13.0 * units.deg)
+        .add_sample(2500 * units.rpm, 16.5 * units.deg)
+        .add_sample(3000 * units.rpm, 20.0 * units.deg)
+        .add_sample(3500 * units.rpm, 20.0 * units.deg)
+        .add_sample(4000 * units.rpm, 20.0 * units.deg)
+        .add_sample(4500 * units.rpm, 20.0 * units.deg)
+        .add_sample(5000 * units.rpm, 20.0 * units.deg)
+        .add_sample(5500 * units.rpm, 20.0 * units.deg)
+        .add_sample(6000 * units.rpm, 20.0 * units.deg)
+        .add_sample(6500 * units.rpm, 20.0 * units.deg)
+
+    ignition_module ignition(
+        timing_curve: timing_curve,
+        rev_limit: 4800 * units.rpm,
+        limiter_duration: 0.08 * units.sec
+    )
+    ignition
+        .connect_wire(wires.wire1, 0.0 * units.deg)
+        .connect_wire(wires.wire3, 180.0 * units.deg)
+        .connect_wire(wires.wire4, 360.0 * units.deg)
+        .connect_wire(wires.wire2, 540.0 * units.deg)
+    engine.add_ignition_module(ignition)
+
+    diesel_injection injection(
+        idle_speed: 800 * units.rpm,
+        max_speed: 4600 * units.rpm,
+        governor_droop: 0.15,
+        pilot_injection: true,
+        combustion_noise: 1.0,
+        injector_noise: 1.0
+    )
+    engine.add_diesel_injection(injection)
+
+    turbocharger turbo(
+        compressor_diameter: 46 * units.mm,
+        compressor_flow: 0.17 * units.kg / units.sec,
+        inertia: 0.000015,
+        turbine_ar: 0.9,
+        variable_geometry: true,
+        boost: 120 * units.kPa,
+        blowoff_type: "none",
+        intercooler_effectiveness: 0.7,
+        exhaust_sound: "after_turbine"
+    )
+    engine.add_forced_induction(turbo)
+}
+
+private node eb_2_0_common_rail_turbodiesel_i4_variable_geometry_turbo_vehicle {
+    alias output __out:
+        vehicle(
+            mass: 1450.0 * units.kg,
+            drag_coefficient: 0.32,
+            cross_sectional_area: 2.0 * units.m2,
+            diff_ratio: 3.4,
+            tire_radius: 310.0 * units.mm,
+            rolling_resistance: 300.0 * units.N,
+            max_brake_force: 0.0 * units.N
+        );
+}
+
+private node eb_2_0_common_rail_turbodiesel_i4_variable_geometry_turbo_transmission {
+    alias output __out:
+        transmission(max_clutch_torque: 500.0 * units.Nm)
+            .add_gear(3.8)
+            .add_gear(2.1)
+            .add_gear(1.3)
+            .add_gear(0.9)
+            .add_gear(0.7)
+            .add_gear(0.58);
+}
+
+public node main {
+    set_engine(eb_2_0_common_rail_turbodiesel_i4_variable_geometry_turbo_engine())
+    set_transmission(eb_2_0_common_rail_turbodiesel_i4_variable_geometry_turbo_transmission())
+    set_vehicle(eb_2_0_common_rail_turbodiesel_i4_variable_geometry_turbo_vehicle())
+}

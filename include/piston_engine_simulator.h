@@ -67,6 +67,12 @@ class PistonEngineSimulator : public Simulator {
 
         double *m_exhaustFlowStagingBuffer;
 
+        // Each cylinder's pressure at the last write to the synthesizer (the
+        // diesel combustion noise follows its rise), and each exhaust
+        // system's sound after the turbine (exhaust_sound: "after_turbine")
+        double *m_lastCylinderPressure;
+        double *m_turbineSoundState;
+
         int m_fluidSimulationSteps;
 };
 

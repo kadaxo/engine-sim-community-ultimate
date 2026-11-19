@@ -33,6 +33,7 @@ public node vehicle_channel => __engine_sim__vehicle_channel { /* void */ }
 public node transmission_channel => __engine_sim__transmission_channel { /* void */ }
 public node throttle_channel => __engine_sim__throttle_channel { /* void */ }
 public node forced_induction_channel => __engine_sim__forced_induction_channel { /* void */ }
+public node diesel_injection_channel => __engine_sim__diesel_injection_channel { /* void */ }
 
 private node turbulence_to_flame_speed_ratio_default {
     alias output __out:
@@ -643,6 +644,10 @@ private node _forced_induction => __engine_sim__forced_induction {
     input compressor_efficiency [float];
     input max_speed [float];
     input turbine_ar [float];
+    input turbine_diameter [float];
+    input variable_geometry [bool];
+    input min_turbine_ar [float];
+    input exhaust_sound [string];
     input turbine_efficiency [float];
     input inertia [float];
     input bearings [string];
@@ -667,6 +672,11 @@ private node _forced_induction => __engine_sim__forced_induction {
 // max_speed: shaft speed limit (0: from the compressor wheel's tip speed limit)
 // bearings: "journal" or "ball"
 // boost: wastegate set point (gauge pressure)
+// turbine_diameter: turbine wheel (0: sized from the compressor_flow)
+// variable_geometry: vanes in the turbine housing hold the boost instead of a
+// wastegate, acting as min_turbine_ar when closed (0: 0.25 * turbine_ar) and
+// turbine_ar when open
+// exhaust_sound: "before_turbine" or "after_turbine" (smoother pulses)
 public node turbocharger {
     input arrangement: "single";
     input compressor_diameter: 60 * units.mm;
@@ -674,6 +684,10 @@ public node turbocharger {
     input compressor_efficiency: 0.75;
     input max_speed: 0.0;
     input turbine_ar: 0.64;
+    input turbine_diameter: 0.0;
+    input variable_geometry: false;
+    input min_turbine_ar: 0.0;
+    input exhaust_sound: "before_turbine";
     input turbine_efficiency: 0.7;
     input inertia: 0.00003;
     input bearings: "journal";
@@ -696,6 +710,10 @@ public node turbocharger {
             compressor_efficiency: compressor_efficiency,
             max_speed: max_speed,
             turbine_ar: turbine_ar,
+            turbine_diameter: turbine_diameter,
+            variable_geometry: variable_geometry,
+            min_turbine_ar: min_turbine_ar,
+            exhaust_sound: exhaust_sound,
             turbine_efficiency: turbine_efficiency,
             inertia: inertia,
             bearings: bearings,
@@ -742,6 +760,10 @@ public node supercharger {
             compressor_efficiency: compressor_efficiency,
             max_speed: max_speed,
             turbine_ar: 0.64,
+            turbine_diameter: 0.0,
+            variable_geometry: false,
+            min_turbine_ar: 0.0,
+            exhaust_sound: "before_turbine",
             turbine_efficiency: 0.7,
             inertia: 0.00003,
             bearings: "ball",
@@ -758,5 +780,67 @@ public node supercharger {
             wastegate: "internal",
             twin_scroll: false,
             whistle_pitch: whistle_pitch
+        );
+}
+
+// Diesel injection and combustion (docs/diesel.md). Add it to an engine with
+// add_diesel_injection(): the intakes then pass air only and stay wide open,
+// the pedal sets the fuel, and the ignition module's timing curve becomes the
+// injection timing.
+private node _diesel_injection => __engine_sim__diesel_injection {
+    input idle_speed [float];
+    input max_speed [float];
+    input governor_droop [float];
+    input start_fuel [float];
+    input full_load_lambda [float];
+    input injection_duration [float];
+    input pilot_injection [bool];
+    input pilot_fuel [float];
+    input pilot_separation [float];
+    input ignition_delay [float];
+    input premixed_share [float];
+    input combustion_noise [float];
+    input injector_noise [float];
+    alias output __out [diesel_injection_channel];
+}
+
+// idle_speed: the governor holds it with the fuel when the pedal is up
+// max_speed: governed speed, where the fuel is cut back (0: none)
+// full_load_lambda: air over stoichiometric at full fuel (the smoke limit)
+// injection_duration: main injection at full fuel, in time (the rail pressure
+// sets the rate, so at high rpm it spans more crank angle and burns later)
+// pilot_fuel: share of the full load fuel; pilot_separation: crank angle from
+// the pilot to the main injection
+// ignition_delay: scales the ignition delay; premixed_share: share of the
+// fuel sprayed in during the delay that burns at once (the knock)
+public node diesel_injection {
+    input idle_speed: 750 * units.rpm;
+    input max_speed: 0.0;
+    input governor_droop: 0.06;
+    input start_fuel: 0.6;
+    input full_load_lambda: 1.3;
+    input injection_duration: 0.002 * units.sec;
+    input pilot_injection: true;
+    input pilot_fuel: 0.03;
+    input pilot_separation: 15 * units.deg;
+    input ignition_delay: 1.0;
+    input premixed_share: 0.7;
+    input combustion_noise: 1.0;
+    input injector_noise: 1.0;
+    alias output __out:
+        _diesel_injection(
+            idle_speed: idle_speed,
+            max_speed: max_speed,
+            governor_droop: governor_droop,
+            start_fuel: start_fuel,
+            full_load_lambda: full_load_lambda,
+            injection_duration: injection_duration,
+            pilot_injection: pilot_injection,
+            pilot_fuel: pilot_fuel,
+            pilot_separation: pilot_separation,
+            ignition_delay: ignition_delay,
+            premixed_share: premixed_share,
+            combustion_noise: combustion_noise,
+            injector_noise: injector_noise
         );
 }

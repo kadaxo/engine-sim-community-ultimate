@@ -21,6 +21,7 @@ Engine::Engine() {
     m_exhaustSystems = nullptr;
     m_intakes = nullptr;
     m_forcedInduction = nullptr;
+    m_dieselInjection = nullptr;
     m_combustionChambers = nullptr;
 
     m_crankshaftCount = 0;
@@ -117,10 +118,32 @@ void Engine::setForcedInduction(ForcedInduction *forcedInduction) {
     }
 }
 
+void Engine::setDieselInjection(DieselInjection *dieselInjection) {
+    if (m_dieselInjection != nullptr) delete m_dieselInjection;
+
+    m_dieselInjection = dieselInjection;
+    for (int i = 0; i < m_intakeCount; ++i) {
+        m_intakes[i].setDirectInjection(dieselInjection != nullptr);
+    }
+
+    m_ignitionModule.setEventAdvance(
+        (dieselInjection != nullptr && dieselInjection->getParameters().pilotInjection)
+            ? dieselInjection->getParameters().pilotSeparation
+            : 0.0);
+
+    // Re-apply the throttle so the plates open
+    setThrottle(m_throttleValue);
+}
+
 void Engine::destroy() {
     if (m_forcedInduction != nullptr) {
         m_forcedInduction->destroy();
         delete m_forcedInduction;
+    }
+
+    if (m_dieselInjection != nullptr) {
+        delete m_dieselInjection;
+        m_dieselInjection = nullptr;
     }
 
     for (int i = 0; i < m_crankshaftCount; ++i) {
@@ -190,8 +213,13 @@ double Engine::getSpeedControl() {
 }
 
 void Engine::setThrottle(double throttle) {
+    // A diesel has no throttle plates: the pedal sets the fuel
+    if (m_dieselInjection != nullptr) {
+        m_dieselInjection->setPedal(clamp(1.0 - throttle));
+    }
+
     for (int i = 0; i < m_intakeCount; ++i) {
-        m_intakes[i].m_throttle = throttle;
+        m_intakes[i].m_throttle = (m_dieselInjection != nullptr) ? 0.0 : throttle;
     }
 
     m_throttleValue = throttle;
@@ -348,6 +376,10 @@ double Engine::getIntakeFlowRate() const {
 
 void Engine::update(double dt) {
     m_throttle->update(dt, this);
+
+    if (m_dieselInjection != nullptr) {
+        m_dieselInjection->update(dt, getSpeed());
+    }
 }
 
 double Engine::getManifoldPressure() const {
@@ -360,6 +392,25 @@ double Engine::getManifoldPressure() const {
 }
 
 double Engine::getIntakeAfr() const {
+    // A diesel's intake carries no fuel: its ratio is the cylinders', from
+    // their last injections. A cylinder given next to no fuel (the governor
+    // easing off) counts as unfueled, as one given none does, rather than
+    // reading thousands to one
+    if (m_dieselInjection != nullptr) {
+        constexpr double LeanestAfr = 200.0;
+        double sum = 0;
+        int n = 0;
+        for (int i = 0; i < m_cylinderCount; ++i) {
+            const double afr = m_combustionChambers[i].lastEventAfr();
+            if (afr > 0 && afr < LeanestAfr) {
+                sum += afr;
+                ++n;
+            }
+        }
+
+        return (n > 0) ? sum / n : 0.0;
+    }
+
     double totalOxygen = 0.0;
     double totalFuel = 0.0;
     for (int i = 0; i < m_intakeCount; ++i) {
@@ -392,7 +443,9 @@ double Engine::getExhaustO2() const {
     constexpr double oxygenMolarMass = units::mass(31.9988, units::g);
     constexpr double nitrogenMolarMass = units::mass(28.014, units::g);
 
-    if (totalFuel == 0) return 0;
+    // A diesel's exhaust carries no unburned fuel gas but plenty of oxygen
+    if (totalFuel == 0 && m_dieselInjection == nullptr) return 0;
+    if (totalOxygen + totalInert + totalFuel <= 0) return 0;
     else {
         return
             (oxygenMolarMass * totalOxygen)
@@ -407,12 +460,20 @@ void Engine::resetFuelConsumption() {
     for (int i = 0; i < m_intakeCount; ++i) {
         m_intakes[i].m_totalFuelInjected = 0;
     }
+
+    for (int i = 0; i < m_cylinderCount; ++i) {
+        m_combustionChambers[i].resetDieselFuelInjected();
+    }
 }
 
 double Engine::getTotalFuelMassConsumed() const {
     double n_fuelConsumed = 0;
     for (int i = 0; i < m_intakeCount; ++i) {
         n_fuelConsumed += m_intakes[i].m_totalFuelInjected;
+    }
+
+    for (int i = 0; i < m_cylinderCount; ++i) {
+        n_fuelConsumed += m_combustionChambers[i].getDieselFuelInjected();
     }
 
     return n_fuelConsumed * m_fuel.getMolecularMass();

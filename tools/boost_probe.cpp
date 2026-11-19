@@ -22,6 +22,13 @@
 // starter speed in any mode.
 //
 //   boost-probe <main.mr> --crank [--starter-speed <rpm>]
+//
+// With --combustion it measures the first cylinder's pressure: the peak and
+// the fastest rise per crank degree (what makes a diesel knock), averaged
+// over the cycles, at idle and on the dyno at <rpm> with the pedal at a
+// quarter, half and full.
+//
+//   boost-probe <main.mr> --combustion <rpm>
 #include "../scripting/include/compiler.h"
 #include "../include/transmission.h"
 #include "../include/units.h"
@@ -39,7 +46,7 @@
 
 int main(int argc, char **argv) {
     if (argc < 2) {
-        std::fprintf(stderr, "usage: boost-probe <main.mr> [rpm ...]\n       boost-probe <main.mr> --snap <rpm>\n       boost-probe <main.mr> --idle\n       boost-probe <main.mr> --crank [--starter-speed <rpm>]\n");
+        std::fprintf(stderr, "usage: boost-probe <main.mr> [rpm ...]\n       boost-probe <main.mr> --snap <rpm>\n       boost-probe <main.mr> --idle\n       boost-probe <main.mr> --crank [--starter-speed <rpm>]\n       boost-probe <main.mr> --combustion <rpm>\n");
         return 2;
     }
 
@@ -48,11 +55,13 @@ int main(int argc, char **argv) {
     bool idleMode = false;
     bool crankMode = false;
     double starterSpeed = 0;
+    double combustionRpm = 0;
     for (int i = 2; i < argc; ++i) {
         if (std::string(argv[i]) == "--snap" && i + 1 < argc) snapRpm = std::atof(argv[++i]);
         else if (std::string(argv[i]) == "--idle") idleMode = true;
         else if (std::string(argv[i]) == "--crank") crankMode = true;
         else if (std::string(argv[i]) == "--starter-speed" && i + 1 < argc) starterSpeed = std::atof(argv[++i]);
+        else if (std::string(argv[i]) == "--combustion" && i + 1 < argc) combustionRpm = std::atof(argv[++i]);
         else rpms.push_back(std::atof(argv[i]));
     }
     if (rpms.empty()) rpms = { 2000, 3000, 4000, 5000, 6000 };
@@ -203,6 +212,64 @@ int main(int argc, char **argv) {
         std::printf("%s\n", fi->getDescription().c_str());
     }
 
+    if (combustionRpm > 0) {
+        // Samples the first cylinder every simulation step for 2 s after
+        // 3 s to settle; a cycle is 720 degrees of crank rotation
+        CombustionChamber *chamber = engine->getChamber(0);
+        auto measure = [&](const char *label, double speedControl) {
+            for (int f = 0; f < 60 * 3; ++f) { engine->setSpeedControl(speedControl); frame(); }
+
+            double lastP = chamber->m_system.pressure();
+            double angle = 0, cyclePeak = 0, cycleRise = 0;
+            double peakSum = 0, riseSum = 0, riseMax = 0;
+            int cycles = 0;
+            for (int f = 0; f < 60 * 2; ++f) {
+                engine->setSpeedControl(speedControl);
+                sim->startFrame(1.0 / 60.0);
+                while (sim->simulateStep()) {
+                    const double p = chamber->m_system.pressure();
+                    const double dTheta = std::abs(engine->getOutputCrankshaft()->m_body.v_theta) * sim->getTimestep();
+                    const double degrees = dTheta / units::angle(1, units::deg);
+                    if (degrees > 0) cycleRise = std::fmax(cycleRise, (p - lastP) / units::bar / degrees);
+                    cyclePeak = std::fmax(cyclePeak, p);
+                    lastP = p;
+
+                    angle += degrees;
+                    if (angle >= 720) {
+                        angle -= 720;
+                        peakSum += cyclePeak;
+                        riseSum += cycleRise;
+                        riseMax = std::fmax(riseMax, cycleRise);
+                        ++cycles;
+                        cyclePeak = cycleRise = 0;
+                    }
+                }
+                sim->endFrame();
+                sim->readAudioOutput(735, audio);
+            }
+
+            std::printf("%-10s %5.0f rpm  peak %6.1f bar  rise %5.2f bar/deg (max %5.2f)  dyno %6.1f Nm  cycles %d\n",
+                label, engine->getRpm(),
+                cycles > 0 ? peakSum / cycles / units::bar : 0.0,
+                cycles > 0 ? riseSum / cycles : 0.0,
+                riseMax,
+                sim->getFilteredDynoTorque() / units::Nm,
+                cycles);
+        };
+
+        measure("idle", 0.0);
+        sim->m_dyno.m_enabled = true;
+        sim->m_dyno.m_hold = true;
+        sim->m_dyno.m_rotationSpeed = units::rpm(combustionRpm);
+        measure("quarter", 0.25);
+        measure("half", 0.5);
+        measure("full", 1.0);
+
+        sim->endAudioRenderingThread();
+        sim->destroy();
+        return 0;
+    }
+
     if (idleMode) {
         // Neutral, no throttle: where the engine settles after starting,
         // from the average of the last five seconds
@@ -242,7 +309,7 @@ int main(int argc, char **argv) {
             if (fi != nullptr) {
                 boost = fi->getBoost() / units::psi;
                 shaft = units::toRpm(fi->getShaftSpeed()) / 1000.0;
-                wastegate = fi->getWastegateOpening();
+                wastegate = fi->hasVariableGeometry() ? fi->getVaneOpening() : fi->getWastegateOpening();
                 blowoff = fi->getBlowoffOpening();
             }
             std::printf("%-8s %4.1f s  %5.0f rpm  boost %6.2f psi  shaft %6.1fk rpm  wastegate %4.2f  blow-off %4.2f  map %5.1f kPa  dyno %6.1f lb-ft\n",
@@ -297,7 +364,8 @@ int main(int argc, char **argv) {
                 double boost = 0, wastegate = 0, shaft = 0, charge = 25, drive = 0;
                 if (fi != nullptr) {
                     boost = fi->getBoost() / units::psi;
-                    wastegate = fi->isTurbocharger() ? fi->getWastegateOpening() : fi->getBypassOpening();
+                    wastegate = !fi->isTurbocharger() ? fi->getBypassOpening()
+                        : fi->hasVariableGeometry() ? fi->getVaneOpening() : fi->getWastegateOpening();
                     shaft = units::toRpm(fi->getShaftSpeed()) / 1000.0;
                     charge = fi->getChargeTemperature() - 273.15;
                     drive = fi->getDriveTorque() / units::ft_lb;

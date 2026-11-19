@@ -21,6 +21,8 @@ PistonEngineSimulator::PistonEngineSimulator() {
     m_crankshaftLinks = nullptr;
 
     m_exhaustFlowStagingBuffer = nullptr;
+    m_lastCylinderPressure = nullptr;
+    m_turbineSoundState = nullptr;
 
     m_derivativeFilter.m_dt = 1.0;
     m_fluidSimulationSteps = 8;
@@ -237,9 +239,20 @@ void PistonEngineSimulator::placeAndInitialize() {
 
     m_engine->getIgnitionModule()->reset();
 
-    // Exhaust channels followed by the forced induction control channels
+    // Exhaust channels followed by the control channels (forced induction,
+    // then engine noise)
     m_exhaustFlowStagingBuffer =
-        new double[m_engine->getExhaustSystemCount() + Synthesizer::ForcedInductionChannelCount];
+        new double[m_engine->getExhaustSystemCount() + Synthesizer::AuxChannelCount];
+
+    m_lastCylinderPressure = new double[cylinderCount];
+    for (int i = 0; i < cylinderCount; ++i) {
+        m_lastCylinderPressure[i] = m_engine->getChamber(i)->m_system.pressure();
+    }
+
+    m_turbineSoundState = new double[m_engine->getExhaustSystemCount()];
+    for (int i = 0; i < m_engine->getExhaustSystemCount(); ++i) {
+        m_turbineSoundState[i] = 0;
+    }
 }
 
 void PistonEngineSimulator::placeCylinder(int i) {
@@ -368,6 +381,8 @@ void PistonEngineSimulator::destroy() {
     if (m_crankshaftLinks != nullptr) delete[] m_crankshaftLinks;
     if (m_crankshaftFrictionConstraints != nullptr) delete[] m_crankshaftFrictionConstraints;
     if (m_exhaustFlowStagingBuffer != nullptr) delete[] m_exhaustFlowStagingBuffer;
+    if (m_lastCylinderPressure != nullptr) delete[] m_lastCylinderPressure;
+    if (m_turbineSoundState != nullptr) delete[] m_turbineSoundState;
     if (m_system != nullptr) delete m_system;
     if (m_delayFilters != nullptr) delete[] m_delayFilters;
 
@@ -377,6 +392,8 @@ void PistonEngineSimulator::destroy() {
     m_crankshaftLinks = nullptr;
     m_crankshaftFrictionConstraints = nullptr;
     m_exhaustFlowStagingBuffer = nullptr;
+    m_lastCylinderPressure = nullptr;
+    m_turbineSoundState = nullptr;
     m_system = nullptr;
 
     m_vehicle = nullptr;
@@ -428,9 +445,31 @@ void PistonEngineSimulator::writeToSynthesizer() {
     // A turbine absorbs part of the exhaust pulses
     ForcedInduction *forcedInduction = m_engine->getForcedInduction();
     if (forcedInduction != nullptr && forcedInduction->isTurbocharger()) {
-        const double muffling = 1.0 - 0.35 * forcedInduction->getTurbineFlowFraction();
-        for (int i = 0; i < exhaustSystemCount; ++i) {
-            m_exhaustFlowStagingBuffer[i] *= muffling;
+        const double fraction = forcedInduction->getTurbineFlowFraction();
+        const double muffling = 1.0 - 0.35 * fraction;
+
+        if (forcedInduction->isSoundAfterTurbine()) {
+            // Heard after the turbine. The turbine and wastegate take their
+            // share of the pressure drop to the outside, so only the rest of
+            // the pulses go on to the muffler (a turbine is a muffler too);
+            // and the share of the exhaust going through the wheel loses the
+            // sharp edges of its pulses (a low-pass that closes from 4 kHz to
+            // 700 Hz as more of it goes through), while what the wastegate
+            // bypasses keeps them
+            const double share = std::max(forcedInduction->getMufflerShare(), 0.1);
+            const double cutoff = 4000.0 - 3300.0 * fraction;
+            const double alpha = 1.0 - std::exp(-2.0 * constants::pi * cutoff * timestep);
+            for (int i = 0; i < exhaustSystemCount; ++i) {
+                const double x = m_exhaustFlowStagingBuffer[i];
+                m_turbineSoundState[i] += (x - m_turbineSoundState[i]) * alpha;
+                m_exhaustFlowStagingBuffer[i] =
+                    share * ((1.0 - fraction) * x + fraction * m_turbineSoundState[i]);
+            }
+        }
+        else {
+            for (int i = 0; i < exhaustSystemCount; ++i) {
+                m_exhaustFlowStagingBuffer[i] *= muffling;
+            }
         }
     }
 
@@ -446,6 +485,41 @@ void PistonEngineSimulator::writeToSynthesizer() {
         aux[4] = forcedInduction->getSurgeLevel();
         aux[5] = forcedInduction->getWastegateNoise();
         aux[6] = forcedInduction->getSoundMode();
+    }
+
+    // Engine noise channels: a diesel's combustion pressure rise, which
+    // rings the block, and its injector ticks. Both are in the exhaust
+    // channels' units, each cylinder with its exhaust's gain, so a script's
+    // volume settings move them together with the exhaust. The block's
+    // ringing is taken as a pressure of the rise rate times 4 us (a hard
+    // knock of 100 bar/ms gives 0.4 bar) and a tick as 0.01 bar.
+    double *noise = aux + Synthesizer::ForcedInductionChannelCount;
+    noise[0] = noise[1] = 0;
+    const DieselInjection *diesel = m_engine->getDieselInjection();
+    for (int i = 0; i < cylinderCount; ++i) {
+        CombustionChamber *chamber = m_engine->getChamber(i);
+        const double p = chamber->m_system.pressure();
+        const double rise = p - m_lastCylinderPressure[i];
+        m_lastCylinderPressure[i] = p;
+        const int ticks = chamber->popInjectorTicks();
+        if (diesel == nullptr) continue;
+
+        Piston *piston = chamber->getPiston();
+        CylinderHead *head = chamber->getCylinderHead();
+        ExhaustSystem *exhaust = head->getExhaustSystem(piston->getCylinderIndex());
+        const double exhaustLength =
+            head->getHeaderPrimaryLength(piston->getCylinderIndex()) + exhaust->getLength();
+        const double gain =
+            1600 * head->getSoundAttenuation(piston->getCylinderIndex())
+            * exhaust->getAudioVolume() / cylinderCount
+            / (exhaustLength * exhaustLength);
+
+        noise[0] += attenuation_3 * diesel->getParameters().combustionNoise
+            * gain * (rise / timestep) * 4e-6;
+        // The ticks sit under the knock: louder, they hissed over the engine
+        if (ticks > 0) {
+            noise[1] += diesel->getParameters().injectorNoise * gain * units::pressure(0.003, units::bar);
+        }
     }
 
     synthesizer().writeInput(m_exhaustFlowStagingBuffer);

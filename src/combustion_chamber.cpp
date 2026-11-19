@@ -8,8 +8,10 @@
 #include "../include/exhaust_system.h"
 #include "../include/cylinder_bank.h"
 #include "../include/engine.h"
+#include "../include/diesel_injection.h"
 
 #include <cmath>
+#include <cstdlib>
 
 CombustionChamber::CombustionChamber() {
     m_crankcasePressure = 0.0;
@@ -37,6 +39,9 @@ CombustionChamber::CombustionChamber() {
     m_intakeFlowRate = 0;
 
     m_fuel = nullptr;
+
+    m_dieselFuelInjected = 0;
+    m_injectorTicks = 0;
 }
 
 CombustionChamber::~CombustionChamber() {
@@ -166,7 +171,153 @@ bool CombustionChamber::popLitLastFrame() {
     return lit;
 }
 
+int CombustionChamber::popInjectorTicks() {
+    const int ticks = m_injectorTicks;
+    m_injectorTicks = 0;
+
+    return ticks;
+}
+
+void CombustionChamber::startDieselInjection() {
+    const DieselInjection *injection = m_engine->getDieselInjection();
+    const DieselInjection::Parameters &params = injection->getParameters();
+
+    // The previous cycle's fuel that never lit is lost
+    m_diesel = DieselEvent();
+
+    const double o2PerFuel = m_fuel->getMolecularAfr();
+    const double fullFuel = m_system.n_o2() / (o2PerFuel * params.fullLoadLambda);
+    const double total = injection->getFuelDemand() * fullFuel;
+    if (total <= 0 || fullFuel <= 0) {
+        // No fuel this cycle (coasting): nothing for the air/fuel readout
+        m_flameEvent.globalMix.p_fuel = 0;
+        return;
+    }
+
+    m_diesel.active = true;
+    m_diesel.rate = fullFuel / params.injectionDuration;      // [mol/s]
+    m_diesel.pilotFuel = params.pilotInjection
+        ? std::min(params.pilotFuel * fullFuel, 0.5 * total)
+        : 0.0;
+    m_diesel.mainFuel = total - m_diesel.pilotFuel;
+    m_diesel.mainStart = params.pilotInjection ? params.pilotSeparation : 0.0;
+    m_diesel.mainStarted = !params.pilotInjection;
+
+    // Cycle to cycle variation of the spray and the burn
+    const double r0 = (double)rand() / RAND_MAX;
+    const double r1 = (double)rand() / RAND_MAX;
+    m_diesel.premixedShare = clamp(params.premixedShare * (0.85 + 0.3 * r0));
+    m_diesel.efficiency = m_fuel->getMaxBurningEfficiency()
+        * (1.0 - 0.1 * m_fuel->getBurningEfficiencyRandomness() * r1);
+
+    ++m_injectorTicks;
+
+    // For the air/fuel ratio readout: the fuel as an equivalent mass of the
+    // octane lastEventAfr() assumes
+    constexpr double octaneMolarMass = units::mass(114.23, units::g);
+    m_flameEvent.total_n = m_system.n();
+    m_flameEvent.globalMix = m_system.mix();
+    m_flameEvent.globalMix.p_fuel =
+        total * m_fuel->getMolecularMass() / (octaneMolarMass * m_system.n());
+    m_flameEvent.percentageLit = 0;
+}
+
+void CombustionChamber::burnDiesel(double dt) {
+    if (!m_diesel.active) return;
+
+    const DieselInjection *injection = m_engine->getDieselInjection();
+    const double omega = std::abs(m_engine->getOutputCrankshaft()->m_body.v_theta);
+    const double dTheta = omega * dt;
+    m_diesel.angle += dTheta;
+
+    // Spray: the pilot first, then the main injection at the same rate
+    double sprayed = 0;
+    if (m_diesel.pilotInjected < m_diesel.pilotFuel) {
+        const double d = std::min(m_diesel.rate * dt, m_diesel.pilotFuel - m_diesel.pilotInjected);
+        m_diesel.pilotInjected += d;
+        sprayed += d;
+    }
+
+    if (m_diesel.angle >= m_diesel.mainStart && m_diesel.mainInjected < m_diesel.mainFuel) {
+        if (!m_diesel.mainStarted) {
+            m_diesel.mainStarted = true;
+            ++m_injectorTicks;
+        }
+
+        const double d = std::min(m_diesel.rate * dt, m_diesel.mainFuel - m_diesel.mainInjected);
+        m_diesel.mainInjected += d;
+        sprayed += d;
+    }
+
+    m_dieselFuelInjected += sprayed;
+    if (m_diesel.ignited) m_diesel.mixing += sprayed;
+    else m_diesel.pending += sprayed;
+
+    // Ignition delay, integrated over the changing pressure and temperature
+    // (Livengood and Wu)
+    if (!m_diesel.ignited && m_diesel.pending > 0) {
+        const double delay = injection->ignitionDelayDegrees(
+            m_system.pressure(), m_system.temperature(), calculateMeanPistonSpeed());
+        m_diesel.delayProgress += (dTheta / units::angle(1, units::deg)) / delay;
+
+        if (m_diesel.delayProgress >= 1.0) {
+            m_diesel.ignited = true;
+            m_diesel.premixed += m_diesel.pending * m_diesel.premixedShare;
+            m_diesel.mixing += m_diesel.pending * (1 - m_diesel.premixedShare);
+            m_diesel.pending = 0;
+            m_lit = true;
+            m_litLastFrame = true;
+        }
+    }
+
+    // The premixed fuel burns within a fraction of a millisecond; the rest
+    // as fast as it mixes, which follows the crank angle
+    constexpr double premixedTime = 0.2e-3;
+    const double mixingTime = std::max(
+        units::angle(6, units::deg) / std::max(omega, 1.0),
+        0.25e-3);
+    const double burnPremixed = m_diesel.premixed * (1 - std::exp(-dt / premixedTime));
+    const double burnMixing = m_diesel.mixing * (1 - std::exp(-dt / mixingTime));
+    const double burn = burnPremixed + burnMixing;
+
+    if (burn > 0) {
+        const double burned = m_system.burnInjectedFuel(burn, m_fuel->getMolecularAfr());
+        if (burned < burn * (1 - 1e-9)) {
+            // Out of oxygen: the rest leaves as smoke
+            m_diesel.premixed = m_diesel.mixing = 0;
+        }
+        else {
+            m_diesel.premixed -= burnPremixed;
+            m_diesel.mixing -= burnMixing;
+        }
+
+        const double massFuelBurned = burned * m_fuel->getMolecularMass();
+        m_system.changeEnergy(massFuelBurned * m_fuel->getEnergyDensity() * m_diesel.efficiency);
+        m_nBurntFuel += massFuelBurned;
+
+        const double total = m_diesel.pilotFuel + m_diesel.mainFuel;
+        if (total > 0) m_flameEvent.percentageLit += burned / total;
+    }
+
+    const bool injected =
+        m_diesel.pilotInjected >= m_diesel.pilotFuel
+        && m_diesel.mainInjected >= m_diesel.mainFuel;
+    const double left = m_diesel.pending + m_diesel.premixed + m_diesel.mixing;
+    const double total = m_diesel.pilotFuel + m_diesel.mainFuel;
+    if ((injected && left <= 1e-4 * total) || m_diesel.angle > constants::pi) {
+        // Burned out, or the exhaust valve is about to open on fuel that
+        // never lit
+        m_diesel.active = false;
+        m_lit = false;
+    }
+}
+
 void CombustionChamber::ignite() {
+    if (m_engine != nullptr && m_engine->getDieselInjection() != nullptr) {
+        startDieselInjection();
+        return;
+    }
+
     if (!m_lit) {
         if (m_system.mix().p_fuel == 0) return;
 
@@ -311,6 +462,18 @@ void CombustionChamber::flow(double dt) {
     m_exhaustFlow = exhaustFlow;
     m_lastTimestepTotalExhaustFlow += exhaustFlow;
     m_lastTimestepTotalIntakeFlow += intakeFlow;
+
+    if (m_diesel.active) {
+        if (std::abs(intakeFlow) > 1E-9) {
+            m_diesel.active = false;
+            m_lit = false;
+        }
+        else {
+            burnDiesel(dt);
+        }
+
+        return;
+    }
 
     if (m_lit) {
         CylinderBank *bank = m_head->getCylinderBank();

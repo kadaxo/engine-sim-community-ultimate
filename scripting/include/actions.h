@@ -17,6 +17,7 @@
 #include "transmission_node.h"
 #include "vehicle_node.h"
 #include "forced_induction_node.h"
+#include "diesel_injection_node.h"
 
 namespace es_script {
 
@@ -63,6 +64,30 @@ namespace es_script {
 
     protected:
         ForcedInductionNode *m_forcedInduction = nullptr;
+        EngineNode *m_engine = nullptr;
+    };
+
+    class AddDieselInjectionNode : public Node {
+    public:
+        AddDieselInjectionNode() { /* void */ }
+        virtual ~AddDieselInjectionNode() { /* void */ }
+
+    protected:
+        virtual void registerInputs() {
+            addInput("engine", &m_engine, InputTarget::Type::Object);
+            addInput("diesel_injection", &m_dieselInjection, InputTarget::Type::Object);
+
+            Node::registerInputs();
+        }
+
+        virtual void _evaluate() {
+            readAllInputs();
+
+            m_engine->addDieselInjection(m_dieselInjection);
+        }
+
+    protected:
+        DieselInjectionNode *m_dieselInjection = nullptr;
         EngineNode *m_engine = nullptr;
     };
 

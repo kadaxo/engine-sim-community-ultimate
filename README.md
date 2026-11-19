@@ -13,7 +13,8 @@ It is not a scientific tool: it is designed to sound and respond like an engine,
 - **Engine builder.** A web page ([tools/engine-builder/index.html](tools/engine-builder/index.html)) with an ordinary form that writes engine scripts for 14 layouts, from singles to V12s, and reopens them for editing. It works offline and with screen readers.
 - **Game audio export.** `engine-sim-export` renders seamless rpm loops, one-shots and rpm sweeps as Ogg, WAV and MP3 with a JSON manifest, ready for Unity, Unreal, Godot, FMOD or Wwise ([docs/game-audio-export.md](docs/game-audio-export.md)).
 - **About 100 engines**, including dozens of community engine scripts, each checked to compile and run, and 7 extra UI themes.
-- **Forced induction**: turbochargers (with lag, wastegate and blow-off valve) and Roots, twin-screw or centrifugal superchargers, with their whistle, whine and blow-off sounds ([docs/forced-induction.md](docs/forced-induction.md)).
+- **Forced induction**: turbochargers (with lag, wastegate or variable geometry vanes, and blow-off valve) and Roots, twin-screw or centrifugal superchargers, with their whistle, whine and blow-off sounds ([docs/forced-induction.md](docs/forced-induction.md)).
+- **Diesel engines**: fuel injected into the cylinders with no throttle, a governor, a pilot injection, and the knock and injector ticks a diesel makes, which the engine builder writes for diesel fuel ([docs/diesel.md](docs/diesel.md)).
 - **Driving**: smart gear shifting (rev-matched shifts, `K`), brakes (`.`), average or instant fuel consumption and an odometer.
 - **More engine types**: camshaft reduction ratio, `sparks_per_cycle` and intake atmosphere for two-stroke engines and altitude setups, and a VTEC switch that changes cams only while each valve is closed.
 - **Steady sound**: an optional loudness-based volume leveler (`L`), fixes for audio underruns and a data race in the synthesizer, and a UDP rpm input ([RPM_SYNC.md](RPM_SYNC.md)).

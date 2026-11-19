@@ -41,6 +41,12 @@ class IgnitionModule : public Part {
 
         double getTimingAdvance();
 
+        // Extra advance of the events over the timing curve: a diesel's
+        // pilot injection starts this far before the main injection, which
+        // the timing curve sets [rad]
+        void setEventAdvance(double advance) { m_eventAdvance = advance; }
+        double getEventAdvance() const { return m_eventAdvance; }
+
         bool m_enabled;
 
     protected:
@@ -55,6 +61,7 @@ class IgnitionModule : public Part {
         double m_revLimit;
         double m_revLimitTimer;
         double m_limiterDuration;
+        double m_eventAdvance;
         int m_sparksPerCycle;
 };
 

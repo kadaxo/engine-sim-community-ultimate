@@ -24,6 +24,14 @@ class Synthesizer {
         // renderForcedInduction()
         static constexpr int ForcedInductionChannelCount = 7;
 
+        // Control channels after those for a diesel's engine noise, see
+        // renderEngineNoise(): the combustion pressure rise and the injector
+        // ticks
+        static constexpr int EngineNoiseChannelCount = 2;
+
+        // All the control channels a simulation writes
+        static constexpr int AuxChannelCount = ForcedInductionChannelCount + EngineNoiseChannelCount;
+
         struct AudioParameters {
             float volume = 1.0f;
             float convolution = 1.0f;
@@ -45,8 +53,8 @@ class Synthesizer {
         struct Parameters {
             int inputChannelCount = 1;
 
-            // Control channels written after the exhaust channels: 0, or
-            // ForcedInductionChannelCount
+            // Control channels written after the exhaust channels: 0,
+            // ForcedInductionChannelCount or AuxChannelCount
             int auxChannelCount = 0;
             int inputBufferSize = 1024;
             int audioBufferSize = 44100;
@@ -68,6 +76,10 @@ class Synthesizer {
             ButterworthLowPassFilter<float> airNoiseLowPass;
             LowPassFilter inputDcFilter;
             ButterworthLowPassFilter<double> antialiasing;
+
+            // RMS gain of the impulse response (its energy), which the
+            // engine noise follows so it sits with the exhaust
+            float impulseGain = 1.0f;
         };
 
     public:
@@ -124,6 +136,11 @@ class Synthesizer {
         // whose loudness the sounds follow.
         float renderForcedInduction(int inputSample, float signal);
 
+        // A diesel's engine noise for one output sample: the block ringing
+        // from the combustion pressure rise and the injector ticks; signal
+        // is the exhaust sound of that sample, whose loudness they follow
+        float renderEngineNoise(int inputSample, float signal);
+
         struct Bandpass {
             float b0 = 0, b2 = 0, a1 = 0, a2 = 0;
             float x1 = 0, x2 = 0, y1 = 0, y2 = 0;
@@ -141,6 +158,13 @@ class Synthesizer {
         uint32_t m_fiNoiseState;
         Bandpass m_whistleBand, m_whooshBand, m_flutterBand;
         Bandpass m_blowoffBand1, m_blowoffBand2, m_wastegateBand;
+
+        // Engine noise (diesel injection), with its own noise source
+        Bandpass m_blockBand1, m_blockBand2, m_tickBand, m_tickRing;
+        float m_tickEnvelope;
+        float m_lastTick;
+        uint32_t m_engineNoiseState;
+        bool m_engineNoiseFiltersSet;
 
     //protected:
         ButterworthLowPassFilter<float> m_antialiasing;

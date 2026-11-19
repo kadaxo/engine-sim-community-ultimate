@@ -14,6 +14,7 @@
 #include "../include/transmission_node.h"
 #include "../include/throttle_nodes.h"
 #include "../include/forced_induction_node.h"
+#include "../include/diesel_injection_node.h"
 
 es_script::LanguageRules::LanguageRules() {
     /* void */
@@ -77,6 +78,8 @@ void es_script::LanguageRules::registerBuiltinNodeTypes() {
         "__engine_sim__throttle_channel", &es_script::ObjectChannel::ThrottleChannel);
     registerBuiltinType<piranha::ChannelNode>(
         "__engine_sim__forced_induction_channel", &es_script::ObjectChannel::ForcedInductionChannel);
+    registerBuiltinType<piranha::ChannelNode>(
+        "__engine_sim__diesel_injection_channel", &es_script::ObjectChannel::DieselInjectionChannel);
 
     // Literals
     registerBuiltinType<piranha::DefaultLiteralFloatNode>(
@@ -151,6 +154,7 @@ void es_script::LanguageRules::registerBuiltinNodeTypes() {
     registerBuiltinType<SetTransmissionNode>("__engine_sim__set_transmission");
     registerBuiltinType<AddGearNode>("__engine_sim__add_gear");
     registerBuiltinType<AddForcedInductionNode>("__engine_sim__add_forced_induction");
+    registerBuiltinType<AddDieselInjectionNode>("__engine_sim__add_diesel_injection");
 
     // Objects
     registerBuiltinType<EngineNode>("__engine_sim__engine");
@@ -175,6 +179,7 @@ void es_script::LanguageRules::registerBuiltinNodeTypes() {
     registerBuiltinType<DirectThrottleLinkageNode>("__engine_sim__direct_throttle_linkage");
     registerBuiltinType<GovernorNode>("__engine_sim__governor");
     registerBuiltinType<ForcedInductionNode>("__engine_sim__forced_induction");
+    registerBuiltinType<DieselInjectionNode>("__engine_sim__diesel_injection");
 
     // String operations
     registerBuiltinType<piranha::OperationNodeSpecialized<

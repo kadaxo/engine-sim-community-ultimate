@@ -79,10 +79,21 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
             double maxSpeed = 0;                    // shaft limit [rad/s], 0: from the tip speed limit
 
             // Turbine (turbochargers)
-            double turbineAr = 0.64;                // housing A/R
+            double turbineAr = 0.64;                // housing A/R (variable geometry: vanes open)
+            double turbineDiameter = 0;             // wheel [m], 0: sized from the compressor's flow
             double turbineEfficiency = 0.70;
             double inertia = 3.0e-5;                // rotating assembly [kg m^2]
             bool ballBearings = false;
+
+            // Variable geometry turbine: vanes in the housing that act as
+            // a small A/R when closed and turbineAr when open. They hold the
+            // boost instead of a wastegate.
+            bool variableGeometry = false;
+            double minTurbineAr = 0;                // vanes closed, 0: 0.25 * turbineAr
+
+            // Exhaust sound taken after the turbine, which smooths the pulses
+            // going through it (default: before the turbine, as it was)
+            bool soundAfterTurbine = false;
 
             // Boost control
             double boost = 1.0e5;                   // wastegate set point (gauge) [Pa]
@@ -163,6 +174,14 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
         double getMaxSpeed() const { return m_maxSpeed; }
 
         double getWastegateOpening() const { return m_wastegate; }
+        bool hasVariableGeometry() const { return m_variableGeometry; }
+        double getVaneOpening() const { return m_vanes; }                  // variable geometry [0 closed, 1 open]
+        bool isSoundAfterTurbine() const { return m_soundAfterTurbine; }
+
+        // Share of the exhaust pressure above the outside left after the
+        // turbine and wastegate, for the muffler [0, 1]: how much of the
+        // pulses reach the tailpipe
+        double getMufflerShare() const { return m_mufflerShare; }
         double getBypassOpening() const { return m_bypass; }                // superchargers
         double getBlowoffOpening() const { return m_blowoff; }
         double getBlowoffFlow() const { return m_blowoffFlowRate; }    // [mol/s]
@@ -247,8 +266,18 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
         double m_driveTorque;
         double m_drivePower;
 
-        // Turbine
+        // Turbine. m_turbineK is the current flow constant; with variable
+        // geometry it moves between the closed and open vanes' constants.
         double m_turbineK;
+        double m_turbineKOpen;
+        double m_turbineKClosed;
+        bool m_variableGeometry;
+        double m_vanes;
+        bool m_soundAfterTurbine;
+        double m_mufflerShare;
+        double m_exhaustMoles;      // through the outlets since the last process() [mol]
+        double m_exhaustFlowRate;   // [mol/s], smoothed
+        double m_mufflerK;          // each exhaust system's outlet restriction after the turbine
         double m_wastegateK;
         double m_turbineEfficiency;
         double m_inertia;

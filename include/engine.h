@@ -12,6 +12,7 @@
 #include "ignition_module.h"
 #include "intake.h"
 #include "forced_induction.h"
+#include "diesel_injection.h"
 #include "combustion_chamber.h"
 #include "units.h"
 #include "throttle.h"
@@ -111,6 +112,12 @@ class Engine : public Part {
         void setForcedInduction(ForcedInduction *forcedInduction);
         ForcedInduction *getForcedInduction() const { return m_forcedInduction; }
 
+        // Diesel injection, if the engine has it. The engine takes ownership:
+        // the intakes then pass air only and stay wide open, the pedal sets
+        // the fuel, and the ignition events start the injections.
+        void setDieselInjection(DieselInjection *dieselInjection);
+        DieselInjection *getDieselInjection() const { return m_dieselInjection; }
+
         double getSimulationFrequency() const { return m_initialSimulationFrequency; }
         double getInitialHighFrequencyGain() const { return m_initialHighFrequencyGain; }
         double getInitialNoise() const { return m_initialNoise; }
@@ -152,6 +159,7 @@ class Engine : public Part {
         int m_intakeCount;
 
         ForcedInduction *m_forcedInduction;
+        DieselInjection *m_dieselInjection;
 
         IgnitionModule m_ignitionModule;
         Fuel m_fuel;

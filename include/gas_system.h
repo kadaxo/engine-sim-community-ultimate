@@ -53,6 +53,15 @@ class GasSystem {
         void injectFuel(double n);
 
         double react(double n, const Mix &mix);
+
+        // Burns up to n_fuel moles of fuel sprayed into the gas (a diesel's
+        // injection: the liquid fuel isn't part of the gas until it burns),
+        // using o2PerFuel moles of oxygen per mole of fuel and turning the
+        // reactants into inert products as react() does. Returns the moles
+        // of fuel burned, which the oxygen left can limit. The caller adds
+        // the heat released.
+        double burnInjectedFuel(double n_fuel, double o2PerFuel);
+
         static double flowConstant(double flowRate, double P, double pressureDrop, double T, double hcr);
         static double k_28inH2O(double flowRateScfm);
         static double k_carb(double flowRateScfm);

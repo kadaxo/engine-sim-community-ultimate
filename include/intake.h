@@ -75,6 +75,11 @@ class Intake : public Part {
         // Mixture of air and fuel drawn through the throttle
         GasSystem::Mix getFuelAirMix() const;
 
+        // Diesel injection: the fuel goes straight into the cylinders, so
+        // the intake (and its idle circuit) passes air only
+        void setDirectInjection(bool directInjection) { m_directInjection = directInjection; }
+        bool hasDirectInjection() const { return m_directInjection; }
+
         // Ambient conditions configured in the script (atmosphere_pressure/temperature)
         inline double getAtmospherePressure() const { return m_atmospherePressure; }
         inline double getAtmosphereTemperature() const { return m_atmosphereTemperature; }
@@ -93,6 +98,7 @@ class Intake : public Part {
 
         GasSystem m_atmosphere;
         ForcedInduction *m_forcedInduction;
+        bool m_directInjection;
 };
 
 #endif /* ATG_ENGINE_SIM_INTAKE_H */
