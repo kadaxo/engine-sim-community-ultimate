@@ -314,6 +314,45 @@ void EngineSimApplication::initialize() {
 #endif /* ATG_ENGINE_SIM_DISCORD_ENABLED */
 }
 
+void EngineSimApplication::writeAudioTail(int16_t lastSample, int advanced) {
+    // The output is a looping buffer: when a frame takes longer than the
+    // queued audio (a heavy engine on a slow computer, loading a script)
+    // playback runs past the written audio and replayed whatever was left
+    // there from a second earlier, which stuttered. Ahead of the write
+    // position the buffer now holds a short fade from the last sample to
+    // zero and then silence, so a gap is a soft dropout instead. Only the
+    // silence the write moved past is renewed each time. By kyan0s-git
+    // (kyan0s-git/engine-sim f9c5913d).
+    const int start = m_audioBuffer.m_writePointer;
+    for (int i = 0; i < AudioFadeLength; ++i) {
+        const double g = 0.5 + 0.5 * std::cos(constants::pi * (i + 1) / AudioFadeLength);
+        m_audioBuffer.writeSample(static_cast<int16_t>(lastSample * g), start, i);
+    }
+
+    int from = AudioFadeLength;
+    if (m_audioSilenceWritten > 0) {
+        from = (std::max)(from, m_audioSilenceWritten - advanced);
+    }
+    for (int i = from; i < AudioSilenceLength; ++i) {
+        m_audioBuffer.writeSample(0, start, i);
+    }
+    m_audioSilenceWritten = AudioSilenceLength;
+
+    auto copy = [&](int offset, int length) {
+        if (length <= 0) return;
+        SampleOffset size0, size1;
+        void *data0, *data1;
+        const SampleOffset at = m_audioBuffer.getBufferIndex(start, offset);
+        m_audioSource->LockBufferSegment(at, length, &data0, &size0, &data1, &size1);
+        m_audioBuffer.copyBuffer(reinterpret_cast<int16_t *>(data0), at, size0);
+        m_audioBuffer.copyBuffer(
+            reinterpret_cast<int16_t *>(data1), m_audioBuffer.getBufferIndex(at, size0), size1);
+        m_audioSource->UnlockBufferSegments(data0, size0, data1, size1);
+    };
+    copy(0, AudioFadeLength);
+    copy(from, AudioSilenceLength - from);
+}
+
 void EngineSimApplication::process(float frame_dt) {
     // Limit jumps after stalls without speeding up rotation above 200 FPS.
     frame_dt = static_cast<float>(clamp(frame_dt, 0.0f, 1 / 30.0f));
@@ -404,6 +443,11 @@ void EngineSimApplication::process(float frame_dt) {
         m_audioBuffer.m_writePointer = m_audioBuffer.getBufferIndex(safeWritePosition, (int)(44100 * 0.05));
         currentLead = m_audioBuffer.offsetDelta(safeWritePosition, m_audioBuffer.m_writePointer);
         maxWrite = m_audioBuffer.offsetDelta(m_audioBuffer.m_writePointer, targetWritePosition);
+
+        // Fade back in rather than starting mid-waveform (a click), and lay
+        // a fresh silent tail ahead of the new write position
+        m_audioFadeIn = 0;
+        m_audioSilenceWritten = 0;
     }
 
     if (currentLead > newLead) {
@@ -466,6 +510,12 @@ void EngineSimApplication::process(float frame_dt) {
     }
 
     for (SampleOffset i = 0; i < maxWrite; ++i) {
+        if (m_audioFadeIn < AudioFadeLength) {
+            const double g = 0.5 - 0.5 * std::cos(constants::pi * m_audioFadeIn / AudioFadeLength);
+            samples[i] = static_cast<int16_t>(samples[i] * g);
+            ++m_audioFadeIn;
+        }
+
         const int16_t sample = samples[i];
         if (m_oscillatorSampleOffset % 4 == 0) {
             m_oscCluster->getAudioWaveformOscilloscope()->addDataPoint(
@@ -478,6 +528,7 @@ void EngineSimApplication::process(float frame_dt) {
         m_oscillatorSampleOffset = (m_oscillatorSampleOffset + 1) % (44100 / 10);
     }
 
+    const int16_t lastSample = (maxWrite > 0) ? samples[maxWrite - 1] : 0;
     delete[] samples;
 
     if (maxWrite > 0) {
@@ -495,6 +546,8 @@ void EngineSimApplication::process(float frame_dt) {
 
         m_audioSource->UnlockBufferSegments(data0, size0, data1, size1);
         m_audioBuffer.commitBlock(maxWrite);
+
+        writeAudioTail(lastSample, maxWrite);
     }
 
     m_performanceCluster->addInputBufferUsageSample(

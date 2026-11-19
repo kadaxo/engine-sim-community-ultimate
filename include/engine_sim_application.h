@@ -236,6 +236,14 @@ class EngineSimApplication {
         ysAudioSource *m_audioSource;
 
         int m_oscillatorSampleOffset;
+
+        // A dropout fades to silence instead of replaying old audio (see
+        // writeAudioTail)
+        static constexpr int AudioFadeLength = 256;                 // [samples]
+        static constexpr int AudioSilenceLength = 44100 * 45 / 100; // [samples]
+        int m_audioFadeIn = AudioFadeLength;
+        int m_audioSilenceWritten = 0;
+        void writeAudioTail(int16_t lastSample, int advanced);
         int m_screen;
 
         struct LoggingErrorHandler *m_error_handler;
