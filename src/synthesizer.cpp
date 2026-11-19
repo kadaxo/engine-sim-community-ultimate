@@ -205,7 +205,7 @@ void Synthesizer::destroy() {
 }
 
 int Synthesizer::readAudioOutput(int samples, int16_t *buffer) {
-    std::lock_guard<std::mutex> lock(m_lock0);
+    std::unique_lock<std::mutex> lock(m_lock0);
 
     const int newDataLength = m_audioBuffer.size();
     if (newDataLength >= samples) {
@@ -257,6 +257,11 @@ int Synthesizer::readAudioOutput(int samples, int16_t *buffer) {
             0,
             sizeof(int16_t) * ((size_t)samples - newDataLength));
     }
+
+    // Wake the rendering thread as the buffer drains, not only at
+    // endInputBlock (from danieljsinclair/engine-sim 6bf893e)
+    lock.unlock();
+    m_cv0.notify_one();
     
     const int samplesConsumed = std::min(samples, newDataLength);
 
@@ -306,7 +311,11 @@ void Synthesizer::writeInput(const double *data) {
 }
 
 void Synthesizer::endInputBlock() {
-    std::unique_lock<std::mutex> lk(m_inputLock); 
+    std::unique_lock<std::mutex> lk(m_inputLock);
+    // m_processed is the rendering thread's wait condition: changed without
+    // m_lock0, a wake-up sent while that thread checks it is lost and both
+    // sides wait for each other
+    std::unique_lock<std::mutex> lk0(m_lock0);
 
     for (int i = 0; i < m_totalChannelCount; ++i) {
         m_inputChannels[i].data.removeBeginning(m_inputSamplesRead);
@@ -319,6 +328,7 @@ void Synthesizer::endInputBlock() {
     m_inputSamplesRead = 0;
     m_processed = false;
 
+    lk0.unlock();
     lk.unlock();
     m_cv0.notify_one();
 }
