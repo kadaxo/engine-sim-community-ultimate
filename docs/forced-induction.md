@@ -41,7 +41,7 @@ variable geometry turbo ([diesel.md](diesel.md)).
 | `compressor_flow` | 0.3 kg/s | The compressor's maximum flow. Unless `turbine_diameter` is set, the turbine is sized from it |
 | `compressor_efficiency` | 0.75 | |
 | `max_speed` | 0 | Shaft speed limit; 0 takes it from the wheel's tip speed limit (520 m/s) |
-| `turbine_ar` | 0.64 | Turbine housing A/R: larger flows more and spools later. With variable geometry, the A/R with the vanes open |
+| `turbine_ar` | 0.64 | Turbine housing A/R: larger flows more and spools later. With variable geometry, the A/R with the vanes open (a petrol engine needs a larger one than a diesel, see below) |
 | `turbine_diameter` | 0 | Turbine wheel diameter; its flow goes with the wheel's area (54 mm flows about 0.15 kg/s at 0.64 A/R, the size that goes with the default compressor). 0 sizes it from `compressor_flow` |
 | `variable_geometry` | false | Vanes in the turbine housing (VGT, VNT) instead of a wastegate: closed they act as a small housing and spool the turbo at low rpm, and they open to hold the boost |
 | `min_turbine_ar` | 0 | Variable geometry: the A/R with the vanes closed; 0 takes a quarter of `turbine_ar` |
@@ -102,7 +102,20 @@ variable geometry turbo ([diesel.md](diesel.md)).
   early) and opening to hold it. With the vanes open, the turbine passes the compressor's whole
   flow (twice a wastegated turbine's), and nearly closed vanes lose some efficiency. In the
   diesel example, the vanes give full boost from 1750 rpm, where the same turbo with a fixed
-  housing and a wastegate gets there at 3000.
+  housing and a wastegate gets there at 3000. The control aims the exhaust pressure at what
+  holds the boost and trims it from the boost error; it allows for the hotter gas of a petrol
+  engine, which needs a smaller expansion for the same work. A petrol engine's exhaust carries
+  more energy than a diesel's for the same air, so its vanes need a larger open A/R, or the
+  boost runs past the set point with the vanes wide open: the B58 holds its boost on vanes with
+  an A/R of 1.3 where its wastegated turbine has 0.55.
+* **Turbine inlet temperature**: the simulated exhaust of a spark-fired engine leaves the
+  cylinders at 2000 to 2900 K at full load, where a real one reaches the turbine at no more
+  than about 1300 K (it loses heat to the cylinder walls, ports and manifold, and the engine's
+  control adds fuel to hold the turbine there). The turbine works with the gas as if it were
+  that cool, softly limited to 1300 K: it takes less energy per mole and passes more moles for
+  a given opening. Diesel exhaust (about 850 K) is unaffected. Wastegated petrol engines need
+  a little more exhaust pressure to hold their boost, so they spool somewhat later and make
+  2 to 15% less torque than before this was added.
 * **Turbine size**: a turbine's flow scales with its housing's A/R and its wheel's area. A
   smaller turbine raises the exhaust pressure ahead of it, which spools the turbo sooner and
   costs power at the top.

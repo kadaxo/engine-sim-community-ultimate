@@ -904,6 +904,45 @@ TEST(ForcedInductionEngineTests, DesignerEnginesReachTheirBoost) {
     }
 }
 
+TEST(ForcedInductionEngineTests, VariableGeometryHoldsBoostOnAPetrolEngine) {
+    // The B58 with a vane turbine in place of its wastegated one. Its
+    // exhaust is far hotter than a diesel's, and the boost used to run away
+    // to the compressor's limit with the vanes wide open.
+    const fs::path source = fs::path(ENGINE_SIM_SOURCE_DIR) / "assets" / "engines" / "forced-induction" / "bmw_b58.mr";
+    std::ifstream in(source, std::ios::binary);
+    std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    const std::string housing = "turbine_ar: 0.55,";
+    const size_t at = text.find(housing);
+    ASSERT_NE(at, std::string::npos);
+    text.replace(at, housing.size(), "turbine_ar: 1.3, variable_geometry: true,");
+    const fs::path file = fs::temp_directory_path() / "engine-sim-b58-variable-geometry.mr";
+    std::ofstream(file, std::ios::binary) << text;
+
+    for (const double rpm : { 3000.0, 5500.0 }) {
+        SessionConfig config = defaultEngineConfig();
+        config.scriptPath = file.generic_string();
+        std::srand(1);
+        std::string error;
+        std::unique_ptr<EngineSession> session = EngineSession::create(config, &error);
+        ASSERT_TRUE(session) << error;
+        session->setIgnition(true);
+        const ForcedInduction *fi = forcedInduction(*session);
+        ASSERT_NE(fi, nullptr);
+
+        holdAt(session.get(), rpm, 1.0);
+        session->advance(2.5, nullptr, nullptr);
+
+        double low = 1e9, high = 0;
+        for (int i = 0; i < 50; ++i) {
+            session->advance(0.02, nullptr, nullptr);
+            low = std::min(low, psi(fi->getBoost()));
+            high = std::max(high, psi(fi->getBoost()));
+        }
+        EXPECT_NEAR(0.5 * (low + high), psi(fi->getBoostTarget()), 2.0) << rpm << " rpm";
+        EXPECT_LT(high - low, 1.5) << rpm << " rpm: boost hunts between " << low << " and " << high << " psi";
+    }
+}
+
 // Diesel injection, run in the example turbodiesel
 
 namespace {

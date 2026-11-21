@@ -28,6 +28,18 @@ namespace {
     // Tip speed limit of aluminium compressor wheels [m/s]
     constexpr double MaxTipSpeed = 520.0;
 
+    // The gas the turbine works with. The simulated exhaust of a spark-fired
+    // engine reaches the outlets at 2000 to 2900 K at full load, where a real
+    // one reaches the turbine at no more than about 1300 K: the engine loses
+    // heat to the cylinder walls, ports and manifold, and its control adds
+    // fuel to hold the turbine there. Hotter gas carries more energy per mole
+    // and passes the turbine more slowly, so a turbine without a wastegate
+    // ran away. Diesel exhaust (about 850 K) is left as it is.
+    double turbineInletTemperature(double T) {
+        constexpr double Limit = 1300.0;
+        return T / std::pow(1.0 + std::pow(T / Limit, 8.0), 1.0 / 8.0);
+    }
+
     double approach(double value, double target, double dt, double timeConstant) {
         return value + (target - value) * std::min(1.0, dt / timeConstant);
     }
@@ -79,6 +91,9 @@ ForcedInduction::ForcedInduction() {
     m_mufflerShare = 1.0;
     m_exhaustMoles = 0;
     m_exhaustFlowRate = 0;
+    m_exhaustHeat = 0;
+    m_exhaustTemperature = 1000.0;
+    m_inletScale = 1.0;
     m_mufflerK = 0;
     m_wastegateK = 0;
     m_turbineEfficiency = 0.7;
@@ -177,6 +192,9 @@ void ForcedInduction::initialize(const Parameters &params) {
     m_mufflerShare = 1.0;
     m_exhaustMoles = 0;
     m_exhaustFlowRate = 0;
+    m_exhaustHeat = 0;
+    m_exhaustTemperature = 1000.0;
+    m_inletScale = 1.0;
     m_mufflerK = 0;
     m_externalWastegate = params.externalWastegate;
     m_wastegateK = (m_externalWastegate ? 6.0 : 4.0) * m_turbineKOpen;
@@ -266,7 +284,7 @@ double ForcedInduction::getExhaustOutletFlowK(double mufflerK) const {
 
     // Each exhaust system feeds its share of the turbines; the turbine and
     // the muffler are restrictions in series
-    k /= std::max(m_exhaustSystemCount, 1);
+    k *= m_inletScale / std::max(m_exhaustSystemCount, 1);
     if (k <= 0) return 0;
     if (mufflerK <= 0) return k;
 
@@ -285,9 +303,10 @@ void ForcedInduction::addExhaustFlow(double n, double T, double P, double hcr, d
     if (totalK <= 0) return;
 
     m_exhaustMoles += n;
+    m_exhaustHeat += n * T;
     m_mufflerK = mufflerK;
 
-    const double share = totalK / std::max(m_exhaustSystemCount, 1);
+    const double share = totalK * m_inletScale / std::max(m_exhaustSystemCount, 1);
     m_turbineFraction = turbineK / totalK;
 
     // Pressure drop across the turbine (restrictions in series share the
@@ -306,7 +325,7 @@ void ForcedInduction::addExhaustFlow(double n, double T, double P, double hcr, d
     const double P_out = P - (P - ExhaustAmbient) * turbineDropFraction;
     const double g = std::max(hcr, 1.05);
     const double cp = constants::R * g / (g - 1);
-    const double isentropicWork = cp * T * (1.0 - std::pow(P_out / P, (g - 1) / g));
+    const double isentropicWork = cp * turbineInletTemperature(T) * (1.0 - std::pow(P_out / P, (g - 1) / g));
 
     // A twin-scroll housing keeps the exhaust pulses of the cylinder groups
     // apart, which helps most at low flow
@@ -456,33 +475,52 @@ void ForcedInduction::process(double dt) {
         // diesel's fuel follows its air, so more boost brings more exhaust
         // and more boost again, and nearly closed vanes move the boost a
         // lot. A spring actuator moves the vanes as it moves a wastegate.
+        // The exhaust's temperature at the outlets, for the turbine's inlet
+        // (see turbineInletTemperature())
         m_exhaustFlowRate += (m_exhaustMoles / dt - m_exhaustFlowRate) * std::min(1.0, dt / 0.05);
+        if (m_exhaustMoles > 0) {
+            m_exhaustTemperature += (m_exhaustHeat / m_exhaustMoles - m_exhaustTemperature) * std::min(1.0, dt / 0.05);
+        }
         m_exhaustMoles = 0;
+        m_exhaustHeat = 0;
+        m_inletScale = std::sqrt(m_exhaustTemperature / turbineInletTemperature(m_exhaustTemperature));
 
         double wastegateTarget = 1.0;
         if (m_boostTarget > 0 && m_variableGeometry && m_boostControl == BoostControl::Electronic) {
             const double band = std::max(m_boostTarget, units::pressure(0.5, units::psi));
             const double error = (boost - m_boostTarget) / band;
-            if (std::abs(error) < 0.3) {
-                m_wastegateIntegral = clamp(m_wastegateIntegral - 1.5 * error * dt, -1.0, 1.0);
+            if (error > -0.3) {
+                m_wastegateIntegral = clamp(m_wastegateIntegral - 1.5 * error * dt, -3.0, 1.0);
             }
 
             // The exhaust manifold's pressure over the outside's: about 1.2
-            // times the boost's absolute pressure holds it, and the control
-            // trims that (up while the boost is short, down as it rises
-            // quickly, and the integral near the target). Each exhaust
-            // system's turbine share and muffler in series pass its share of
-            // the flow at it.
-            const double feedForward = 1.2 * (m_ambientPressure + m_boostTarget) / ExhaustAmbient;
+            // times the boost's absolute pressure holds it on a diesel. Hotter
+            // gas does the same work with a smaller expansion: the share of
+            // its heat the turbine takes falls with the cube of a diesel's
+            // inlet temperature over its own. That is fitted, not derived:
+            // the plain ratio left the petrol engines overshooting by about
+            // 8 psi after a snap and the square by 5, the cube by 1 to 2.5,
+            // still settling on the set point. The control
+            // trims the pressure drop (up while the boost is short, down as it
+            // rises quickly, and the integral near the target and above it);
+            // trimming the ratio made the turbine's opening swing tenfold for
+            // the small drops a petrol engine needs, and the boost hunted.
+            // Each exhaust system's turbine share and muffler in series pass
+            // its share of the flow at it.
+            constexpr double Expansion = (1.33 - 1) / 1.33;
+            const double diesel = 1.2 * (m_ambientPressure + m_boostTarget) / ExhaustAmbient;
+            const double work = (1.0 - std::pow(diesel, -Expansion))
+                * std::pow(850.0 / std::max(850.0, turbineInletTemperature(m_exhaustTemperature)), 3.0);
+            const double feedForward = std::pow(1.0 - work, -1.0 / Expansion);
             const double trim = -1.5 * error - 0.4 * m_boostRate / band + m_wastegateIntegral;
-            const double ratio = clamp(feedForward * std::exp(trim), 1.05, 4.0);
+            const double ratio = clamp(1.0 + (feedForward - 1.0) * std::exp(trim), 1.02, 4.0);
             const int systems = std::max(m_exhaustSystemCount, 1);
             const double series = (m_exhaustFlowRate / systems)
                 * GasSystem::flowConstant(1.0, ratio * ExhaustAmbient, (ratio - 1) * ExhaustAmbient, 1000.0, 1.33);
-            double turbine = m_turbineKOpen;
+            double turbine = m_turbineKOpen * m_inletScale;
             if (m_mufflerK <= 0) turbine = series;
             else if (series < m_mufflerK) turbine = 1.0 / std::sqrt(1.0 / (series * series) - 1.0 / (m_mufflerK * m_mufflerK));
-            const double wanted = turbine * systems / std::max(activeTurbines, 1);
+            const double wanted = turbine / m_inletScale * systems / std::max(activeTurbines, 1);
             wastegateTarget = (wanted <= m_turbineKClosed)
                 ? 0.0
                 : clamp(std::log(wanted / m_turbineKClosed) / std::log(m_turbineKOpen / m_turbineKClosed), 0.0, 1.0);

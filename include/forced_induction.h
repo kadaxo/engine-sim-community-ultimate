@@ -327,6 +327,9 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
         double m_mufflerShare;
         double m_exhaustMoles;      // through the outlets since the last process() [mol]
         double m_exhaustFlowRate;   // [mol/s], smoothed
+        double m_exhaustHeat;       // moles times temperature since the last process() [mol K]
+        double m_exhaustTemperature; // at the outlets, smoothed [K]
+        double m_inletScale;        // the turbine's flow for its inlet temperature, see turbineInletTemperature()
         double m_mufflerK;          // each exhaust system's outlet restriction after the turbine
         double m_wastegateK;
         double m_turbineEfficiency;
