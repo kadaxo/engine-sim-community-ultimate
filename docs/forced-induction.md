@@ -52,6 +52,7 @@ variable geometry turbo ([diesel.md](diesel.md)).
 | `boost` | 100 kPa | Wastegate set point (gauge pressure) |
 | `boost_control` | `"electronic"` | `"electronic"` holds the set point; `"spring"` opens the wastegate from 75% of it, so boost creeps up with flow |
 | `wastegate` | `"internal"` | `"external"` is larger and vents through its own pipe (heard as a rasp) |
+| `wastegate_off_boost` | `"closed"` | `"open"`: electronic control holds the wastegate wide open whenever the manifold is below the outside's pressure (idle, cruise, overrun), as engines with an electric actuator do, and shuts it as the throttle opens. Lower pressure ahead of the turbine off boost, at the cost of about a tenth of a second of spool |
 | `twin_scroll` | false | Divided turbine housing: better spool at low flow |
 | `blowoff_valve` | true | Vents the charge when the throttle closes |
 | `blowoff_type` | `"atmospheric"` | `"atmospheric"` (a sharp hiss), `"recirculating"` (a soft whoosh) or `"none"` (the compressor surges and flutters) |
@@ -191,11 +192,12 @@ of the engine:
   flapper move in the play once it is off its seat. The steady part of the exhaust pressure
   holds it to one side and each pulse throws it across: it strikes as the pulse rises and,
   more softly, as it falls back, ringing the flapper and housing at about 2.3, 4.1 and 6.9 kHz.
-  Shut, the actuator holds it on its seat; the further it is held open the less it moves. A
-  spring actuator holds it more loosely than an electronic one, an external wastegate's poppet
-  rattles less, and variable geometry has no wastegate. The wastegate here only opens on boost,
-  so this is the rattle under load; engines whose control holds the wastegate open at idle and
-  cruise (and rattle there) are not modelled.
+  Shut, the actuator holds it on its seat. A strong steady flow pins it against the linkage, so
+  under full load only the ripple moves it; with little flow (idle, cruise) each pulse throws it
+  across freely, which is where a worn wastegate is heard most. The wastegate only opens off
+  boost with `wastegate_off_boost: "open"`; otherwise this is the rattle under load. A spring
+  actuator holds it more loosely than an electronic one, an external wastegate's poppet rattles
+  less, and variable geometry has no wastegate.
 * **Boost leak** (`boost_leak`): a sharp-edged hole (discharge coefficient 0.65) between the
   charge and the outside. It vents air the compressor has to make up, so the wastegate shuts
   further, the turbo spools later and the engine makes less torque at the same boost (on the
@@ -224,6 +226,16 @@ of the engine:
   idling on closed vanes or a shut wastegate then sounds quieter, not brighter. With
   `exhaust_sound: "before_turbine"` the exhaust is heard before the turbine instead, softened
   by a fixed share (the old default).
+* **Where you stand**: the exhaust comes out at the back of the car, and the turbo's sounds (and
+  a diesel's knock) from the engine bay at the front. Beside the car both are about as far
+  away, and the mix is as described above. Behind it (key 6 in the app, `--listener behind` in
+  engine-sim-export) or in front (`--listener front`), the far end is taken as 7.5 m away
+  against the near end's 3 m (a 4.5 m car), 8 dB down by spreading, and the car's body shields
+  it by another 4 dB or so above 1.5 kHz (an estimate). From behind, the blow-off valve on the
+  example Subaru sits about 11 dB lower against the engine than from beside; from in front,
+  about 8 dB higher. Compressor wheels usually have 6 full and 6 splitter blades; aftermarket
+  wheels come in 5+5, 7+7, 9+0 and 11+0, which moves the blade passing tone
+  (`compressor_blades`, `splitter_blades`).
 
 ## Headless check
 

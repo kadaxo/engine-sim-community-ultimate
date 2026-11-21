@@ -662,6 +662,7 @@ private node _forced_induction => __engine_sim__forced_induction {
     input blowoff_type [string];
     input boost_control [string];
     input wastegate [string];
+    input wastegate_off_boost [string];
     input twin_scroll [bool];
     input whistle_pitch [float];
     input compressor_blades [int];
@@ -723,6 +724,7 @@ public node turbocharger {
     input blowoff_type: "atmospheric";      // "atmospheric", "recirculating" or "none"
     input boost_control: "electronic";      // "electronic" or "spring"
     input wastegate: "internal";            // "internal" or "external"
+    input wastegate_off_boost: "closed";    // "closed", or "open" (electric actuators)
     input twin_scroll: false;
     input whistle_pitch: 1.0;
     input compressor_blades: 6;             // full blades of the compressor wheel
@@ -762,6 +764,7 @@ public node turbocharger {
             blowoff_type: blowoff_type,
             boost_control: boost_control,
             wastegate: wastegate,
+            wastegate_off_boost: wastegate_off_boost,
             twin_scroll: twin_scroll,
             whistle_pitch: whistle_pitch,
             compressor_blades: compressor_blades,
@@ -826,6 +829,7 @@ public node supercharger {
             blowoff_type: blowoff_type,
             boost_control: "electronic",
             wastegate: "internal",
+            wastegate_off_boost: "closed",
             twin_scroll: false,
             whistle_pitch: whistle_pitch,
             compressor_blades: compressor_blades,

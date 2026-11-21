@@ -141,6 +141,10 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
             BlowoffType blowoffType = BlowoffType::Atmospheric;
             BoostControl boostControl = BoostControl::Electronic;
             bool externalWastegate = false;         // larger, vents through its own pipe
+            // Electronic control holds the wastegate open whenever the
+            // engine is off boost (manifold below the outside's pressure),
+            // as engines with an electric wastegate actuator do
+            bool wastegateOpenOffBoost = false;
             bool twinScroll = false;                // divided turbine housing: better spool
             double whistlePitch = 1.0;              // sound only
             // Compressor wheel blades (centrifugal) and its inlet (sound only)
@@ -264,6 +268,7 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
         void setBoostControl(BoostControl control) { m_boostControl = control; }
         BoostControl getBoostControl() const { return m_boostControl; }
         bool hasExternalWastegate() const { return m_externalWastegate; }
+        bool isWastegateOpenOffBoost() const { return m_wastegateOpenOffBoost; }
         bool isTwinScroll() const { return m_twinScroll; }
         void setWhistlePitch(double pitch) { m_whistlePitch = pitch; }
         double getWhistlePitch() const { return m_whistlePitch; }
@@ -396,6 +401,7 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
         int m_compressorBlades;
         int m_splitterBlades;
         CompressorInlet m_compressorInlet;
+        bool m_wastegateOpenOffBoost;
         bool m_antiLag;
         bool m_antiLagActive;
         double m_antiLagTiming;

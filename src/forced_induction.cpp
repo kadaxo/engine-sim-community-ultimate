@@ -120,6 +120,7 @@ ForcedInduction::ForcedInduction() {
     m_compressorBlades = 6;
     m_splitterBlades = 6;
     m_compressorInlet = CompressorInlet::Silenced;
+    m_wastegateOpenOffBoost = false;
     m_antiLag = false;
     m_antiLagActive = false;
     m_antiLagTiming = 0;
@@ -217,6 +218,7 @@ void ForcedInduction::initialize(const Parameters &params) {
     m_splitterBlades = std::clamp(params.splitterBlades, 0, 20);
     m_compressorInlet = params.compressorInlet;
     m_maxCompressorFlow = clamp(params.compressorFlow, 0.01, 3.0);
+    m_wastegateOpenOffBoost = params.wastegateOpenOffBoost;
     m_antiLag = params.antiLag && isTurbocharger();
     m_antiLagActive = false;
     m_antiLagTiming = clamp(params.antiLagTiming, -constants::pi / 3, constants::pi / 6);
@@ -571,6 +573,11 @@ void ForcedInduction::process(double dt) {
                 const double ratio = m_wastegateK / std::max(activeTurbines * m_turbineK, 1e-12);
                 const double share = bypass * ratio / (1.0 + ratio);
                 wastegateTarget = clamp(share / ((1.0 - share) * ratio), 0.0, 1.0);
+
+                // Off boost (part throttle, idle, overrun) an electric
+                // actuator can hold it wide open, which lowers the pressure
+                // ahead of the turbine; it shuts as the throttle opens
+                if (m_wastegateOpenOffBoost && p_plenum < 0.9 * m_ambientPressure) wastegateTarget = 1.0;
             }
             else {
                 wastegateTarget = clamp((boost - 0.75 * m_boostTarget) / (0.45 * m_boostTarget), 0.0, 1.0);
@@ -848,13 +855,13 @@ double ForcedInduction::getWastegateShare() const {
 // A worn wastegate linkage (its arm in a worn bushing) lets the flapper move
 // in the play once it is off its seat, so each exhaust pulse knocks it
 // against the linkage: a metallic rattle at the firing rate. Shut, the
-// actuator holds it on its seat; the further it is held open the less the
-// pulses move it. A spring actuator holds it more loosely than an
-// electronic one, and an external wastegate's poppet valve rides on its own
-// guide and rattles less.
+// actuator holds it on its seat. A spring actuator holds it more loosely
+// than an electronic one, and an external wastegate's poppet valve rides on
+// its own guide and rattles less. (How hard the steady flow pins it against
+// the linkage is in the synthesizer, from the pulses themselves.)
 double ForcedInduction::getRattleShare() const {
     if (!isTurbocharger() || m_variableGeometry || m_wastegateRattle <= 0) return 0.0;
-    const double open = clamp(m_wastegate / 0.05, 0.0, 1.0) * (1.0 - 0.5 * m_wastegate);
+    const double open = clamp(m_wastegate / 0.05, 0.0, 1.0);
     const double hold = (m_boostControl == BoostControl::Spring) ? 1.0 : 0.6;
     const double valve = m_externalWastegate ? 0.3 : 1.0;
     return m_wastegateRattle * open * hold * valve;

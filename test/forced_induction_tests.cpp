@@ -506,3 +506,47 @@ TEST_F(ForcedInductionTest, BoostLeakVentsAndHisses) {
     EXPECT_LT(pinNoise.leak, splitNoise.leak);
     EXPECT_GT(pinNoise.leakFrequency, 2.5 * splitNoise.leakFrequency);
 }
+
+// An electric wastegate actuator can hold the wastegate open off boost and
+// shut it once the throttle opens; by default it stays shut off boost
+TEST_F(ForcedInductionTest, WastegateCanStayOpenOffBoost) {
+    auto run = [this](bool openOffBoost, double *partThrottle, double *fullBoost) {
+        TearDown();
+        SetUp();
+        ForcedInduction::Parameters params;
+        params.type = ForcedInduction::Type::Turbocharger;
+        params.compressorFlow = 0.25;
+        params.compressorDiameter = 0.055;
+        params.boost = units::pressure(0.8, units::bar);
+        params.wastegateOpenOffBoost = openOffBoost;
+
+        ForcedInduction fi;
+        fi.initialize(params);
+        connect(&fi);
+        const double dt = 1.0 / 20000;
+        const double exhaustFlow = 0.05 / units::AirMolecularMass;
+
+        // Part throttle: the plenum well below the outside's pressure
+        m_intake.m_throttle = 0.9;
+        for (int i = 0; i < 20000; ++i) {
+            fi.addExhaustFlow(exhaustFlow * dt, 900.0, 1.3 * Ambient, 1.33, GasSystem::k_carb(2000.0));
+            step(&fi, dt);
+        }
+        *partThrottle = fi.getWastegateOpening();
+
+        m_intake.m_throttle = 0.0;
+        for (int i = 0; i < 60000; ++i) {
+            fi.addExhaustFlow(4 * exhaustFlow * dt, 1100.0, 2.5 * Ambient, 1.33, GasSystem::k_carb(2000.0));
+            step(&fi, dt);
+        }
+        *fullBoost = fi.getBoost();
+    };
+
+    double shut, shutBoost, open, openBoost;
+    run(false, &shut, &shutBoost);
+    run(true, &open, &openBoost);
+    EXPECT_EQ(shut, 0.0);
+    EXPECT_GT(open, 0.95);
+    EXPECT_NEAR(openBoost, units::pressure(0.8, units::bar), units::pressure(0.25, units::bar));
+    EXPECT_NEAR(openBoost, shutBoost, units::pressure(0.05, units::bar));
+}

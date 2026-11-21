@@ -102,6 +102,7 @@ void Synthesizer::initialize(const Parameters &p) {
     m_whistleBand = m_whooshBand = m_roarBand = m_flutterBand = Bandpass();
     m_blowoffBand1 = m_blowoffBand2 = Bandpass();
     m_wastegateLast = 0;
+    m_farExhaustLow = m_farBayLow = 0;
     m_faultNoiseState = 0x27D4EB2Fu;
     m_whirlPhase = 0;
     m_whirlDrift = 0;
@@ -455,8 +456,25 @@ float Synthesizer::renderRawSample(int inputSample) {
     }
 
     const float exhaust = signal;
-    signal += renderForcedInduction(inputSample, exhaust);
-    signal += renderEngineNoise(inputSample, exhaust);
+    const float bay = renderForcedInduction(inputSample, exhaust) + renderEngineNoise(inputSample, exhaust);
+
+    // Listener position. Standing 3 m from one end of a 4.5 m car, the other
+    // end's sound has 7.5 m to travel: 8 dB down by spreading, and the car's
+    // body shields it, taken as another 4 dB above about 1.5 kHz. Beside the
+    // car both ends are about as far away, and the mix is as it is.
+    static constexpr float Far = 0.4f;
+    static constexpr float Shielded = 0.63f;
+    const float shelf = 1.0f - std::exp(-2.0f * 3.14159265f * 1500.0f / m_audioSampleRate);
+    auto farEnd = [shelf](float x, float &low) {
+        low += (x - low) * shelf;
+        if (std::fpclassify(low) == FP_SUBNORMAL) low = 0;
+        return Far * (low + Shielded * (x - low));
+    };
+    switch (m_audioParameters.listenerPosition) {
+        case 1: signal = exhaust + farEnd(bay, m_farBayLow); break;
+        case 2: signal = farEnd(exhaust, m_farExhaustLow) + bay; break;
+        default: signal = exhaust + bay; break;
+    }
 
     return m_antialiasing.fast_f(signal);
 }
@@ -701,7 +719,9 @@ float Synthesizer::renderForcedInduction(int inputSample, float signal) {
     // mean, and the seat side, more softly, as it falls back, each strike
     // ringing the flapper and housing's modes (about 2.3, 4.1 and 6.9 kHz).
     // The strike follows the pulse's height, in the exhaust channels' units
-    // like the wastegate's pipe above.
+    // like the wastegate's pipe above, less where a strong steady flow pins
+    // the flapper against the linkage (full load) than where the pulses
+    // throw it about freely (idle and cruise).
     const float knock = aux[16][inputSample];
     float rattle = 0;
     if (knock != 0.0f || m_rattlePeak > 0.0f) {
@@ -720,11 +740,14 @@ float Synthesizer::renderForcedInduction(int inputSample, float signal) {
         else if (!above && m_rattleAbove) strike = -0.5f * m_rattlePeak;
         m_rattleAbove = above;
 
-        if (strike != 0.0f) strike *= 1.0f + 0.3f * faultNoise();
+        if (strike != 0.0f) {
+            strike *= (1.0f + 0.3f * faultNoise())
+                * m_rattlePeak / (m_rattlePeak + 0.5f * std::abs(m_rattleMean) + 1e-12f);
+        }
         float gain = 0;
         for (int i = 0; i < m_inputChannelCount; ++i) gain += m_filters[i].impulseGain;
         gain /= std::max(m_inputChannelCount, 1);
-        const float x = 14.0f * gain * strike;
+        const float x = 40.0f * gain * strike;
         rattle = m_rattleBand1.process(x) + 0.7f * m_rattleBand2.process(x) + 0.5f * m_rattleBand3.process(x);
     }
 

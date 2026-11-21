@@ -48,6 +48,11 @@ class Synthesizer {
 
             // Turbocharger/supercharger whine and blow-off noise
             float forcedInductionVolume = 1.0f;
+
+            // Where the listener stands: 0 beside the car, 1 behind it, 2 in
+            // front of it. The exhaust comes from the back, and the turbo
+            // and the engine's own noise from the engine bay at the front.
+            int listenerPosition = 0;
         };
 
         struct Parameters {
@@ -158,6 +163,9 @@ class Synthesizer {
         Bandpass m_whistleBand, m_whooshBand, m_roarBand, m_flutterBand;
         Bandpass m_blowoffBand1, m_blowoffBand2;
         float m_wastegateLast;
+
+        // Listener position: the far end's sound, above 1.5 kHz
+        float m_farExhaustLow, m_farBayLow;
 
         // Turbo wear and faults, with their own noise source so they leave
         // the other sounds as they were

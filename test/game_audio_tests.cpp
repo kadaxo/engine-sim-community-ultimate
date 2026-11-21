@@ -1080,6 +1080,59 @@ TEST(ForcedInductionEngineTests, AntiLagHoldsTheBoostOffThrottle) {
     EXPECT_EQ(slow.afterburn, 0.0);
 }
 
+// A wastegate held open off boost (electric actuators) rattles near idle when
+// its linkage is worn: the pulses throw the flapper about with little steady
+// flow to pin it
+TEST(ForcedInductionEngineTests, WornWastegateHeldOpenRattlesOffBoost) {
+    const char *const Subaru = "subaru_ej25_twin_scroll_turbo.mr";
+    const std::string valve = "blowoff_type: \"atmospheric\"";
+    auto idle = [&](const char *name, const std::string &settings, double *opening) {
+        std::unique_ptr<EngineSession> session = startScript(
+            forcedInductionVariant(Subaru, name, valve, valve + ",\n        " + settings));
+        std::vector<float> clip;
+        EXPECT_TRUE(session);
+        if (!session) return clip;
+        holdAt(session.get(), 1000, 0.0);
+        session->advance(2.0, nullptr, nullptr);
+        session->advance(0.5, &clip, nullptr);
+        *opening = forcedInduction(*session)->getWastegateOpening();
+        return clip;
+    };
+
+    double open = 0, worn = 0;
+    const std::vector<float> sound = idle("open-wastegate", "wastegate_off_boost: \"open\"", &open);
+    const std::vector<float> rattle = idle("open-wastegate-rattle", "wastegate_off_boost: \"open\", wastegate_rattle: 1.0", &worn);
+    ASSERT_FALSE(sound.empty());
+    EXPECT_GT(open, 0.95);
+    EXPECT_GT(bandShare(rattle, 2000, 8000), bandShare(sound, 2000, 8000) + 4.0);
+}
+
+// Where the listener stands: the exhaust is at the back, the turbo at the
+// front. Behind the car the turbo's blade passing tones (above 8 kHz on the
+// example Subaru at full throttle) are a smaller part of the sound, in front
+// a larger one.
+TEST(ForcedInductionEngineTests, ListenerPositionMovesTheTurboAgainstTheExhaust) {
+    auto share = [](int position) {
+        SessionConfig config = forcedInductionConfig("subaru_ej25_twin_scroll_turbo.mr");
+        config.listenerPosition = position;
+        std::srand(1);
+        std::string error;
+        std::unique_ptr<EngineSession> session = EngineSession::create(config, &error);
+        EXPECT_TRUE(session) << error;
+        if (!session) return 0.0;
+        session->setIgnition(true);
+        holdAt(session.get(), 4000, 1.0);
+        session->advance(2.0, nullptr, nullptr);
+        std::vector<float> clip;
+        session->advance(0.5, &clip, nullptr);
+        return bandShare(clip, 8000, 16000);
+    };
+
+    const double beside = share(0), behind = share(1), front = share(2);
+    EXPECT_LT(behind, beside - 3.0) << "beside " << beside << " dB, behind " << behind << " dB";
+    EXPECT_GT(front, beside + 3.0) << "beside " << beside << " dB, in front " << front << " dB";
+}
+
 // Diesel injection, run in the example turbodiesel
 
 namespace {
