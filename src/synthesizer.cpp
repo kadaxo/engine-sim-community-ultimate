@@ -102,6 +102,14 @@ void Synthesizer::initialize(const Parameters &p) {
     m_whistleBand = m_whooshBand = m_roarBand = m_flutterBand = Bandpass();
     m_blowoffBand1 = m_blowoffBand2 = Bandpass();
     m_wastegateLast = 0;
+    m_faultNoiseState = 0x27D4EB2Fu;
+    m_whirlPhase = 0;
+    m_whirlDrift = 0;
+    m_whirlBand = m_leakBand1 = m_leakBand2 = Bandpass();
+    m_rattleBand1 = m_rattleBand2 = m_rattleBand3 = Bandpass();
+    m_rattlePeak = 0;
+    m_rattleMean = 0;
+    m_rattleAbove = false;
 
     m_blockBand1 = m_blockBand2 = m_tickBand = m_tickRing = Bandpass();
     m_tickEnvelope = 0;
@@ -479,6 +487,13 @@ float Synthesizer::fiNoise() {
     return static_cast<float>(m_fiNoiseState / 4294967295.0 * 2.0 - 1.0);
 }
 
+float Synthesizer::faultNoise() {
+    m_faultNoiseState ^= m_faultNoiseState << 13;
+    m_faultNoiseState ^= m_faultNoiseState >> 17;
+    m_faultNoiseState ^= m_faultNoiseState << 5;
+    return static_cast<float>(m_faultNoiseState / 4294967295.0 * 2.0 - 1.0);
+}
+
 // Turbocharger and supercharger sounds (from kyan0s-git/engine-sim), driven
 // by control channels from the simulation: [0] shaft or rotor frequency [Hz]
 // (times the whistle pitch), [1] whine level (positive displacement) or the
@@ -489,7 +504,10 @@ float Synthesizer::fiNoise() {
 // 3 twin-screw, 4 centrifugal; blow-off 0 vented, 1 recirculating, 2 none),
 // [7] blade passing tone, [8] splitter passing tone, [9] buzz-saw,
 // [10] whoosh, [11] its centre [Hz], [12] the blow-off jet's peak [Hz] and
-// [13] the deep surge rate [Hz] (levels relative to the reference blade
+// [13] the deep surge rate [Hz], [14] worn bearings' whirl, [15] its
+// frequency over the shaft's, [16] the exhaust pulses that knock a worn
+// wastegate's flapper (exhaust channels' units), [17] a boost leak's jet and
+// [18] its peak [Hz] (levels relative to the reference blade
 // passing tone, see ForcedInduction::getCompressorTones() and
 // getAirNoise()). They follow the loudness of the engine: the exhaust
 // channels' units aren't the same loudness from one engine script to
@@ -582,6 +600,27 @@ float Synthesizer::renderForcedInduction(int inputSample, float signal) {
         // air rushing in, both broadband
         compressor += 2.0f * whoosh * m_whooshBand.process(fiNoise());
         compressor += 2.0f * roar * m_roarBand.process(fiNoise());
+
+        // Worn bearings. Oil whirl isn't locked to the shaft: its pitch
+        // wanders by a percent or two. A worn ball bearing's defect tone is
+        // rough, and swells once per revolution.
+        const float whirl = std::max(aux[14][inputSample], 0.0f);
+        const float whirlRatio = aux[15][inputSample];
+        if (whirl > 0.0f && whirlRatio > 0.0f) {
+            m_whirlDrift += (faultNoise() - m_whirlDrift) * (2.0f * 3.14159265f * 2.0f / fs);
+            const float f = whirlRatio * shaft * (1.0f + 2.0f * m_whirlDrift);
+            if ((m_fiCounter & 31) == 3) m_whirlBand.set(f, (whirlRatio < 1.0f) ? 30.0f : 8.0f, fs);
+            if (whirlRatio < 1.0f) {
+                m_whirlPhase += twoPi * f / fs;
+                if (m_whirlPhase > twoPi) m_whirlPhase -= twoPi;
+                compressor += whirl * fade(f)
+                    * (0.8f * static_cast<float>(std::sin(m_whirlPhase)) + 1.5f * m_whirlBand.process(faultNoise()));
+            }
+            else {
+                compressor += whirl * fade(f) * (1.0f + 0.5f * static_cast<float>(std::sin(p)))
+                    * 2.5f * m_whirlBand.process(faultNoise());
+            }
+        }
     }
     else {
         // Supercharger rotor whine: lobe passing frequency with harmonics
@@ -627,6 +666,19 @@ float Synthesizer::renderForcedInduction(int inputSample, float signal) {
         bursts += 0.44f * blowoff * (1.6f * m_blowoffBand1.process(r) + 0.8f * m_blowoffBand2.process(r));
     }
 
+    // A leak in the charge pipe: a jet like the blow-off valve's, steady
+    // while the charge is above the outside's pressure
+    const float leak = std::max(aux[17][inputSample], 0.0f);
+    if (leak > 0.001f) {
+        const float leakFrequency = aux[18][inputSample];
+        if ((m_fiCounter & 31) == 4) {
+            m_leakBand1.set(std::max(leakFrequency, 800.0f), 0.7f, fs);
+            m_leakBand2.set(std::max(2.5f * leakFrequency, 2000.0f), 1.0f, fs);
+        }
+        const float r = faultNoise();
+        bursts += 0.44f * leak * (1.6f * m_leakBand1.process(r) + 0.8f * m_leakBand2.process(r));
+    }
+
     // External wastegate: its share of the exhaust pulses, out of a short
     // pipe with no muffler. An open pipe end radiates as a monopole, its
     // pressure following the rate of change of the flow, so the pulses come
@@ -642,8 +694,42 @@ float Synthesizer::renderForcedInduction(int inputSample, float signal) {
         m_wastegateLast = wastegate;
     }
 
+    // A worn wastegate's flapper: each exhaust pulse throws it across its
+    // play. The steady part of the pressure holds it to one side; the
+    // pulses riding on it throw it across. It strikes the linkage as a
+    // pulse rises through half of the pulses' recent height above the
+    // mean, and the seat side, more softly, as it falls back, each strike
+    // ringing the flapper and housing's modes (about 2.3, 4.1 and 6.9 kHz).
+    // The strike follows the pulse's height, in the exhaust channels' units
+    // like the wastegate's pipe above.
+    const float knock = aux[16][inputSample];
+    float rattle = 0;
+    if (knock != 0.0f || m_rattlePeak > 0.0f) {
+        if ((m_fiCounter & 31) == 5 || m_rattleBand1.b0 == 0.0f) {
+            m_rattleBand1.set(2300.0f, 20.0f, fs);
+            m_rattleBand2.set(4100.0f, 25.0f, fs);
+            m_rattleBand3.set(6900.0f, 30.0f, fs);
+        }
+        m_rattleMean += (knock - m_rattleMean) / (0.03f * fs);
+        const float pulse = knock - m_rattleMean;
+        m_rattlePeak = std::max(std::abs(pulse), m_rattlePeak * (1.0f - 1.0f / (0.05f * fs)));
+        if (m_rattlePeak < 1e-9f) m_rattlePeak = 0.0f;
+        float strike = 0;
+        const bool above = pulse > 0.5f * m_rattlePeak;
+        if (above && !m_rattleAbove) strike = m_rattlePeak;
+        else if (!above && m_rattleAbove) strike = -0.5f * m_rattlePeak;
+        m_rattleAbove = above;
+
+        if (strike != 0.0f) strike *= 1.0f + 0.3f * faultNoise();
+        float gain = 0;
+        for (int i = 0; i < m_inputChannelCount; ++i) gain += m_filters[i].impulseGain;
+        gain /= std::max(m_inputChannelCount, 1);
+        const float x = 14.0f * gain * strike;
+        rattle = m_rattleBand1.process(x) + 0.7f * m_rattleBand2.process(x) + 0.5f * m_rattleBand3.process(x);
+    }
+
     return volume * ((tonal + 0.35f * compressor) * (1.1f * m_mixEnvelope + 0.4f * floor)
-        + bursts * reference * 1.5f + pipe);
+        + bursts * reference * 1.5f + pipe + rattle);
 }
 
 // A diesel's engine noise, driven by two control channels from the

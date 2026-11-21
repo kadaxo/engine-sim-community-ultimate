@@ -151,6 +151,20 @@ class CombustionChamber : public atg_scs::ForceGenerator {
 
         bool m_litLastFrame;
 
+        // Anti-lag: whether this cycle's unburnt mixture lights in the hot
+        // exhaust runner, and the burning there
+        bool m_afterburn;
+        double m_afterburnFuel;     // burned in the runner so far [kg]
+        double m_afterburnWait;     // until it lights [s]
+        double m_afterburnTime;     // left to burn [s]
+        void afterburn(double dt);
+
+    public:
+        double getAfterburnFuel() const { return m_afterburnFuel; }
+        double getBurntFuel() const { return m_nBurntFuel; }       // in the cylinder so far [kg]
+
+    protected:
+
         Piston *m_piston;
         CylinderHead *m_head;
         Engine *m_engine;

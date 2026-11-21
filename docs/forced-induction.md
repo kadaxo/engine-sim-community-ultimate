@@ -61,6 +61,13 @@ variable geometry turbo ([diesel.md](diesel.md)).
 | `compressor_blades` | 6 | Full blades of the compressor wheel (sound only) |
 | `splitter_blades` | 6 | Splitter blades between them (sound only) |
 | `compressor_inlet` | `"silenced"` | What the compressor draws through: `"silenced"` (a factory airbox with a resonator), `"airbox"` or `"open"` (an open filter). Decides how much of the whistle gets out |
+| `bearing_wear` | 0 | Worn shaft bearings, from 0 (new) to 1 (worn out): a whine below the whistle with journal bearings, a rough tone above it with ball bearings |
+| `wastegate_rattle` | 0 | A worn wastegate linkage, 0 to 1: the open flapper rattles on each exhaust pulse |
+| `boost_leak` | 0 | A hole or split coupler in the charge pipe, as its diameter: it hisses and costs boost |
+| `anti_lag` | false | A "bang-bang" anti-lag system (see below) |
+| `anti_lag_timing` | -30 deg | Its spark timing (negative: after top dead centre) |
+| `anti_lag_throttle` | 0.25 | The throttle opening it holds |
+| `anti_lag_min_speed` | 3000 rpm | It works above this engine speed |
 
 ### supercharger
 
@@ -71,6 +78,7 @@ variable geometry turbo ([diesel.md](diesel.md)).
 | `drive_ratio` | 2.0 | Rotor speed / crankshaft speed (for centrifugal ones, including the gearbox step-up) |
 | `compressor_diameter`, `compressor_flow`, `compressor_efficiency`, `max_speed` | 90 mm, 0.5 kg/s, 0.75, 0 | Centrifugal superchargers, as for the turbocharger |
 | `compressor_blades`, `splitter_blades`, `compressor_inlet` | 6, 6, `"silenced"` | Centrifugal superchargers, as for the turbocharger |
+| `boost_leak` | 0 | As for the turbocharger |
 | `bypass_valve` | true | Recirculates the delivery at part throttle (Roots and twin-screw) |
 | `blowoff_valve`, `blowoff_type` | true, `"atmospheric"` | Centrifugal superchargers |
 | `intercooler_effectiveness` | 0.0 | |
@@ -169,6 +177,45 @@ of the engine:
 * **External wastegate**: what it bypasses leaves through its own short pipe with no muffler
   instead of going on to the muffled exhaust. The open pipe end radiates the rate of change
   of those pulses, a rasp.
+* **Worn bearings** (`bearing_wear`): the rotor moves in its bearings' clearance. In journal
+  (floating ring) bearings the inner oil film whirls at 0.35 to 0.45 times the shaft's speed
+  once the shaft is fast enough, the "constant tone" that new bearings keep faint: worn, it
+  sets in at a lower speed and grows into a whine below the whistle, wandering a little in
+  pitch because it isn't locked to the shaft. It is the whole rotor moving, so it comes out
+  through the housing rather than only the inlet; worn out it is taken as twice the once per
+  revolution tone's source. Worn ball bearings ring at the balls passing a race defect (3.6
+  times the shaft) instead, rough and swelling once per revolution. Wear also lets the
+  imbalance move the rotor further, which raises the once per revolution tone (twice as loud
+  worn out).
+* **Wastegate rattle** (`wastegate_rattle`): a worn wastegate arm in its bushing lets the
+  flapper move in the play once it is off its seat. The steady part of the exhaust pressure
+  holds it to one side and each pulse throws it across: it strikes as the pulse rises and,
+  more softly, as it falls back, ringing the flapper and housing at about 2.3, 4.1 and 6.9 kHz.
+  Shut, the actuator holds it on its seat; the further it is held open the less it moves. A
+  spring actuator holds it more loosely than an electronic one, an external wastegate's poppet
+  rattles less, and variable geometry has no wastegate. The wastegate here only opens on boost,
+  so this is the rattle under load; engines whose control holds the wastegate open at idle and
+  cruise (and rattle there) are not modelled.
+* **Boost leak** (`boost_leak`): a sharp-edged hole (discharge coefficient 0.65) between the
+  charge and the outside. It vents air the compressor has to make up, so the wastegate shuts
+  further, the turbo spools later and the engine makes less torque at the same boost (on the
+  example Subaru a 20 mm split coupler leaves 0.47 bar at 2500 rpm instead of 0.98 and costs
+  14 to 36% of its torque, where a 6 mm hole costs 1 to 3%). Its jet hisses like the blow-off
+  valve's, through the hole's own diameter, with its peak at a Strouhal number of 0.2: a 6 mm
+  hole at 1 bar about 11 kHz, a split coupler a broad roar from 2 kHz up.
+* **Anti-lag** (`anti_lag`): a rally car's "bang-bang" system. With the driver's throttle below
+  `anti_lag_throttle` and the engine above `anti_lag_min_speed`, it holds the throttle that far
+  open, fires the spark at `anti_lag_timing` (30 degrees after top dead centre by default),
+  cuts it altogether on about a third of the cycles at random, and keeps the blow-off valve
+  shut. A cut cycle's whole charge is pushed into the exhaust runner unburnt, where the other
+  cycles' late-burning gas keeps it hot (above about 900 K): 5 to 10 ms after the cut spark it
+  lights and burns in about 0.3 ms. That pressure rise is the bang, heard in the exhaust like
+  any other pulse, irregular because the cuts are, and its energy keeps the turbo spinning so the
+  boost is there when the throttle opens again (the example Subaru keeps about 12.5 of its 14 psi
+  off the throttle at 4500 rpm, where it otherwise drops to nothing). The engine makes little
+  torque meanwhile.
+  The burning in the runner only happens while anti-lag is on: other engines' unburnt fuel
+  stays unburnt, as it always has, so they don't pop on the overrun.
 * **The turbine** absorbs part of the exhaust pulses, so a turbocharged engine sounds more
   muffled than the same engine without one. The exhaust is heard past it: the turbine and
   wastegate take their share of the pressure drop to the outside, so only the rest of the

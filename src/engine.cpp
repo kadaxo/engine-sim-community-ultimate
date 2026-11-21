@@ -218,8 +218,18 @@ void Engine::setThrottle(double throttle) {
         m_dieselInjection->setPedal(clamp(1.0 - throttle));
     }
 
+    // Anti-lag: with the driver's throttle below the opening it holds and
+    // the engine above its minimum speed, it holds the plates that far open
+    double plates = throttle;
+    if (m_forcedInduction != nullptr && m_forcedInduction->hasAntiLag()) {
+        const double opening = m_forcedInduction->getAntiLagThrottle();
+        const bool active = (1.0 - throttle) < opening && getSpeed() > m_forcedInduction->getAntiLagMinSpeed();
+        m_forcedInduction->setAntiLagActive(active);
+        if (active) plates = std::min(plates, 1.0 - opening);
+    }
+
     for (int i = 0; i < m_intakeCount; ++i) {
-        m_intakes[i].m_throttle = (m_dieselInjection != nullptr) ? 0.0 : throttle;
+        m_intakes[i].m_throttle = (m_dieselInjection != nullptr) ? 0.0 : plates;
     }
 
     m_throttleValue = throttle;

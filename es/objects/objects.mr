@@ -667,6 +667,13 @@ private node _forced_induction => __engine_sim__forced_induction {
     input compressor_blades [int];
     input splitter_blades [int];
     input compressor_inlet [string];
+    input bearing_wear [float];
+    input wastegate_rattle [float];
+    input boost_leak [float];
+    input anti_lag [bool];
+    input anti_lag_timing [float];
+    input anti_lag_throttle [float];
+    input anti_lag_min_speed [float];
     alias output __out [forced_induction_channel];
 }
 
@@ -684,6 +691,16 @@ private node _forced_induction => __engine_sim__forced_induction {
 // compressor_inlet: what the compressor draws through, which decides how much
 // of its whistle gets out: "silenced" (a factory airbox with a resonator),
 // "airbox" or "open" (an open filter)
+// bearing_wear: worn shaft bearings, from 0 (new) to 1 (worn out): a whine
+// below the whistle (journal bearings) or a rough tone above it (ball)
+// wastegate_rattle: a worn wastegate linkage, 0 to 1: the open flapper
+// rattles on each exhaust pulse
+// boost_leak: a hole or split coupler in the charge pipe, as its diameter:
+// it hisses and costs boost
+// anti_lag: a "bang-bang" anti-lag system. Off the throttle above
+// anti_lag_min_speed it holds the throttle open by anti_lag_throttle and
+// fires the spark at anti_lag_timing (after top dead centre), so the mixture
+// burns on in the exhaust manifold: it bangs and keeps the turbo spinning
 public node turbocharger {
     input arrangement: "single";
     input compressor_diameter: 60 * units.mm;
@@ -711,6 +728,13 @@ public node turbocharger {
     input compressor_blades: 6;             // full blades of the compressor wheel
     input splitter_blades: 6;               // splitter blades between them
     input compressor_inlet: "silenced";     // "silenced", "airbox" or "open"
+    input bearing_wear: 0.0;
+    input wastegate_rattle: 0.0;
+    input boost_leak: 0.0 * units.mm;
+    input anti_lag: false;
+    input anti_lag_timing: -30 * units.deg;
+    input anti_lag_throttle: 0.25;
+    input anti_lag_min_speed: 3000 * units.rpm;
     alias output __out:
         _forced_induction(
             type: "turbo",
@@ -742,7 +766,14 @@ public node turbocharger {
             whistle_pitch: whistle_pitch,
             compressor_blades: compressor_blades,
             splitter_blades: splitter_blades,
-            compressor_inlet: compressor_inlet
+            compressor_inlet: compressor_inlet,
+            bearing_wear: bearing_wear,
+            wastegate_rattle: wastegate_rattle,
+            boost_leak: boost_leak,
+            anti_lag: anti_lag,
+            anti_lag_timing: anti_lag_timing,
+            anti_lag_throttle: anti_lag_throttle,
+            anti_lag_min_speed: anti_lag_min_speed
         );
 }
 
@@ -767,6 +798,7 @@ public node supercharger {
     input compressor_blades: 6;             // full blades of the compressor wheel
     input splitter_blades: 6;               // splitter blades between them
     input compressor_inlet: "silenced";     // "silenced", "airbox" or "open"
+    input boost_leak: 0.0 * units.mm;       // a hole in the charge pipe (diameter)
     alias output __out:
         _forced_induction(
             type: type,
@@ -798,7 +830,14 @@ public node supercharger {
             whistle_pitch: whistle_pitch,
             compressor_blades: compressor_blades,
             splitter_blades: splitter_blades,
-            compressor_inlet: compressor_inlet
+            compressor_inlet: compressor_inlet,
+            bearing_wear: 0.0,
+            wastegate_rattle: 0.0,
+            boost_leak: boost_leak,
+            anti_lag: false,
+            anti_lag_timing: 0.0,
+            anti_lag_throttle: 0.0,
+            anti_lag_min_speed: 0.0
         );
 }
 

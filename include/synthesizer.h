@@ -22,7 +22,7 @@ class Synthesizer {
         // Control channels a simulation writes after its exhaust channels to
         // drive the turbocharger and supercharger sounds, see
         // renderForcedInduction()
-        static constexpr int ForcedInductionChannelCount = 14;
+        static constexpr int ForcedInductionChannelCount = 19;
 
         // Control channels after those for a diesel's engine noise, see
         // renderEngineNoise(): the combustion pressure rise and the injector
@@ -158,6 +158,18 @@ class Synthesizer {
         Bandpass m_whistleBand, m_whooshBand, m_roarBand, m_flutterBand;
         Bandpass m_blowoffBand1, m_blowoffBand2;
         float m_wastegateLast;
+
+        // Turbo wear and faults, with their own noise source so they leave
+        // the other sounds as they were
+        float faultNoise();
+        uint32_t m_faultNoiseState;
+        double m_whirlPhase;
+        float m_whirlDrift;
+        Bandpass m_whirlBand, m_leakBand1, m_leakBand2;
+        Bandpass m_rattleBand1, m_rattleBand2, m_rattleBand3;
+        float m_rattlePeak;
+        float m_rattleMean;
+        bool m_rattleAbove;
 
         // Engine noise (diesel injection), with its own noise source
         Bandpass m_blockBand1, m_blockBand2, m_tickBand, m_tickRing;

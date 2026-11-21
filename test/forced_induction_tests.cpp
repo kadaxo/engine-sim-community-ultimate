@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <tuple>
 #include <vector>
 
 namespace {
@@ -374,4 +375,134 @@ TEST_F(ForcedInductionTest, BlowoffJetFadesAsTheChargeEmpties) {
 
     // Through the factory intake (silenced, the default)
     EXPECT_LT(recirculated[at].blowoff, 0.2 * vented[at].blowoff);
+}
+
+// Worn journal bearings whirl below the shaft's speed, earlier and stronger
+// the more worn; worn ball bearings ring above it. Wear also lets the
+// imbalance move the rotor further.
+TEST_F(ForcedInductionTest, WornBearingsWhirl) {
+    auto tones = [this](double wear, bool ball, double driveRatio) {
+        TearDown();
+        SetUp();
+        ForcedInduction::Parameters params;
+        params.type = ForcedInduction::Type::Centrifugal;
+        params.driveRatio = driveRatio;
+        params.compressorDiameter = 0.08;
+        params.compressorFlow = 0.4;
+        params.compressorInlet = ForcedInduction::CompressorInlet::Open;
+        params.ballBearings = ball;
+        params.bearingWear = wear;
+
+        ForcedInduction fi;
+        fi.initialize(params);
+        connect(&fi);
+        const double dt = 1.0 / 20000;
+        for (int i = 0; i < 10000; ++i) step(&fi, dt);
+        return fi.getCompressorTones();
+    };
+
+    // 90000 rpm, 377 m/s at the tip
+    const ForcedInduction::CompressorTones fresh = tones(0.0, false, 18.0);
+    const ForcedInduction::CompressorTones worn = tones(1.0, false, 18.0);
+    const ForcedInduction::CompressorTones half = tones(0.5, false, 18.0);
+    EXPECT_EQ(fresh.whirl, 0.0);
+    EXPECT_GT(worn.whirl, 1.5 * fresh.synchronous);
+    EXPECT_GE(worn.whirlRatio, 0.33);
+    EXPECT_LE(worn.whirlRatio, 0.45);
+    EXPECT_NEAR(half.whirl / worn.whirl, 0.5, 0.05);
+    EXPECT_NEAR(worn.synchronous / fresh.synchronous, 2.0, 0.01);
+
+    // At 168 m/s only the worn-out bearings have started to whirl fully
+    const ForcedInduction::CompressorTones slowWorn = tones(1.0, false, 8.0);
+    const ForcedInduction::CompressorTones slowHalf = tones(0.5, false, 8.0);
+    EXPECT_GT(slowWorn.whirl, 0.0);
+    EXPECT_LT(slowHalf.whirl, 0.3 * slowWorn.whirl);
+
+    const ForcedInduction::CompressorTones ball = tones(1.0, true, 18.0);
+    EXPECT_GT(ball.whirl, 0.0);
+    EXPECT_GT(ball.whirlRatio, 1.0);
+}
+
+// A worn wastegate rattles only while it is open, more on a spring actuator,
+// and a variable geometry turbine has no wastegate to rattle
+TEST_F(ForcedInductionTest, WastegateRattlesOnlyWhenOpen) {
+    auto run = [this](ForcedInduction::BoostControl control, bool vanes, double rattle,
+                      double *shut, double *open) {
+        TearDown();
+        SetUp();
+        ForcedInduction::Parameters params;
+        params.type = ForcedInduction::Type::Turbocharger;
+        params.compressorFlow = 0.25;
+        params.compressorDiameter = 0.055;
+        params.boost = units::pressure(0.8, units::bar);
+        params.boostControl = control;
+        params.variableGeometry = vanes;
+        params.wastegateRattle = rattle;
+
+        ForcedInduction fi;
+        fi.initialize(params);
+        connect(&fi);
+        const double dt = 1.0 / 20000;
+        for (int i = 0; i < 2000; ++i) step(&fi, dt);
+        *shut = fi.getRattleShare();
+
+        const double exhaustFlow = 0.2 / units::AirMolecularMass;
+        for (int i = 0; i < 60000; ++i) {
+            fi.addExhaustFlow(exhaustFlow * dt, 1100.0, 2.5 * Ambient, 1.33, GasSystem::k_carb(2000.0));
+            step(&fi, dt);
+        }
+        *open = fi.getRattleShare();
+        if (!vanes) EXPECT_GT(fi.getWastegateOpening(), 0.01);
+    };
+
+    using Control = ForcedInduction::BoostControl;
+    double shut, electronic, spring, vanes, fresh, unused;
+    run(Control::Electronic, false, 1.0, &shut, &electronic);
+    EXPECT_EQ(shut, 0.0);
+    EXPECT_GT(electronic, 0.0);
+
+    run(Control::Spring, false, 1.0, &unused, &spring);
+    EXPECT_GT(spring, electronic);
+
+    run(Control::Electronic, true, 1.0, &unused, &vanes);
+    EXPECT_EQ(vanes, 0.0);
+
+    run(Control::Electronic, false, 0.0, &unused, &fresh);
+    EXPECT_EQ(fresh, 0.0);
+}
+
+// A hole in the charge pipe vents the boost and hisses as a jet through it:
+// the smaller the hole, the higher the hiss
+TEST_F(ForcedInductionTest, BoostLeakVentsAndHisses) {
+    auto run = [this](double hole) {
+        TearDown();
+        SetUp();
+        ForcedInduction::Parameters params;
+        params.type = ForcedInduction::Type::Centrifugal;
+        params.driveRatio = 14.0;
+        params.compressorDiameter = 0.08;
+        params.compressorFlow = 0.4;
+        params.boostLeak = hole;
+
+        ForcedInduction fi;
+        fi.initialize(params);
+        connect(&fi);
+        const double dt = 1.0 / 20000;
+        for (int i = 0; i < 20000; ++i) step(&fi, dt);
+        return std::make_tuple(fi.getBoost(), fi.getLeakFlow(), fi.getAirNoise());
+    };
+
+    const auto [tight, noFlow, quiet] = run(0.0);
+    const auto [split, splitFlow, splitNoise] = run(0.02);
+    const auto [pin, pinFlow, pinNoise] = run(0.006);
+    EXPECT_GT(tight, units::pressure(0.2, units::bar));
+    EXPECT_EQ(noFlow, 0.0);
+    EXPECT_EQ(quiet.leak, 0.0);
+
+    EXPECT_LT(split, tight - units::pressure(0.03, units::bar));
+    EXPECT_GT(splitFlow, 0.0);
+    EXPECT_GT(splitNoise.leak, 0.0);
+    EXPECT_GT(pinNoise.leak, 0.0);
+    EXPECT_LT(pinNoise.leak, splitNoise.leak);
+    EXPECT_GT(pinNoise.leakFrequency, 2.5 * splitNoise.leakFrequency);
 }

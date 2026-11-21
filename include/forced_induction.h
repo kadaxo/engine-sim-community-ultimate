@@ -87,6 +87,9 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
             double bladePass = 0;       // full blades past the inducer
             double splitterPass = 0;    // full and splitter blades past the exducer
             double buzzSaw = 0;         // shaft harmonics from the inducer's shocks
+            double whirl = 0;           // worn bearings: the rotor's whirl, through the housing
+            double whirlRatio = 0;      // its frequency over the shaft's (below 1: oil whirl in
+                                        // journal bearings; above: ball bearings' defect tone)
         };
 
         // The noise of the air, each level relative to the reference blade
@@ -100,6 +103,8 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
             double blowoffFrequency = 0;    // its peak [Hz]
             double surge = 0;               // flow reversing through the compressor
             double surgeRate = 0;           // deep surge cycles per second [Hz]
+            double leak = 0;                // a leak in the charge pipe: its jet
+            double leakFrequency = 0;       // its peak [Hz]
         };
 
         struct Parameters {
@@ -142,6 +147,23 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
             int compressorBlades = 6;
             int splitterBlades = 6;
             CompressorInlet compressorInlet = CompressorInlet::Silenced;
+
+            // Wear and faults, all off by default: worn shaft bearings
+            // [0 new, 1 worn out], a worn wastegate linkage that lets the
+            // open flapper rattle [0, 1], and a hole in the charge pipe or
+            // a split coupler, as its diameter [m]
+            double bearingWear = 0;
+            double wastegateRattle = 0;
+            double boostLeak = 0;
+
+            // Anti-lag ("bang-bang"): off the throttle above a minimum speed
+            // it holds the throttle partly open and fires the spark very
+            // late, so the mixture burns on into the exhaust manifold and
+            // keeps the turbo spinning
+            bool antiLag = false;
+            double antiLagTiming = -30.0 * 3.14159265358979 / 180;     // [rad], after top dead centre
+            double antiLagThrottle = 0.25;                             // throttle opening it holds
+            double antiLagMinSpeed = 2 * 3.14159265358979 * 3000 / 60; // [rad/s]
 
             // Superchargers
             double driveRatio = 1.0;                // compressor speed / crank speed
@@ -268,6 +290,24 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
         // own pipe, past the turbine and the muffler [0, 1]
         double getWastegateShare() const;
 
+        // How hard the exhaust pulses knock a worn wastegate's open flapper
+        // about, per unit of pulse [0, 1]
+        double getRattleShare() const;
+
+        // Anti-lag: the engine switches it on and off with the driver's
+        // throttle and the engine speed (see Engine::setThrottle())
+        bool hasAntiLag() const { return m_antiLag; }
+        bool isAntiLagActive() const { return m_antiLagActive; }
+        void setAntiLagActive(bool active) { m_antiLagActive = m_antiLag && active; }
+        double getAntiLagTiming() const { return m_antiLagTiming; }
+        double getAntiLagThrottle() const { return m_antiLagThrottle; }
+        double getAntiLagMinSpeed() const { return m_antiLagMinSpeed; }
+
+        double getBearingWear() const { return m_bearingWear; }
+        double getWastegateRattle() const { return m_wastegateRattle; }
+        double getBoostLeak() const { return m_leakDiameter; }             // [m]
+        double getLeakFlow() const { return m_leakFlowRate; }              // out of the charge [mol/s]
+
         // Sound type for the synthesizer: 10 * type (1 turbocharger, 2 Roots,
         // 3 twin-screw, 4 centrifugal) + blow-off type (0 vented to the
         // atmosphere, 1 recirculating, 2 none) + 100 * full blades + 10000 *
@@ -356,6 +396,17 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
         int m_compressorBlades;
         int m_splitterBlades;
         CompressorInlet m_compressorInlet;
+        bool m_antiLag;
+        bool m_antiLagActive;
+        double m_antiLagTiming;
+        double m_antiLagThrottle;
+        double m_antiLagMinSpeed;
+        bool m_ballBearings;
+        double m_bearingWear;
+        double m_wastegateRattle;
+        double m_leakDiameter;
+        double m_boostLeakK;
+        double m_leakFlowRate;
         double m_surge;
         double m_wastegateIntegral;
         double m_lastBoost;

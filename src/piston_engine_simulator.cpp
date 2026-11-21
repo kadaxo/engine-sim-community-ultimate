@@ -323,6 +323,10 @@ void PistonEngineSimulator::placeCylinder(int i) {
 void PistonEngineSimulator::simulateStep_() {
     const double timestep = getTimestep();
     IgnitionModule *im = m_engine->getIgnitionModule();
+    const ForcedInduction *antiLag = m_engine->getForcedInduction();
+    if (antiLag != nullptr && antiLag->hasAntiLag()) {
+        im->setTimingOverride(antiLag->isAntiLagActive(), antiLag->getAntiLagTiming());
+    }
     im->update(timestep);
 
     const int cylinderCount = m_engine->getCylinderCount();
@@ -461,7 +465,14 @@ void PistonEngineSimulator::writeToSynthesizer() {
     // A turbine absorbs part of the exhaust pulses
     ForcedInduction *forcedInduction = m_engine->getForcedInduction();
     double wastegatePulses = 0;
+    double rattlePulses = 0;
     if (forcedInduction != nullptr && forcedInduction->isTurbocharger()) {
+        // The pulses that reach a worn wastegate's flapper, before the turbine
+        const double rattle = forcedInduction->getRattleShare();
+        for (int i = 0; i < exhaustSystemCount; ++i) {
+            rattlePulses += rattle * m_exhaustFlowStagingBuffer[i];
+        }
+
         const double fraction = forcedInduction->getTurbineFlowFraction();
         const double muffling = 1.0 - 0.35 * fraction;
 
@@ -509,6 +520,8 @@ void PistonEngineSimulator::writeToSynthesizer() {
             aux[7] = tones.bladePass;
             aux[8] = tones.splitterPass;
             aux[9] = tones.buzzSaw;
+            aux[14] = tones.whirl;
+            aux[15] = tones.whirlRatio;
         }
         const ForcedInduction::AirNoise air = forcedInduction->getAirNoise();
         aux[2] = air.blowoff;
@@ -519,6 +532,9 @@ void PistonEngineSimulator::writeToSynthesizer() {
         aux[11] = air.whooshFrequency;
         aux[12] = air.blowoffFrequency;
         aux[13] = air.surgeRate;
+        aux[16] = rattlePulses;
+        aux[17] = air.leak;
+        aux[18] = air.leakFrequency;
         aux[6] = forcedInduction->getSoundMode();
     }
 

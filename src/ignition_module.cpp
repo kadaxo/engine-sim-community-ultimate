@@ -18,6 +18,8 @@ IgnitionModule::IgnitionModule() {
     m_revLimit = 0;
     m_limiterDuration = 0;
     m_eventAdvance = 0;
+    m_overrideTiming = false;
+    m_overrideAdvance = 0;
     m_sparksPerCycle = 1;
 }
 
@@ -59,7 +61,7 @@ void IgnitionModule::update(double dt) {
 
     if (m_enabled && m_revLimitTimer == 0) {
         const double fourPi = 4 * constants::pi;
-        const double advance = getTimingAdvance() + m_eventAdvance;
+        const double advance = (m_overrideTiming ? m_overrideAdvance : getTimingAdvance()) + m_eventAdvance;
 
         for (int spark = 0; spark < m_sparksPerCycle * m_cylinderCount; ++spark) {
             const int i = spark % m_cylinderCount;

@@ -61,6 +61,13 @@ namespace es_script {
             params.compressorInlet = (m_compressorInlet == "airbox") ? ForcedInduction::CompressorInlet::Airbox
                 : (m_compressorInlet == "open") ? ForcedInduction::CompressorInlet::Open
                 : ForcedInduction::CompressorInlet::Silenced;
+            params.bearingWear = m_bearingWear;
+            params.wastegateRattle = m_wastegateRattle;
+            params.boostLeak = m_boostLeak;
+            params.antiLag = m_antiLag;
+            params.antiLagTiming = m_antiLagTiming;
+            params.antiLagThrottle = m_antiLagThrottle;
+            params.antiLagMinSpeed = m_antiLagMinSpeed;
             params.driveRatio = m_driveRatio;
             params.displacement = m_displacement;
             params.bypassValve = m_bypassValve;
@@ -105,6 +112,13 @@ namespace es_script {
             addInput("compressor_blades", &m_compressorBlades);
             addInput("splitter_blades", &m_splitterBlades);
             addInput("compressor_inlet", &m_compressorInlet);
+            addInput("bearing_wear", &m_bearingWear);
+            addInput("wastegate_rattle", &m_wastegateRattle);
+            addInput("boost_leak", &m_boostLeak);
+            addInput("anti_lag", &m_antiLag);
+            addInput("anti_lag_timing", &m_antiLagTiming);
+            addInput("anti_lag_throttle", &m_antiLagThrottle);
+            addInput("anti_lag_min_speed", &m_antiLagMinSpeed);
 
             ObjectReferenceNode<ForcedInductionNode>::registerInputs();
         }
@@ -144,6 +158,13 @@ namespace es_script {
         int m_compressorBlades = 6;
         int m_splitterBlades = 6;
         std::string m_compressorInlet = "silenced";
+        double m_bearingWear = 0.0;
+        double m_wastegateRattle = 0.0;
+        double m_boostLeak = 0.0;
+        bool m_antiLag = false;
+        double m_antiLagTiming = -30.0 * 3.14159265358979 / 180;
+        double m_antiLagThrottle = 0.25;
+        double m_antiLagMinSpeed = 2 * 3.14159265358979 * 3000 / 60;
     };
 
 } /* namespace es_script */

@@ -22,6 +22,10 @@ CombustionChamber::CombustionChamber() {
     m_pressure = nullptr;
     m_lit = false;
     m_litLastFrame = false;
+    m_afterburn = false;
+    m_afterburnFuel = 0;
+    m_afterburnWait = 0;
+    m_afterburnTime = 0;
     m_peakTemperature = 0;
 
     m_meanPistonSpeedToTurbulence = nullptr;
@@ -321,6 +325,21 @@ void CombustionChamber::ignite() {
     if (!m_lit) {
         if (m_system.mix().p_fuel == 0) return;
 
+        // Anti-lag: it cuts the spark on about a third of the cycles, at
+        // random. That cycle's whole charge is pushed out unburnt and lights
+        // in the hot exhaust runner once it has gathered there: the bang (see
+        // afterburn()). The other cycles burn very late in the cylinder.
+        const ForcedInduction *fi = (m_engine != nullptr) ? m_engine->getForcedInduction() : nullptr;
+        m_afterburn = false;
+        if (fi != nullptr && fi->isAntiLagActive()
+            && static_cast<double>(rand()) / RAND_MAX < 0.35)
+        {
+            m_afterburn = true;
+            m_afterburnWait = 0.005 + 0.005 * static_cast<double>(rand()) / RAND_MAX;
+            m_afterburnTime = 0.003;
+            return;
+        }
+
         const double afr = m_system.mix().p_o2 / m_system.mix().p_fuel;
         const double equivalenceRatio = afr / m_fuel->getMolecularAfr();
         if (equivalenceRatio < 0.5) return;
@@ -455,6 +474,8 @@ void CombustionChamber::flow(double dt) {
     m_system.updateVelocity(dt, 0.5);
     m_exhaustRunnerAndPrimary.updateVelocity(dt, exhaust->getVelocityDecay());
 
+    if (m_afterburn) afterburn(dt);
+
     if (std::abs(intakeFlow) > 1E-9 && m_lit) {
         m_lit = false;
     }
@@ -515,6 +536,38 @@ void CombustionChamber::flow(double dt) {
 
         m_flameEvent.lastVolume = volume;
     }
+}
+
+// Anti-lag: the fuel and air a cut spark leaves unburnt reach the exhaust
+// runner, where the other cycles' late-burning gas keeps it hot enough
+// (above about 900 K) to light them. They light 5 to 10 ms after the cut
+// spark, once the charge has been pushed out and gathered (with what the
+// late-burning cycles left), and go up in about 0.3 ms: a sharp rise in the
+// runner's pressure, the bang, and the energy that keeps the turbo spinning.
+// Only while the anti-lag system is on, so the other engines' unburnt fuel
+// stays unburnt as it always has.
+void CombustionChamber::afterburn(double dt) {
+    const ForcedInduction *fi = (m_engine != nullptr) ? m_engine->getForcedInduction() : nullptr;
+    if (fi == nullptr || !fi->isAntiLagActive()) {
+        m_afterburn = false;
+        return;
+    }
+
+    if (m_afterburnWait > 0) {
+        m_afterburnWait -= dt;
+        return;
+    }
+    m_afterburnTime -= dt;
+    if (m_afterburnTime <= 0) m_afterburn = false;
+
+    GasSystem &runner = m_exhaustRunnerAndPrimary;
+    const GasSystem::Mix mix = runner.mix();
+    if (mix.p_fuel <= 0 || mix.p_o2 <= 0 || runner.temperature() < 900.0) return;
+
+    const double share = std::min(dt / 0.0003, 1.0);
+    const double fuelBurned = runner.react(runner.n() * share, mix);
+    runner.changeEnergy(fuelBurned * m_fuel->getMolecularMass() * m_fuel->getEnergyDensity());
+    m_afterburnFuel += fuelBurned * m_fuel->getMolecularMass();
 }
 
 double CombustionChamber::lastEventAfr() const {

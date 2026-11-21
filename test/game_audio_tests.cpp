@@ -904,28 +904,54 @@ TEST(ForcedInductionEngineTests, DesignerEnginesReachTheirBoost) {
     }
 }
 
+namespace {
+
+    // One of the example engines with a piece of its script replaced, as a
+    // script in the temporary folder
+    std::string forcedInductionVariant(const char *file, const char *name, const std::string &from, const std::string &to) {
+        const fs::path source = fs::path(ENGINE_SIM_SOURCE_DIR) / "assets" / "engines" / "forced-induction" / file;
+        std::ifstream in(source, std::ios::binary);
+        std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        const size_t at = text.find(from);
+        EXPECT_NE(at, std::string::npos) << from;
+        if (at != std::string::npos) text.replace(at, from.size(), to);
+        const fs::path out = fs::temp_directory_path() / (std::string("engine-sim-") + name + ".mr");
+        std::ofstream(out, std::ios::binary) << text;
+        return out.generic_string();
+    }
+
+    std::unique_ptr<EngineSession> startScript(const std::string &path) {
+        SessionConfig config = defaultEngineConfig();
+        config.scriptPath = path;
+        std::srand(1);
+        std::string error;
+        std::unique_ptr<EngineSession> session = EngineSession::create(config, &error);
+        EXPECT_TRUE(session) << error;
+        if (session) session->setIgnition(true);
+        return session;
+    }
+
+    // Share of a clip's power from lo to hi [dB], from a DFT every 25 Hz
+    double bandShare(const std::vector<float> &x, double lo, double hi) {
+        double band = 0;
+        for (double f = lo; f <= hi; f += 25) band += tonePower(x, f);
+        double all = 0;
+        for (double f = 25; f <= 20000; f += 25) all += tonePower(x, f);
+        return 10 * std::log10(band / all);
+    }
+
+} /* namespace */
+
 TEST(ForcedInductionEngineTests, VariableGeometryHoldsBoostOnAPetrolEngine) {
     // The B58 with a vane turbine in place of its wastegated one. Its
     // exhaust is far hotter than a diesel's, and the boost used to run away
     // to the compressor's limit with the vanes wide open.
-    const fs::path source = fs::path(ENGINE_SIM_SOURCE_DIR) / "assets" / "engines" / "forced-induction" / "bmw_b58.mr";
-    std::ifstream in(source, std::ios::binary);
-    std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-    const std::string housing = "turbine_ar: 0.55,";
-    const size_t at = text.find(housing);
-    ASSERT_NE(at, std::string::npos);
-    text.replace(at, housing.size(), "turbine_ar: 1.3, variable_geometry: true,");
-    const fs::path file = fs::temp_directory_path() / "engine-sim-b58-variable-geometry.mr";
-    std::ofstream(file, std::ios::binary) << text;
+    const std::string file = forcedInductionVariant("bmw_b58.mr", "b58-variable-geometry",
+        "turbine_ar: 0.55,", "turbine_ar: 1.3, variable_geometry: true,");
 
     for (const double rpm : { 3000.0, 5500.0 }) {
-        SessionConfig config = defaultEngineConfig();
-        config.scriptPath = file.generic_string();
-        std::srand(1);
-        std::string error;
-        std::unique_ptr<EngineSession> session = EngineSession::create(config, &error);
-        ASSERT_TRUE(session) << error;
-        session->setIgnition(true);
+        std::unique_ptr<EngineSession> session = startScript(file);
+        ASSERT_TRUE(session);
         const ForcedInduction *fi = forcedInduction(*session);
         ASSERT_NE(fi, nullptr);
 
@@ -941,6 +967,117 @@ TEST(ForcedInductionEngineTests, VariableGeometryHoldsBoostOnAPetrolEngine) {
         EXPECT_NEAR(0.5 * (low + high), psi(fi->getBoostTarget()), 2.0) << rpm << " rpm";
         EXPECT_LT(high - low, 1.5) << rpm << " rpm: boost hunts between " << low << " and " << high << " psi";
     }
+}
+
+// Wear and faults on the example Subaru at full load: worn bearings whine
+// below the whistle, a worn wastegate rattles once it opens, and a leak in
+// the charge pipe hisses (and costs boost). The stock engine has none of it.
+TEST(ForcedInductionEngineTests, TurboFaultsAreHeard) {
+    const char *const Subaru = "subaru_ej25_twin_scroll_turbo.mr";
+    const std::string valve = "blowoff_type: \"atmospheric\"";
+    auto render = [&](const char *name, const std::string &fault, ForcedInduction::CompressorTones *tones, double *wastegate) {
+        const std::string file = fault.empty()
+            ? (fs::path(ENGINE_SIM_SOURCE_DIR) / "assets" / "engines" / "forced-induction" / Subaru).generic_string()
+            : forcedInductionVariant(Subaru, name, valve, valve + ",\n        " + fault);
+        std::unique_ptr<EngineSession> session = startScript(file);
+        std::vector<float> clip;
+        EXPECT_TRUE(session);
+        if (!session) return clip;
+        holdAt(session.get(), 4000, 1.0);
+        session->advance(2.0, nullptr, nullptr);
+        session->advance(0.5, &clip, nullptr);
+        if (tones) *tones = forcedInduction(*session)->getCompressorTones();
+        if (wastegate) *wastegate = forcedInduction(*session)->getWastegateOpening();
+        return clip;
+    };
+
+    ForcedInduction::CompressorTones stockTones, wornTones;
+    double stockGate = 0, splitGate = 0;
+    const std::vector<float> stock = render("stock", "", &stockTones, &stockGate);
+    const std::vector<float> worn = render("worn-bearings", "bearing_wear: 1.0", &wornTones, nullptr);
+    const std::vector<float> rattle = render("wastegate-rattle", "wastegate_rattle: 1.0, boost_control: \"spring\"", nullptr, nullptr);
+    const std::vector<float> leak = render("boost-leak", "boost_leak: 6 * units.mm", nullptr, nullptr);
+    render("split-coupler", "boost_leak: 20 * units.mm", nullptr, &splitGate);
+    ASSERT_FALSE(stock.empty());
+    EXPECT_EQ(stockTones.whirl, 0.0);
+
+    // The whirl: a tone at 0.33 to 0.45 times the shaft's speed, wandering a
+    // little, that stands out of the stock engine's sound there
+    ASSERT_GT(wornTones.whirl, 0.0);
+    const double whirl = wornTones.whirlRatio * wornTones.shaftFrequency;
+    EXPECT_GT(whirl, 400.0);
+    const double gain = 10 * std::log10(bandPower(worn, whirl, 0.03 * whirl) / bandPower(stock, whirl, 0.03 * whirl));
+    EXPECT_GT(gain, 15.0) << "whirl at " << whirl << " Hz";
+
+    // The rattle rings the flapper's modes at 2 to 8 kHz
+    EXPECT_GT(bandShare(rattle, 2000, 8000), bandShare(stock, 2000, 8000) + 3.0);
+
+    // The leak's jet (a 6 mm hole at about 1 bar: some 11 kHz)
+    EXPECT_GT(bandShare(leak, 8000, 16000), bandShare(stock, 8000, 16000) + 10.0);
+
+    // A split coupler costs air the turbo has to make up: the wastegate
+    // shuts further to hold the boost (lower down it can't hold it at all)
+    EXPECT_LT(splitGate, 0.7 * stockGate);
+}
+
+// Anti-lag on the example Subaru: off the throttle at 4500 rpm it keeps the
+// boost up by burning the mixture in the exhaust runners, and bangs; without
+// it the boost goes. Below its minimum speed it stays off.
+TEST(ForcedInductionEngineTests, AntiLagHoldsTheBoostOffThrottle) {
+    const char *const Subaru = "subaru_ej25_twin_scroll_turbo.mr";
+    const std::string valve = "blowoff_type: \"atmospheric\"";
+    struct Lift { double boost = 0, afterburn = 0, cylinder = 0, crest = 0; bool active = false; };
+    auto lift = [&](const std::string &file, double rpm) {
+        Lift out;
+        std::unique_ptr<EngineSession> session = startScript(file);
+        EXPECT_TRUE(session);
+        if (!session) return out;
+        const Engine *engine = session->engine();
+        auto fuel = [engine](double *afterburn, double *cylinder) {
+            *afterburn = *cylinder = 0;
+            for (int i = 0; i < engine->getCylinderCount(); ++i) {
+                *afterburn += engine->getChamber(i)->getAfterburnFuel();
+                *cylinder += engine->getChamber(i)->getBurntFuel();
+            }
+        };
+        holdAt(session.get(), rpm, 1.0);
+        session->advance(2.0, nullptr, nullptr);
+        double a0, c0;
+        fuel(&a0, &c0);
+        session->setThrottleImmediate(0.0);
+        std::vector<float> clip;
+        session->advance(1.0, nullptr, nullptr);
+        session->advance(0.5, &clip, nullptr);
+        double a1, c1;
+        fuel(&a1, &c1);
+        out.boost = psi(forcedInduction(*session)->getBoost());
+        out.active = forcedInduction(*session)->isAntiLagActive();
+        out.afterburn = a1 - a0;
+        out.cylinder = c1 - c0;
+        double s = 0, peak = 0;
+        for (const float v : clip) { s += v * v; peak = std::max(peak, static_cast<double>(std::abs(v))); }
+        out.crest = 20 * std::log10(peak / std::sqrt(s / clip.size()));
+        return out;
+    };
+
+    const std::string stockFile = (fs::path(ENGINE_SIM_SOURCE_DIR) / "assets" / "engines" / "forced-induction" / Subaru).generic_string();
+    const std::string alsFile = forcedInductionVariant(Subaru, "anti-lag", valve, valve + ",\n        anti_lag: true");
+    const Lift stock = lift(stockFile, 4500);
+    const Lift als = lift(alsFile, 4500);
+    const Lift slow = lift(alsFile, 2500);
+    std::cout << "after the lift: stock " << stock.boost << " psi, crest " << stock.crest
+        << " dB; anti-lag " << als.boost << " psi, crest " << als.crest << " dB, burned in the runners "
+        << als.afterburn * 1e6 << " mg, in the cylinders " << als.cylinder * 1e6 << " mg\n";
+
+    EXPECT_LT(stock.boost, 2.0);
+    EXPECT_EQ(stock.afterburn, 0.0);
+    EXPECT_TRUE(als.active);
+    EXPECT_GT(als.boost, 8.0);
+    EXPECT_GT(als.afterburn, 0.0);
+    EXPECT_GT(als.crest, stock.crest + 2.0);
+
+    EXPECT_FALSE(slow.active);
+    EXPECT_EQ(slow.afterburn, 0.0);
 }
 
 // Diesel injection, run in the example turbodiesel

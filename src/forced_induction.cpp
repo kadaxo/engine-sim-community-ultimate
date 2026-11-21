@@ -120,6 +120,17 @@ ForcedInduction::ForcedInduction() {
     m_compressorBlades = 6;
     m_splitterBlades = 6;
     m_compressorInlet = CompressorInlet::Silenced;
+    m_antiLag = false;
+    m_antiLagActive = false;
+    m_antiLagTiming = 0;
+    m_antiLagThrottle = 0;
+    m_antiLagMinSpeed = 0;
+    m_ballBearings = false;
+    m_bearingWear = 0;
+    m_wastegateRattle = 0;
+    m_leakDiameter = 0;
+    m_boostLeakK = 0;
+    m_leakFlowRate = 0;
     m_surge = 0;
     m_wastegateIntegral = 0;
     m_lastBoost = 0;
@@ -206,6 +217,26 @@ void ForcedInduction::initialize(const Parameters &params) {
     m_splitterBlades = std::clamp(params.splitterBlades, 0, 20);
     m_compressorInlet = params.compressorInlet;
     m_maxCompressorFlow = clamp(params.compressorFlow, 0.01, 3.0);
+    m_antiLag = params.antiLag && isTurbocharger();
+    m_antiLagActive = false;
+    m_antiLagTiming = clamp(params.antiLagTiming, -constants::pi / 3, constants::pi / 6);
+    m_antiLagThrottle = clamp(params.antiLagThrottle, 0.0, 1.0);
+    m_antiLagMinSpeed = std::max(params.antiLagMinSpeed, 0.0);
+    m_ballBearings = params.ballBearings;
+    m_bearingWear = clamp(params.bearingWear, 0.0, 1.0);
+    m_wastegateRattle = clamp(params.wastegateRattle, 0.0, 1.0);
+    m_leakDiameter = clamp(params.boostLeak, 0.0, 0.1);
+    m_leakFlowRate = 0;
+
+    // A leak is a sharp-edged hole (discharge coefficient 0.65)
+    m_boostLeakK = 0;
+    if (m_leakDiameter > 0) {
+        const double area = constants::pi * m_leakDiameter * m_leakDiameter / 4;
+        const double dp = 10.0e3;
+        const double rho = (Reference + dp) * units::AirMolecularMass / (constants::R * ReferenceTemperature);
+        const double flow = 0.65 * area * std::sqrt(2 * rho * dp) / units::AirMolecularMass;
+        m_boostLeakK = GasSystem::flowConstant(flow, Reference + dp, dp, ReferenceTemperature, Gamma);
+    }
     m_surge = 0;
     m_wastegateIntegral = 0;
     m_lastBoost = 0;
@@ -613,7 +644,8 @@ void ForcedInduction::process(double dt) {
 
     // Blow-off valve: vents the charge when the throttle snaps shut
     double blowoffTarget = 0;
-    if (m_blowoffEnabled && !isPositiveDisplacement()) {
+    // (an anti-lag system keeps it shut to hold the boost it makes)
+    if (m_blowoffEnabled && !isPositiveDisplacement() && !m_antiLagActive) {
         const double dp = m_charge.pressure() - p_plenum;
         blowoffTarget = clamp((dp - units::pressure(4.0, units::psi)) / units::pressure(3.0, units::psi), 0.0, 1.0);
     }
@@ -625,6 +657,14 @@ void ForcedInduction::process(double dt) {
     }
 
     m_blowoffFlowRate = approach(m_blowoffFlowRate, std::max(vented, 0.0) / dt, dt, 0.02);
+
+    // A leak in the charge pipe vents whenever the charge is above the
+    // outside's pressure (and draws in below it)
+    double leaked = 0;
+    if (m_boostLeakK > 0) {
+        leaked = m_charge.flow(m_boostLeakK, dt, m_ambientPressure, m_ambientTemperature, mix);
+    }
+    m_leakFlowRate = approach(m_leakFlowRate, leaked / dt, dt, 0.02);
 
     m_charge.dissipateExcessVelocity();
     m_charge.updateVelocity(dt, 0.5);
@@ -714,7 +754,7 @@ ForcedInduction::CompressorTones ForcedInduction::getCompressorTones() const {
     const double inducerArea = constants::pi * inducerRadius * inducerRadius * (1 - HubRatio * HubRatio);
 
     double omegaMax = 0;
-    double synchronous = 0, bladePass = 0, buzzSaw = 0;
+    double synchronous = 0, bladePass = 0, buzzSaw = 0, whirl = 0;
     for (int i = 0; i < m_unitCount; ++i) {
         const Unit &unit = m_units[i];
         if (!unit.active || unit.omega <= 0) continue;
@@ -730,8 +770,26 @@ ForcedInduction::CompressorTones ForcedInduction::getCompressorTones() const {
         const double machRelative = std::sqrt(tip * tip + axial * axial) / a1;
         const double shock = clamp((machRelative - 1.0) / 0.15, 0.0, 1.0);
 
-        const double s = 0.5 * size * u * u;
+        // Worn bearings let the imbalance move the rotor further
+        const double s = 0.5 * size * u * u * (1.0 + m_bearingWear);
         const double b = size * u * u * u * loading;
+
+        // Worn bearings' clearance lets the rotor whirl. In journal
+        // (floating ring) bearings the inner oil film whirls at 0.35 to 0.45
+        // of the shaft's speed once the shaft is fast enough, a tone below
+        // the once per revolution one that new bearings keep faint; the more
+        // worn, the earlier and the stronger. Worn ball bearings ring at the
+        // balls passing a race defect instead. It is the whole rotor moving,
+        // so it comes out through the housing, not only the inlet. Worn out,
+        // the rotor orbits through its whole clearance, several times the
+        // imbalance's orbit: taken as twice the once per revolution tone's
+        // source.
+        if (m_bearingWear > 0) {
+            const double onset = m_ballBearings ? 0.0 : 0.45 * (1.0 - 0.5 * m_bearingWear);
+            const double grow = clamp((u - onset) / 0.2, 0.0, 1.0);
+            const double w = 2.0 * m_bearingWear * grow * 0.5 * size * u * u;
+            whirl += w * w;
+        }
         const double z = 0.8 * size * shock * loading;
         synchronous += s * s;
         bladePass += b * b;
@@ -750,6 +808,11 @@ ForcedInduction::CompressorTones ForcedInduction::getCompressorTones() const {
             * inletTransmission(m_compressorInlet, (m_compressorBlades + m_splitterBlades) * heard)
         : 0.0;
     tones.buzzSaw = std::sqrt(buzzSaw) * inletTransmission(m_compressorInlet, 0.5 * m_compressorBlades * heard);
+    if (whirl > 0) {
+        const double u = omegaMax * m_tipRadius / ReferenceTipSpeed;
+        tones.whirl = std::sqrt(whirl);
+        tones.whirlRatio = m_ballBearings ? 3.6 : clamp(0.45 - 0.05 * u, 0.33, 0.45);
+    }
     return tones;
 }
 
@@ -780,6 +843,21 @@ double ForcedInduction::inletTransmission(CompressorInlet inlet, double frequenc
 double ForcedInduction::getWastegateShare() const {
     if (!m_externalWastegate || !isTurbocharger()) return 0.0;
     return clamp(1.0 - m_turbineFraction, 0.0, 1.0);
+}
+
+// A worn wastegate linkage (its arm in a worn bushing) lets the flapper move
+// in the play once it is off its seat, so each exhaust pulse knocks it
+// against the linkage: a metallic rattle at the firing rate. Shut, the
+// actuator holds it on its seat; the further it is held open the less the
+// pulses move it. A spring actuator holds it more loosely than an
+// electronic one, and an external wastegate's poppet valve rides on its own
+// guide and rattles less.
+double ForcedInduction::getRattleShare() const {
+    if (!isTurbocharger() || m_variableGeometry || m_wastegateRattle <= 0) return 0.0;
+    const double open = clamp(m_wastegate / 0.05, 0.0, 1.0) * (1.0 - 0.5 * m_wastegate);
+    const double hold = (m_boostControl == BoostControl::Spring) ? 1.0 : 0.6;
+    const double valve = m_externalWastegate ? 0.3 : 1.0;
+    return m_wastegateRattle * open * hold * valve;
 }
 
 // The air's noise:
@@ -852,6 +930,19 @@ ForcedInduction::AirNoise ForcedInduction::getAirNoise() const {
             * std::sqrt(inducerArea / (std::max(m_charge.volume(), 1e-4) * 0.5));
         noise.surgeRate = clamp(0.4 * helmholtz, 4.0, 40.0);
         noise.surge = m_surge * inletTransmission(m_compressorInlet, 380.0);
+    }
+
+    // A leak's jet: the same as the blow-off valve's below, through the
+    // hole's own diameter, and straight out into the engine bay
+    if (m_leakDiameter > 0 && m_leakFlowRate > 1e-6) {
+        const double leakRatio = m_charge.pressure() / m_ambientPressure;
+        if (leakRatio > 1.0) {
+            const double T = m_charge.temperature();
+            const double expansion = 1.0 - std::pow(1.0 / leakRatio, Exponent);
+            const double u = std::sqrt(2 * Cp_mass * T * expansion);
+            noise.leak = std::min((m_leakDiameter / 0.02) * std::pow(u / 300.0, 4.0), 3.0);
+            noise.leakFrequency = clamp(0.2 * u / m_leakDiameter, 800.0, 16000.0);
+        }
     }
 
     // The blow-off valve's jet

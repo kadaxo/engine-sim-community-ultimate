@@ -47,6 +47,11 @@ class IgnitionModule : public Part {
         void setEventAdvance(double advance) { m_eventAdvance = advance; }
         double getEventAdvance() const { return m_eventAdvance; }
 
+        // Replaces the timing curve while it is on (an anti-lag system's
+        // very late spark) [rad, negative after top dead centre]
+        void setTimingOverride(bool on, double advance) { m_overrideTiming = on; m_overrideAdvance = advance; }
+        bool isTimingOverridden() const { return m_overrideTiming; }
+
         bool m_enabled;
 
     protected:
@@ -62,6 +67,8 @@ class IgnitionModule : public Part {
         double m_revLimitTimer;
         double m_limiterDuration;
         double m_eventAdvance;
+        bool m_overrideTiming;
+        double m_overrideAdvance;
         int m_sparksPerCycle;
 };
 
