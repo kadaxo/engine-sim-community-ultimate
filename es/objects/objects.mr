@@ -664,6 +664,9 @@ private node _forced_induction => __engine_sim__forced_induction {
     input wastegate [string];
     input twin_scroll [bool];
     input whistle_pitch [float];
+    input compressor_blades [int];
+    input splitter_blades [int];
+    input compressor_inlet [string];
     alias output __out [forced_induction_channel];
 }
 
@@ -677,6 +680,9 @@ private node _forced_induction => __engine_sim__forced_induction {
 // wastegate, acting as min_turbine_ar when closed (0: 0.25 * turbine_ar) and
 // turbine_ar when open
 // exhaust_sound: "before_turbine" or "after_turbine" (smoother pulses)
+// compressor_inlet: what the compressor draws through, which decides how much
+// of its whistle gets out: "silenced" (a factory airbox with a resonator),
+// "airbox" or "open" (an open filter)
 public node turbocharger {
     input arrangement: "single";
     input compressor_diameter: 60 * units.mm;
@@ -701,6 +707,9 @@ public node turbocharger {
     input wastegate: "internal";            // "internal" or "external"
     input twin_scroll: false;
     input whistle_pitch: 1.0;
+    input compressor_blades: 6;             // full blades of the compressor wheel
+    input splitter_blades: 6;               // splitter blades between them
+    input compressor_inlet: "silenced";     // "silenced", "airbox" or "open"
     alias output __out:
         _forced_induction(
             type: "turbo",
@@ -729,7 +738,10 @@ public node turbocharger {
             boost_control: boost_control,
             wastegate: wastegate,
             twin_scroll: twin_scroll,
-            whistle_pitch: whistle_pitch
+            whistle_pitch: whistle_pitch,
+            compressor_blades: compressor_blades,
+            splitter_blades: splitter_blades,
+            compressor_inlet: compressor_inlet
         );
 }
 
@@ -751,6 +763,9 @@ public node supercharger {
     input charge_volume: 4.0 * units.L;
     input blowoff_type: "atmospheric";
     input whistle_pitch: 1.0;
+    input compressor_blades: 6;             // full blades of the compressor wheel
+    input splitter_blades: 6;               // splitter blades between them
+    input compressor_inlet: "silenced";     // "silenced", "airbox" or "open"
     alias output __out:
         _forced_induction(
             type: type,
@@ -779,7 +794,10 @@ public node supercharger {
             boost_control: "electronic",
             wastegate: "internal",
             twin_scroll: false,
-            whistle_pitch: whistle_pitch
+            whistle_pitch: whistle_pitch,
+            compressor_blades: compressor_blades,
+            splitter_blades: splitter_blades,
+            compressor_inlet: compressor_inlet
         );
 }
 

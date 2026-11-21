@@ -49,7 +49,6 @@ Synthesizer::Synthesizer() {
     m_filters = nullptr;
 
     m_whinePhase = 0;
-    m_vibratoPhase = 0;
     m_flutterPhase = 0;
     m_fiCounter = 0;
     m_mixEnvelope = 0;
@@ -95,7 +94,6 @@ void Synthesizer::initialize(const Parameters &p) {
     // it from rand() would shift the random numbers the combustion uses, and
     // so change every engine's sound and power for a given seed.
     m_whinePhase = 0;
-    m_vibratoPhase = 0;
     m_flutterPhase = 0;
     m_fiCounter = 0;
     m_mixEnvelope = 0;
@@ -481,10 +479,17 @@ float Synthesizer::fiNoise() {
 
 // Turbocharger and supercharger sounds (from kyan0s-git/engine-sim), driven
 // by control channels from the simulation: [0] shaft or rotor frequency [Hz]
-// (times the whistle pitch), [1] whine level, [2] blow-off flow,
-// [3] compressor flow, [4] surge, [5] external wastegate venting, [6] mode
-// (10 * type + blow-off type; types 1 turbo, 2 Roots, 3 twin-screw,
-// 4 centrifugal; blow-off 0 vented, 1 recirculating, 2 none)
+// (times the whistle pitch), [1] whine level (positive displacement) or the
+// compressor's once per revolution tone, [2] blow-off flow, [3] compressor
+// flow, [4] surge, [5] external wastegate venting, [6] mode (10 * type +
+// blow-off type + 100 * full blades + 10000 * splitter blades; types 1
+// turbo, 2 Roots, 3 twin-screw, 4 centrifugal; blow-off 0 vented,
+// 1 recirculating, 2 none), [7] blade passing tone, [8] splitter passing
+// tone and [9] buzz-saw (the compressor's tones as levels relative to
+// the reference blade passing tone, see
+// ForcedInduction::getCompressorTones()). All follow the loudness of the
+// engine: the exhaust channels' units aren't the same loudness from one
+// engine script to another, so they can't carry an absolute level.
 float Synthesizer::renderForcedInduction(int inputSample, float signal) {
     if (m_auxChannelCount < ForcedInductionChannelCount) return 0.0f;
 
@@ -494,8 +499,10 @@ float Synthesizer::renderForcedInduction(int inputSample, float signal) {
     }
 
     const int mode = static_cast<int>(std::lround(aux[6][inputSample]));
-    const int type = mode / 10;
+    const int type = (mode / 10) % 10;
     const int blowoffType = mode % 10;
+    const int blades = std::max((mode / 100) % 100, 1);
+    const int splitters = mode / 10000;
     if (type == 0) return 0.0f;
 
     const float volume = m_audioParameters.forcedInductionVolume;
@@ -519,23 +526,49 @@ float Synthesizer::renderForcedInduction(int inputSample, float signal) {
 
     // Filter centres follow the shaft speed; updated every 32 samples
     float tonal = 0;
+    float compressor = 0;
     if (type == 1 || type == 4) {
-        const float pitch = std::clamp(400.0f + ((type == 1) ? 2.4f : 2.0f) * shaft, 300.0f, 9000.0f);
+        const float bladeFrequency = blades * shaft;
         if ((m_fiCounter++ & 31) == 0) {
-            m_whistleBand.set(pitch, 18.0f, fs);
-            m_whooshBand.set(500.0f + 0.35f * pitch, 0.9f, fs);
+            m_whistleBand.set(bladeFrequency, 12.0f, fs);
+            m_whooshBand.set(500.0f + 0.35f * std::clamp(400.0f + 2.4f * shaft, 300.0f, 9000.0f), 0.9f, fs);
         }
 
-        // A slightly wavering tone inside a narrow band of air noise
-        m_vibratoPhase += twoPi * 5.3 / fs;
-        if (m_vibratoPhase > twoPi) m_vibratoPhase -= twoPi;
-        m_whinePhase += twoPi * pitch * (1.0 + 0.003 * std::sin(m_vibratoPhase)) / fs;
+        // The compressor's tones, all on the shaft's phase: once per
+        // revolution (with a little of twice), the blades passing, and the
+        // buzz-saw's shaft harmonics below the blade passing frequency, each
+        // with its own fixed weight (from the small differences between the
+        // blades). Tones near the top of the band fade out.
+        m_whinePhase += twoPi * shaft / fs;
         if (m_whinePhase > twoPi) m_whinePhase -= twoPi;
+        const double p = m_whinePhase;
+        auto fade = [fs](float f) { return std::clamp((0.45f * fs - f) / (0.05f * fs), 0.0f, 1.0f); };
 
-        const float tone = static_cast<float>(std::sin(m_whinePhase));
-        const float air = 5.0f * m_whistleBand.process(fiNoise());
-        const float toneShare = (type == 4) ? 0.65f : 0.45f;
-        tonal += whine * (toneShare * tone + (1.0f - toneShare) * air);
+        const float bladePass = std::max(aux[7][inputSample], 0.0f);
+        const float splitterPass = std::max(aux[8][inputSample], 0.0f);
+        const float buzzSaw = std::max(aux[9][inputSample], 0.0f);
+        compressor += whine * fade(shaft) * static_cast<float>(std::sin(p) + 0.3 * std::sin(2 * p));
+        compressor += bladePass * fade(bladeFrequency)
+            * (static_cast<float>(std::sin(blades * p)) + 2.0f * m_whistleBand.process(fiNoise()));
+        if (splitters > 0) {
+            const int n = blades + splitters;
+            compressor += splitterPass * fade(n * shaft) * static_cast<float>(std::sin(n * p));
+        }
+        if (buzzSaw > 0.0f) {
+            static constexpr float Weights[] = {
+                0.9f, 0.5f, 1.0f, 0.4f, 0.7f, 0.8f, 0.3f, 0.6f, 1.0f, 0.5f,
+                0.7f, 0.4f, 0.9f, 0.6f, 0.3f, 0.8f, 0.5f, 0.7f, 0.4f, 0.6f
+            };
+            float buzz = 0, norm = 0;
+            for (int k = 2; k < 2 * blades && k - 2 < 20; ++k) {
+                if (k == blades) continue;
+                const float w = Weights[k - 2] * fade(k * shaft);
+                buzz += w * static_cast<float>(std::sin(k * p));
+                norm += Weights[k - 2] * Weights[k - 2];
+            }
+            if (norm > 0) compressor += buzzSaw * buzz / std::sqrt(norm);
+        }
+
         tonal += 0.45f * flow * flow * m_whooshBand.process(fiNoise());
     }
     else {
@@ -587,7 +620,8 @@ float Synthesizer::renderForcedInduction(int inputSample, float signal) {
         bursts += 0.6f * wastegate * m_wastegateBand.process(fiNoise());
     }
 
-    return volume * (tonal * (1.1f * m_mixEnvelope + 0.4f * floor) + bursts * reference * 1.5f);
+    return volume * ((tonal + 0.35f * compressor) * (1.1f * m_mixEnvelope + 0.4f * floor)
+        + bursts * reference * 1.5f);
 }
 
 // A diesel's engine noise, driven by two control channels from the

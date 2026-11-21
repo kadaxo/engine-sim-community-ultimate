@@ -496,6 +496,14 @@ void PistonEngineSimulator::writeToSynthesizer() {
     if (forcedInduction != nullptr) {
         aux[0] = forcedInduction->getWhineFrequency() * forcedInduction->getWhistlePitch();
         aux[1] = forcedInduction->getWhineLevel();
+        if (!forcedInduction->isPositiveDisplacement()) {
+            // A centrifugal compressor's tones (relative levels)
+            const ForcedInduction::CompressorTones tones = forcedInduction->getCompressorTones();
+            aux[1] = tones.synchronous;
+            aux[7] = tones.bladePass;
+            aux[8] = tones.splitterPass;
+            aux[9] = tones.buzzSaw;
+        }
         aux[2] = forcedInduction->getBlowoffLevel();
         aux[3] = forcedInduction->getFlowLevel();
         aux[4] = forcedInduction->getSurgeLevel();

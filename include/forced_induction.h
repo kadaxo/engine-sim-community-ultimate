@@ -68,6 +68,27 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
             Electronic
         };
 
+        // What the compressor inlet draws through, which decides how much of
+        // its whistle gets out: a factory airbox with a broadband resonator
+        // (silenced), an airbox alone, or an open filter
+        enum class CompressorInlet {
+            Silenced,
+            Airbox,
+            Open
+        };
+
+        // The compressor's tones (centrifugal compressors), each as a
+        // pressure amplitude relative to that of the blade passing tone of
+        // a 60 mm wheel at 400 m/s tip speed and full flow, drawing through
+        // an open filter
+        struct CompressorTones {
+            double shaftFrequency = 0;  // fastest shaft [Hz]
+            double synchronous = 0;     // once per revolution (residual imbalance)
+            double bladePass = 0;       // full blades past the inducer
+            double splitterPass = 0;    // full and splitter blades past the exducer
+            double buzzSaw = 0;         // shaft harmonics from the inducer's shocks
+        };
+
         struct Parameters {
             Type type = Type::Turbocharger;
             Arrangement arrangement = Arrangement::Single;
@@ -103,6 +124,10 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
             bool externalWastegate = false;         // larger, vents through its own pipe
             bool twinScroll = false;                // divided turbine housing: better spool
             double whistlePitch = 1.0;              // sound only
+            // Compressor wheel blades (centrifugal) and its inlet (sound only)
+            int compressorBlades = 6;
+            int splitterBlades = 6;
+            CompressorInlet compressorInlet = CompressorInlet::Silenced;
 
             // Superchargers
             double driveRatio = 1.0;                // compressor speed / crank speed
@@ -213,7 +238,15 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
 
         // Audio: compressor whine and blow-off noise
         double getWhineFrequency() const;   // [Hz]
-        double getWhineLevel() const;       // [0, 1]
+        double getWhineLevel() const;       // positive displacement [0, 1]
+        CompressorTones getCompressorTones() const;
+        int getCompressorBlades() const { return m_compressorBlades; }
+        int getSplitterBlades() const { return m_splitterBlades; }
+        CompressorInlet getCompressorInlet() const { return m_compressorInlet; }
+
+        // Share of a compressor tone's pressure at a frequency [Hz] that gets
+        // out through the inlet
+        static double inletTransmission(CompressorInlet inlet, double frequency);
         double getBlowoffLevel() const;     // [0, 1]
         double getFlowLevel() const;        // compressor flow [0, 1]
         double getSurgeLevel() const { return m_surge; }    // [0, 1]
@@ -221,7 +254,8 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
 
         // Sound type for the synthesizer: 10 * type (1 turbocharger, 2 Roots,
         // 3 twin-screw, 4 centrifugal) + blow-off type (0 vented to the
-        // atmosphere, 1 recirculating, 2 none)
+        // atmosphere, 1 recirculating, 2 none) + 100 * full blades + 10000 *
+        // splitter blades
         int getSoundMode() const;
 
     protected:
@@ -300,6 +334,9 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
         bool m_externalWastegate;
         bool m_twinScroll;
         double m_whistlePitch;
+        int m_compressorBlades;
+        int m_splitterBlades;
+        CompressorInlet m_compressorInlet;
         double m_surge;
         double m_wastegateIntegral;
         double m_lastBoost;

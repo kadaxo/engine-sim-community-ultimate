@@ -820,10 +820,10 @@ TEST(ForcedInductionEngineTests, TurboWhistleFadesAfterLift) {
     const ForcedInduction *fi = forcedInduction(*session);
     ASSERT_NE(fi, nullptr);
 
-    // The synthesizer puts the whistle at 400 Hz + 2.4 times the shaft
-    // speed in turns per second
+    // With its factory intake the compressor's once per revolution
+    // whistle stays in; what gets out is the full blades passing
     auto pitch = [fi]() {
-        return 400 + 2.4 * fi->getShaftSpeed() / (2 * 3.14159265358979323846);
+        return fi->getCompressorBlades() * fi->getShaftSpeed() / (2 * 3.14159265358979323846);
     };
 
     holdAt(session.get(), 4500, 1.0);
@@ -842,16 +842,17 @@ TEST(ForcedInductionEngineTests, TurboWhistleFadesAfterLift) {
         whistle += bandPower(slice, p, 20);
         double nearby = 0;
         int n = 0;
-        // Clear of the band of air noise around the tone (about +-140 Hz)
-        for (double d = 400; d <= 800; d += 25) {
+        // Clear of the band of air noise around the tone
+        for (double d = 1500; d <= 2500; d += 50) {
             nearby += tonePower(slice, p - d) + tonePower(slice, p + d);
             n += 2;
         }
         around += nearby / n;
         total += meanSquare(slice);
     }
-    EXPECT_GT(meanPitch, 3000.0);
+    EXPECT_GT(meanPitch, 8000.0);
     EXPECT_GT(10 * std::log10(whistle / around), 10.0) << "no whistle near " << meanPitch << " Hz";
+    const double onTone = fi->getCompressorTones().bladePass;
 
     // After the throttle closes the turbo winds down and the whistle goes
     // (it used to stay at full pitch and volume)
@@ -864,7 +865,7 @@ TEST(ForcedInductionEngineTests, TurboWhistleFadesAfterLift) {
     const double onShare = 10 * std::log10(whistle / total);
     const double afterShare = 10 * std::log10(bandPower(after, meanPitch, 150) / meanSquare(after));
     EXPECT_LT(afterShare, onShare - 15.0) << "on " << onShare << " dB, after " << afterShare << " dB";
-    EXPECT_LT(fi->getWhineLevel(), 0.05);
+    EXPECT_LT(fi->getCompressorTones().bladePass, 0.05 * onTone);
 }
 
 TEST(ForcedInductionEngineTests, DesignerEnginesReachTheirBoost) {

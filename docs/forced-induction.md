@@ -58,6 +58,9 @@ variable geometry turbo ([diesel.md](diesel.md)).
 | `intercooler_effectiveness` | 0.7 | Share of the compression heat the intercooler removes |
 | `charge_volume` | 6 L | Volume of the pipes and intercooler |
 | `whistle_pitch` | 1.0 | Scales the whistle's pitch (sound only) |
+| `compressor_blades` | 6 | Full blades of the compressor wheel (sound only) |
+| `splitter_blades` | 6 | Splitter blades between them (sound only) |
+| `compressor_inlet` | `"silenced"` | What the compressor draws through: `"silenced"` (a factory airbox with a resonator), `"airbox"` or `"open"` (an open filter). Decides how much of the whistle gets out |
 
 ### supercharger
 
@@ -67,6 +70,7 @@ variable geometry turbo ([diesel.md](diesel.md)).
 | `displacement` | 1.9 L | Air moved per rotor revolution (Roots and twin-screw) |
 | `drive_ratio` | 2.0 | Rotor speed / crankshaft speed (for centrifugal ones, including the gearbox step-up) |
 | `compressor_diameter`, `compressor_flow`, `compressor_efficiency`, `max_speed` | 90 mm, 0.5 kg/s, 0.75, 0 | Centrifugal superchargers, as for the turbocharger |
+| `compressor_blades`, `splitter_blades`, `compressor_inlet` | 6, 6, `"silenced"` | Centrifugal superchargers, as for the turbocharger |
 | `bypass_valve` | true | Recirculates the delivery at part throttle (Roots and twin-screw) |
 | `blowoff_valve`, `blowoff_type` | true, `"atmospheric"` | Centrifugal superchargers |
 | `intercooler_effectiveness` | 0.0 | |
@@ -114,11 +118,24 @@ variable geometry turbo ([diesel.md](diesel.md)).
 The synthesizer makes the forced induction sounds at the audio rate, following the loudness
 of the engine:
 
-* **Turbo whistle**: a slightly wavering tone in a narrow band of air noise. Its pitch follows
-  the shaft speed and its volume the shaft speed and air flow, so it rises as the turbo spools
-  and fades off the throttle.
+* **Turbo whistle**: the compressor's tones, all locked to its shaft (Raitor and Neise, *Sound
+  generation in centrifugal compressors*, JSV 2008):
+  * once per revolution, from the wheel's residual imbalance: the whistle usually heard from a
+    car, at 1.2 to 4.5 kHz. Its pressure goes with the wheel diameter times the tip speed squared;
+  * the blades passing: the full blades at the inducer, and with the splitters at the exducer
+    (often 10 to 20 kHz on a car's turbo). It rises with the cube of the tip speed and with the
+    air flow;
+  * buzz-saw: once the flow meets the inducer tips faster than sound, a spread of shaft
+    harmonics below the blade passing tone.
+
+  How much gets out depends on the inlet. An airbox takes about 10 dB off at 1 kHz and 15 dB
+  from 4 kHz up; a factory intake's resonator takes about another 14 dB from 0.8 to 4 kHz, so a
+  stock car keeps the once per revolution whistle in and lets out a faint, high blade passing
+  tone, while an open filter lets both out. The levels follow the loudness of the engine
+  (the exhaust's level in the synthesizer isn't the same loudness from one engine script to
+  another, so it can't carry an absolute level).
 * **Supercharger whine**: the rotor lobe passing frequency with its harmonics (Roots and
-  twin-screw), or a whistle like a turbo's (centrifugal). It follows rotor speed and boost.
+  twin-screw), or the same compressor tones as a turbo's (centrifugal). It follows rotor speed and boost.
 * **Blow-off**: a hiss (or a softer whoosh for a recirculating valve) while the valve vents,
   louder the more boost it releases, so a lift from full boost is heard but cruising with the
   valve open is quiet. Without a valve the compressor surges, heard as a flutter.

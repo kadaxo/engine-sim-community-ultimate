@@ -285,6 +285,8 @@ public node f1_v6_engine {
             wastegate: "external",
             twin_scroll: false,
             whistle_pitch: 1,
+            // A race car's airbox scoop has no silencer
+            compressor_inlet: "open",
             intercooler_effectiveness: 0.85,
             charge_volume: 3.1999 * units.L,
             sequential_speed: 8250 * units.rpm

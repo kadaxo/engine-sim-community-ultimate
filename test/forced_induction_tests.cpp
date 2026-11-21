@@ -233,3 +233,75 @@ TEST_F(ForcedInductionTest, BoostIsMeasuredAgainstTheIntakeAtmosphere) {
     EXPECT_GT(fi.getBoost(), units::pressure(0.1, units::bar));
     EXPECT_NEAR(fi.getChargePressure(), fi.getBoost() + units::pressure(80.0, units::kPa), 1.0);
 }
+
+TEST(ForcedInductionSoundTests, InletTransmissionFollowsTheIntake) {
+    using Inlet = ForcedInduction::CompressorInlet;
+    auto dB = [](Inlet inlet, double f) { return 20 * std::log10(ForcedInduction::inletTransmission(inlet, f)); };
+
+    // An open filter lets everything out
+    for (double f : { 500.0, 2000.0, 12000.0 }) EXPECT_DOUBLE_EQ(dB(Inlet::Open, f), 0.0);
+
+    // In the resonator's band (0.8 to 4 kHz) a factory intake takes far more
+    // off than an airbox alone
+    EXPECT_LT(dB(Inlet::Silenced, 2000.0), -22.0);
+    EXPECT_NEAR(dB(Inlet::Airbox, 2000.0), -12.5, 0.5);
+
+    // Two octaves above it the resonator does nothing: the blade passing
+    // tones get through both alike
+    EXPECT_NEAR(dB(Inlet::Silenced, 16000.0), dB(Inlet::Airbox, 16000.0), 0.01);
+    EXPECT_NEAR(dB(Inlet::Airbox, 16000.0), -15.0, 0.01);
+}
+
+// A centrifugal supercharger's wheel turns at the crank speed times its drive
+// ratio, which sets its tip speed directly
+TEST_F(ForcedInductionTest, CompressorTonesFollowTheWheel) {
+    auto tones = [this](double driveRatio, double diameter, ForcedInduction::CompressorInlet inlet) {
+        TearDown();
+        SetUp();
+        ForcedInduction::Parameters params;
+        params.type = ForcedInduction::Type::Centrifugal;
+        params.driveRatio = driveRatio;
+        params.compressorDiameter = diameter;
+        params.compressorFlow = 0.4;
+        params.compressorInlet = inlet;
+
+        ForcedInduction fi;
+        fi.initialize(params);
+        connect(&fi);
+        const double dt = 1.0 / 20000;
+        for (int i = 0; i < 10000; ++i) step(&fi, dt);
+        return fi.getCompressorTones();
+    };
+
+    using Inlet = ForcedInduction::CompressorInlet;
+    // 5000 rpm times 14: 70000 rpm, 293 m/s at the tip of an 80 mm wheel
+    const ForcedInduction::CompressorTones slow = tones(14.0, 0.08, Inlet::Open);
+    EXPECT_NEAR(slow.shaftFrequency, 70000.0 / 60.0, 1.0);
+    EXPECT_GT(slow.synchronous, 0.0);
+    EXPECT_GT(slow.bladePass, 0.0);
+    EXPECT_NEAR(slow.splitterPass, 0.5 * slow.bladePass, 1e-9);
+
+    // Below the speed of sound at the inducer there are no shocks to buzz
+    EXPECT_EQ(slow.buzzSaw, 0.0);
+
+    // Faster, the blade passing tone climbs with about the cube of the tip
+    // speed and the once per revolution tone with its square
+    const ForcedInduction::CompressorTones fast = tones(18.0, 0.08, Inlet::Open);
+    const double speedRatio = 18.0 / 14.0;
+    EXPECT_GT(fast.bladePass / slow.bladePass, std::pow(speedRatio, 2.5));
+    EXPECT_NEAR(fast.synchronous / slow.synchronous, speedRatio * speedRatio, 0.01);
+
+    // Near its tip speed limit (503 m/s) the inducer tip runs supersonic
+    const ForcedInduction::CompressorTones shocked = tones(24.0, 0.08, Inlet::Open);
+    EXPECT_GT(shocked.buzzSaw, 0.0);
+
+    // A bigger wheel at the same tip speed is louder
+    const ForcedInduction::CompressorTones big = tones(14.0 * 0.08 / 0.1, 0.1, Inlet::Open);
+    EXPECT_NEAR(big.shaftFrequency, slow.shaftFrequency * 0.08 / 0.1, 1.0);
+    EXPECT_GT(big.synchronous, slow.synchronous * 1.2);
+
+    // A factory intake keeps most of the once per revolution whistle in
+    const ForcedInduction::CompressorTones stock = tones(14.0, 0.08, Inlet::Silenced);
+    EXPECT_LT(stock.synchronous, 0.1 * slow.synchronous);
+    EXPECT_LT(stock.bladePass, slow.bladePass);
+}

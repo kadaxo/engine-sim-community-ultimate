@@ -56,6 +56,11 @@ namespace es_script {
             params.externalWastegate = (m_wastegate == "external");
             params.twinScroll = m_twinScroll;
             params.whistlePitch = m_whistlePitch;
+            params.compressorBlades = m_compressorBlades;
+            params.splitterBlades = m_splitterBlades;
+            params.compressorInlet = (m_compressorInlet == "airbox") ? ForcedInduction::CompressorInlet::Airbox
+                : (m_compressorInlet == "open") ? ForcedInduction::CompressorInlet::Open
+                : ForcedInduction::CompressorInlet::Silenced;
             params.driveRatio = m_driveRatio;
             params.displacement = m_displacement;
             params.bypassValve = m_bypassValve;
@@ -97,6 +102,9 @@ namespace es_script {
             addInput("wastegate", &m_wastegate);
             addInput("twin_scroll", &m_twinScroll);
             addInput("whistle_pitch", &m_whistlePitch);
+            addInput("compressor_blades", &m_compressorBlades);
+            addInput("splitter_blades", &m_splitterBlades);
+            addInput("compressor_inlet", &m_compressorInlet);
 
             ObjectReferenceNode<ForcedInductionNode>::registerInputs();
         }
@@ -133,6 +141,9 @@ namespace es_script {
         std::string m_wastegate = "internal";
         bool m_twinScroll = false;
         double m_whistlePitch = 1.0;
+        int m_compressorBlades = 6;
+        int m_splitterBlades = 6;
+        std::string m_compressorInlet = "silenced";
     };
 
 } /* namespace es_script */

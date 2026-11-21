@@ -102,6 +102,9 @@ ForcedInduction::ForcedInduction() {
     m_externalWastegate = false;
     m_twinScroll = false;
     m_whistlePitch = 1.0;
+    m_compressorBlades = 6;
+    m_splitterBlades = 6;
+    m_compressorInlet = CompressorInlet::Silenced;
     m_surge = 0;
     m_wastegateIntegral = 0;
     m_lastBoost = 0;
@@ -181,6 +184,9 @@ void ForcedInduction::initialize(const Parameters &params) {
     m_blowoffType = params.blowoffType;
     m_boostControl = params.boostControl;
     m_whistlePitch = clamp(params.whistlePitch, 0.25, 4.0);
+    m_compressorBlades = std::clamp(params.compressorBlades, 3, 20);
+    m_splitterBlades = std::clamp(params.splitterBlades, 0, 20);
+    m_compressorInlet = params.compressorInlet;
     m_maxCompressorFlow = clamp(params.compressorFlow, 0.01, 3.0);
     m_surge = 0;
     m_wastegateIntegral = 0;
@@ -633,10 +639,102 @@ double ForcedInduction::getWhineLevel() const {
         return speed * (0.3 + 0.7 * load);
     }
 
-    const double s = clamp(m_units[0].omega / m_maxSpeed, 0.0, 1.0);
-    const double flow = clamp(
-        std::abs(getCompressorFlow()) * units::AirMolecularMass / 0.3, 0.0, 1.0);
-    return s * s * (0.25 + 0.75 * flow);
+    // Centrifugal compressors whistle instead, see getCompressorTones()
+    return 0.0;
+}
+
+// The sound of a centrifugal compressor is mostly tones locked to its shaft
+// (Raitor and Neise, Sound generation in centrifugal compressors, JSV 2008):
+//  - once per revolution, from the wheel's residual imbalance and
+//    asymmetry: the whistle usually heard from a car, at 1.2 to 4.5 kHz.
+//    For a given balance grade the imbalance force goes with D^2 U, and the
+//    small housing radiates it in proportion to the frequency, U / D, so
+//    the pressure goes with D U^2
+//  - the blades passing: the full blades at the inducer, and with the
+//    splitters at the exducer. Rotor tones rise steeply with tip speed
+//    (pressure with U^3, sound power with U^6) and with the blade loading
+//  - buzz-saw: once the flow meets the inducer tips faster than sound,
+//    shocks stand off the blades, and the small differences between them
+//    turn the blade passing tone into a spread of shaft harmonics
+// The levels are relative to the blade passing tone of a 60 mm wheel at
+// 400 m/s and full flow; the synchronous tone is taken at half that.
+// Twin turbochargers add their sound powers at the pitch of the faster one.
+ForcedInduction::CompressorTones ForcedInduction::getCompressorTones() const {
+    CompressorTones tones;
+    if (isPositiveDisplacement()) return tones;
+
+    constexpr double ReferenceDiameter = 0.06;
+    constexpr double ReferenceTipSpeed = 400.0;
+    constexpr double InducerRatio = 0.72;   // inducer tip over exducer tip
+    constexpr double HubRatio = 0.3;        // inducer hub over inducer tip
+
+    const double airR = constants::R / units::AirMolecularMass;
+    const double a1 = std::sqrt(Gamma * airR * m_ambientTemperature);
+    const double rho1 = m_ambientPressure / (airR * m_ambientTemperature);
+    const double size = 2 * m_tipRadius / ReferenceDiameter;
+    const double inducerRadius = InducerRatio * m_tipRadius;
+    const double inducerArea = constants::pi * inducerRadius * inducerRadius * (1 - HubRatio * HubRatio);
+
+    double omegaMax = 0;
+    double synchronous = 0, bladePass = 0, buzzSaw = 0;
+    for (int i = 0; i < m_unitCount; ++i) {
+        const Unit &unit = m_units[i];
+        if (!unit.active || unit.omega <= 0) continue;
+        omegaMax = std::max(omegaMax, unit.omega);
+
+        const double u = unit.omega * m_tipRadius / ReferenceTipSpeed;
+        const double massFlow = std::abs(unit.compressorFlow) * units::AirMolecularMass;
+        const double loading = 0.3 + 0.7 * clamp(massFlow / m_maxCompressorFlow, 0.0, 1.0);
+
+        // Relative Mach number of the flow at the inducer tip
+        const double axial = massFlow / (rho1 * inducerArea);
+        const double tip = unit.omega * inducerRadius;
+        const double machRelative = std::sqrt(tip * tip + axial * axial) / a1;
+        const double shock = clamp((machRelative - 1.0) / 0.15, 0.0, 1.0);
+
+        const double s = 0.5 * size * u * u;
+        const double b = size * u * u * u * loading;
+        const double z = 0.8 * size * shock * loading;
+        synchronous += s * s;
+        bladePass += b * b;
+        buzzSaw += z * z;
+    }
+    if (omegaMax <= 0) return tones;
+
+    const double f = omegaMax / (2 * constants::pi);
+    const double heard = f * m_whistlePitch;
+    tones.shaftFrequency = f;
+    tones.synchronous = std::sqrt(synchronous) * inletTransmission(m_compressorInlet, heard);
+    tones.bladePass = std::sqrt(bladePass)
+        * inletTransmission(m_compressorInlet, m_compressorBlades * heard);
+    tones.splitterPass = (m_splitterBlades > 0)
+        ? 0.5 * std::sqrt(bladePass)
+            * inletTransmission(m_compressorInlet, (m_compressorBlades + m_splitterBlades) * heard)
+        : 0.0;
+    tones.buzzSaw = std::sqrt(buzzSaw) * inletTransmission(m_compressorInlet, 0.5 * m_compressorBlades * heard);
+    return tones;
+}
+
+// An airbox (an expansion chamber with the filter) takes about 10 dB off
+// at 1 kHz, rising to 15 dB from 4 kHz up, and less below 1 kHz. A factory
+// intake adds a broadband (hiss) resonator that takes about another 14 dB
+// from 0.8 to 4 kHz, fading over an octave either side; above that it
+// leaves the blade passing tones to the airbox (Liu et al. 2019; resonators
+// cover about 0.8 to 4 kHz)
+double ForcedInduction::inletTransmission(CompressorInlet inlet, double frequency) {
+    if (inlet == CompressorInlet::Open) return 1.0;
+
+    const double f = std::max(frequency, 1.0);
+    double dB = (f < 1000.0)
+        ? 10.0 * f / 1000.0
+        : 10.0 + 2.5 * std::min(std::log2(f / 1000.0), 2.0);
+    if (inlet == CompressorInlet::Silenced) {
+        const double below = std::max(std::log2(800.0 / f), 0.0);
+        const double above = std::max(std::log2(f / 4000.0), 0.0);
+        dB += 14.0 * std::max(1.0 - below - above, 0.0);
+    }
+
+    return std::pow(10.0, -dB / 20.0);
 }
 
 double ForcedInduction::getFlowLevel() const {
@@ -668,5 +766,6 @@ int ForcedInduction::getSoundMode() const {
     default: break;
     }
 
-    return 10 * type + static_cast<int>(getBlowoffType());
+    return 10 * type + static_cast<int>(getBlowoffType())
+        + 100 * m_compressorBlades + 10000 * m_splitterBlades;
 }
