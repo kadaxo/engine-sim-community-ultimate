@@ -460,6 +460,7 @@ void PistonEngineSimulator::writeToSynthesizer() {
 
     // A turbine absorbs part of the exhaust pulses
     ForcedInduction *forcedInduction = m_engine->getForcedInduction();
+    double wastegatePulses = 0;
     if (forcedInduction != nullptr && forcedInduction->isTurbocharger()) {
         const double fraction = forcedInduction->getTurbineFlowFraction();
         const double muffling = 1.0 - 0.35 * fraction;
@@ -472,18 +473,23 @@ void PistonEngineSimulator::writeToSynthesizer() {
             // sharp edges of its pulses (a low-pass that closes from 4 kHz to
             // 700 Hz as more of it goes through), while what the wastegate
             // bypasses keeps them
+            // An external wastegate vents what it bypasses through its own
+            // pipe instead (see below)
             const double share = std::max(forcedInduction->getMufflerShare(), 0.1);
+            const double bypass = forcedInduction->hasExternalWastegate() ? 0.0 : 1.0 - fraction;
             const double cutoff = 4000.0 - 3300.0 * fraction;
             const double alpha = 1.0 - std::exp(-2.0 * constants::pi * cutoff * timestep);
             for (int i = 0; i < exhaustSystemCount; ++i) {
                 const double x = m_exhaustFlowStagingBuffer[i];
+                wastegatePulses += forcedInduction->getWastegateShare() * x;
                 m_turbineSoundState[i] += (x - m_turbineSoundState[i]) * alpha;
                 m_exhaustFlowStagingBuffer[i] =
-                    share * ((1.0 - fraction) * x + fraction * m_turbineSoundState[i]);
+                    share * (bypass * x + fraction * m_turbineSoundState[i]);
             }
         }
         else {
             for (int i = 0; i < exhaustSystemCount; ++i) {
+                wastegatePulses += forcedInduction->getWastegateShare() * m_exhaustFlowStagingBuffer[i];
                 m_exhaustFlowStagingBuffer[i] *= muffling;
             }
         }
@@ -504,10 +510,15 @@ void PistonEngineSimulator::writeToSynthesizer() {
             aux[8] = tones.splitterPass;
             aux[9] = tones.buzzSaw;
         }
-        aux[2] = forcedInduction->getBlowoffLevel();
-        aux[3] = forcedInduction->getFlowLevel();
-        aux[4] = forcedInduction->getSurgeLevel();
-        aux[5] = forcedInduction->getWastegateNoise();
+        const ForcedInduction::AirNoise air = forcedInduction->getAirNoise();
+        aux[2] = air.blowoff;
+        aux[3] = air.roar;
+        aux[4] = air.surge;
+        aux[5] = wastegatePulses;
+        aux[10] = air.whoosh;
+        aux[11] = air.whooshFrequency;
+        aux[12] = air.blowoffFrequency;
+        aux[13] = air.surgeRate;
         aux[6] = forcedInduction->getSoundMode();
     }
 

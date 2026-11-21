@@ -89,6 +89,19 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
             double buzzSaw = 0;         // shaft harmonics from the inducer's shocks
         };
 
+        // The noise of the air, each level relative to the reference blade
+        // passing tone and as it gets out (through the inlet where it goes
+        // that way)
+        struct AirNoise {
+            double whoosh = 0;              // compressor's broadband near surge
+            double whooshFrequency = 0;     // its centre [Hz]
+            double roar = 0;                // air rushing into the compressor
+            double blowoff = 0;             // the blow-off valve's jet
+            double blowoffFrequency = 0;    // its peak [Hz]
+            double surge = 0;               // flow reversing through the compressor
+            double surgeRate = 0;           // deep surge cycles per second [Hz]
+        };
+
         struct Parameters {
             Type type = Type::Turbocharger;
             Arrangement arrangement = Arrangement::Single;
@@ -113,8 +126,9 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
             double minTurbineAr = 0;                // vanes closed, 0: 0.25 * turbineAr
 
             // Exhaust sound taken after the turbine, which smooths the pulses
-            // going through it (default: before the turbine, as it was)
-            bool soundAfterTurbine = false;
+            // going through it; false takes it before the turbine (as it was
+            // before the default changed)
+            bool soundAfterTurbine = true;
 
             // Boost control
             double boost = 1.0e5;                   // wastegate set point (gauge) [Pa]
@@ -247,10 +261,12 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
         // Share of a compressor tone's pressure at a frequency [Hz] that gets
         // out through the inlet
         static double inletTransmission(CompressorInlet inlet, double frequency);
-        double getBlowoffLevel() const;     // [0, 1]
-        double getFlowLevel() const;        // compressor flow [0, 1]
+        AirNoise getAirNoise() const;
         double getSurgeLevel() const { return m_surge; }    // [0, 1]
-        double getWastegateNoise() const;   // external wastegate venting [0, 1]
+
+        // Share of the exhaust pulses an external wastegate vents through its
+        // own pipe, past the turbine and the muffler [0, 1]
+        double getWastegateShare() const;
 
         // Sound type for the synthesizer: 10 * type (1 turbocharger, 2 Roots,
         // 3 twin-screw, 4 centrifugal) + blow-off type (0 vented to the

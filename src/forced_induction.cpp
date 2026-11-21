@@ -75,7 +75,7 @@ ForcedInduction::ForcedInduction() {
     m_turbineKClosed = 0;
     m_variableGeometry = false;
     m_vanes = 1.0;
-    m_soundAfterTurbine = false;
+    m_soundAfterTurbine = true;
     m_mufflerShare = 1.0;
     m_exhaustMoles = 0;
     m_exhaustFlowRate = 0;
@@ -737,24 +737,105 @@ double ForcedInduction::inletTransmission(CompressorInlet inlet, double frequenc
     return std::pow(10.0, -dB / 20.0);
 }
 
-double ForcedInduction::getFlowLevel() const {
-    return clamp(std::abs(getCompressorFlow()) * units::AirMolecularMass / std::max(m_maxCompressorFlow, 0.01), 0.0, 1.0);
-}
-
-double ForcedInduction::getWastegateNoise() const {
+// What the exhaust gas bypassing the turbine leaves through: an external
+// wastegate's own pipe, with no muffler
+double ForcedInduction::getWastegateShare() const {
     if (!m_externalWastegate || !isTurbocharger()) return 0.0;
-    return clamp(m_wastegate * (1.0 - m_turbineFraction) * 2.0, 0.0, 1.0);
+    return clamp(1.0 - m_turbineFraction, 0.0, 1.0);
 }
 
-double ForcedInduction::getBlowoffLevel() const {
-    // The hiss is the jet of charge air leaving the valve, so it follows the
-    // pressure driving it as well as the flow: a lift from full boost gives
-    // a sharp hiss, while the little air the compressor pushes through the
-    // open valve when cruising (with the charge at about ambient pressure)
-    // is nearly silent
-    const double flow = clamp(m_blowoffFlowRate * units::AirMolecularMass / 0.15, 0.0, 1.0);
-    const double drive = clamp(getBoost() / units::pressure(5.0, units::psi), 0.0, 1.0);
-    return flow * drive;
+// The air's noise:
+//  - whoosh: broadband noise the compressor makes as it nears surge (high
+//    pressure ratio at low flow), from the flow stalling in the wheel and
+//    diffuser, 4 to 12 kHz in automotive compressors (Dehner et al., ASME
+//    J. Turbomach. 2021). Its level climbs with the cube of the tip speed
+//    like the tones'. The flow coefficient against the compressor's choke
+//    flow places it on the map: from about half of it down to a quarter
+//    the whoosh comes in fully
+//  - roar: the turbulent air rushing into the inlet, rising with the cube of
+//    its velocity, around 1.5 kHz
+//  - blow-off: a gas jet (Lighthill: sound power ~ D^2 u^8, so pressure
+//    ~ D u^4). The jet's speed comes from the charge pressure expanding to
+//    the outside, its diameter from the vented flow at that speed, and its
+//    peak frequency from a Strouhal number of 0.2, so a lift from full
+//    boost starts as a loud, high hiss that falls in pitch and level as the
+//    charge empties. A recirculating valve vents into the compressor's inlet,
+//    so its jet only gets out through the inlet
+//  - surge: the flow reversing through the compressor, in deep surge cycles
+//    at about 0.4 times the Helmholtz frequency of the charge volume with
+//    the compressor's duct (Greitzer), so a larger intercooler and pipes
+//    flutter slower
+ForcedInduction::AirNoise ForcedInduction::getAirNoise() const {
+    AirNoise noise;
+
+    const double airR = constants::R / units::AirMolecularMass;
+    const double a1 = std::sqrt(Gamma * airR * m_ambientTemperature);
+    const double rho1 = m_ambientPressure / (airR * m_ambientTemperature);
+    const double inducerRadius = 0.72 * m_tipRadius;
+    const double inducerArea = constants::pi * inducerRadius * inducerRadius * (1 - 0.3 * 0.3);
+
+    if (!isPositiveDisplacement()) {
+        constexpr double ReferenceDiameter = 0.06;
+        constexpr double ReferenceTipSpeed = 400.0;
+        const double d = 2 * m_tipRadius;
+        const double size = d / ReferenceDiameter;
+        const double chokeCoefficient = m_maxCompressorFlow / (rho1 * MaxTipSpeed * d * d);
+        const double pressureRatio = std::max(m_charge.pressure() / m_ambientPressure, 1.0);
+
+        double whoosh = 0, roar = 0, omegaMax = 0;
+        for (int i = 0; i < m_unitCount; ++i) {
+            const Unit &unit = m_units[i];
+            if (!unit.active || unit.omega <= 0) continue;
+            omegaMax = std::max(omegaMax, unit.omega);
+
+            const double U = unit.omega * m_tipRadius;
+            const double massFlow = std::max(unit.compressorFlow, 0.0) * units::AirMolecularMass;
+            const double coefficient = massFlow / (rho1 * U * d * d) / chokeCoefficient;
+            const double nearSurge = clamp((0.5 - coefficient) / 0.25, 0.0, 1.0)
+                * clamp((pressureRatio - 1.0) / 0.5, 0.0, 1.0);
+            const double u = U / ReferenceTipSpeed;
+            const double w = 0.6 * size * u * u * u * (0.1 + 0.9 * nearSurge);
+            whoosh += w * w;
+
+            const double velocity = massFlow / (rho1 * inducerArea) / 100.0;
+            const double r = 0.3 * size * velocity * velocity * velocity;
+            roar += r * r;
+        }
+
+        if (omegaMax > 0) {
+            const double f = omegaMax / (2 * constants::pi) * m_whistlePitch;
+            noise.whooshFrequency = clamp(0.55 * m_compressorBlades * f, 2000.0, 12000.0);
+            noise.whoosh = std::sqrt(whoosh) * inletTransmission(m_compressorInlet, noise.whooshFrequency);
+            noise.roar = std::sqrt(roar) * inletTransmission(m_compressorInlet, 1500.0);
+        }
+
+        // Deep surge
+        const double helmholtz = a1 / (2 * constants::pi)
+            * std::sqrt(inducerArea / (std::max(m_charge.volume(), 1e-4) * 0.5));
+        noise.surgeRate = clamp(0.4 * helmholtz, 4.0, 40.0);
+        noise.surge = m_surge * inletTransmission(m_compressorInlet, 380.0);
+    }
+
+    // The blow-off valve's jet
+    const double vented = m_blowoffFlowRate * units::AirMolecularMass;   // [kg/s]
+    const double ratio = m_charge.pressure() / m_ambientPressure;
+    if (vented > 1e-5 && ratio > 1.0) {
+        const double T = m_charge.temperature();
+        const double expansion = 1.0 - std::pow(1.0 / ratio, Exponent);
+        const double u = std::sqrt(2 * Cp_mass * T * expansion);
+        const double rhoJet = m_ambientPressure / (airR * T * (1.0 - expansion));
+        const double area = vented / (rhoJet * std::max(u, 1.0));
+        const double diameter = std::sqrt(4 * area / constants::pi);
+        const double jet = (diameter / 0.02) * std::pow(u / 300.0, 4.0);
+
+        noise.blowoffFrequency = clamp(0.2 * u / std::max(diameter, 1e-3), 800.0, 12000.0);
+        noise.blowoff = std::min(jet, 3.0);
+        if (getBlowoffType() == BlowoffType::Recirculating) {
+            noise.blowoff *= inletTransmission(m_compressorInlet, noise.blowoffFrequency);
+        }
+    }
+
+    return noise;
 }
 
 int ForcedInduction::getSoundMode() const {

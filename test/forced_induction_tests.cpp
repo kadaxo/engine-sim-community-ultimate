@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <vector>
 
 namespace {
 
@@ -199,7 +200,7 @@ TEST_F(ForcedInductionTest, BlowoffValveVentsWhenTheThrottleCloses) {
     m_intake.m_throttle = 1.0;          // closed
     for (int i = 0; i < 2000; ++i) step(&fi, dt);
     EXPECT_GT(fi.getBlowoffOpening(), 0.5);
-    EXPECT_GT(fi.getBlowoffLevel(), 0.0);
+    EXPECT_GT(fi.getAirNoise().blowoff, 0.0);
 }
 
 TEST_F(ForcedInductionTest, BoostIsMeasuredAgainstTheIntakeAtmosphere) {
@@ -304,4 +305,73 @@ TEST_F(ForcedInductionTest, CompressorTonesFollowTheWheel) {
     const ForcedInduction::CompressorTones stock = tones(14.0, 0.08, Inlet::Silenced);
     EXPECT_LT(stock.synchronous, 0.1 * slow.synchronous);
     EXPECT_LT(stock.bladePass, slow.bladePass);
+}
+
+// Deep surge cycles at about 0.4 times the Helmholtz frequency of the charge
+// volume with the compressor's duct, so larger pipes flutter slower
+TEST_F(ForcedInductionTest, SurgeRateFollowsTheChargeVolume) {
+    auto rate = [this](double volume) {
+        ForcedInduction::Parameters params;
+        params.type = ForcedInduction::Type::Centrifugal;
+        params.driveRatio = 14.0;
+        params.compressorDiameter = 0.08;
+        params.chargeVolume = volume;
+        params.blowoffType = ForcedInduction::BlowoffType::None;
+        params.blowoffValve = false;
+
+        ForcedInduction fi;
+        fi.initialize(params);
+        return fi.getAirNoise().surgeRate;
+    };
+
+    const double small = rate(units::volume(4.0, units::L));
+    const double large = rate(units::volume(8.0, units::L));
+    EXPECT_GT(small, 10.0);
+    EXPECT_LT(small, 30.0);
+    EXPECT_NEAR(small / large, std::sqrt(2.0), 0.01);
+}
+
+// The blow-off valve's jet: loud while the charge is at full boost, fading
+// as it empties; a recirculating valve's only gets out through the inlet
+TEST_F(ForcedInductionTest, BlowoffJetFadesAsTheChargeEmpties) {
+    auto lift = [this](ForcedInduction::BlowoffType type, std::vector<ForcedInduction::AirNoise> *out) {
+        TearDown();
+        SetUp();
+        ForcedInduction::Parameters params;
+        params.type = ForcedInduction::Type::Centrifugal;
+        params.driveRatio = 14.0;
+        params.compressorDiameter = 0.08;
+        params.compressorFlow = 0.4;
+        params.blowoffType = type;
+
+        ForcedInduction fi;
+        fi.initialize(params);
+        connect(&fi);
+        const double dt = 1.0 / 20000;
+        for (int i = 0; i < 20000; ++i) step(&fi, dt);
+        m_intake.m_throttle = 1.0;          // closed
+        // The wheel stops feeding the charge (a supercharger's keeps turning
+        // with the crank and venting, as a turbo's winding down doesn't)
+        m_crankshaft.m_body.v_theta = 0;
+        for (int i = 0; i < 4000; ++i) {
+            step(&fi, dt);
+            if (i % 400 == 0) out->push_back(fi.getAirNoise());
+        }
+    };
+
+    std::vector<ForcedInduction::AirNoise> vented, recirculated;
+    lift(ForcedInduction::BlowoffType::Atmospheric, &vented);
+    lift(ForcedInduction::BlowoffType::Recirculating, &recirculated);
+
+    double peak = 0;
+    int at = 0;
+    for (int i = 0; i < static_cast<int>(vented.size()); ++i) {
+        if (vented[i].blowoff > peak) { peak = vented[i].blowoff; at = i; }
+    }
+    ASSERT_GT(peak, 0.0);
+    EXPECT_GT(vented[at].blowoffFrequency, 800.0);
+    EXPECT_LT(vented.back().blowoff, 0.5 * peak);
+
+    // Through the factory intake (silenced, the default)
+    EXPECT_LT(recirculated[at].blowoff, 0.2 * vented[at].blowoff);
 }

@@ -53,6 +53,7 @@ Synthesizer::Synthesizer() {
     m_fiCounter = 0;
     m_mixEnvelope = 0;
     m_fiNoiseState = 0x9E3779B9u;
+    m_wastegateLast = 0;
 
     m_tickEnvelope = 0;
     m_lastTick = 0;
@@ -98,8 +99,9 @@ void Synthesizer::initialize(const Parameters &p) {
     m_fiCounter = 0;
     m_mixEnvelope = 0;
     m_fiNoiseState = 0x9E3779B9u;
-    m_whistleBand = m_whooshBand = m_flutterBand = Bandpass();
-    m_blowoffBand1 = m_blowoffBand2 = m_wastegateBand = Bandpass();
+    m_whistleBand = m_whooshBand = m_roarBand = m_flutterBand = Bandpass();
+    m_blowoffBand1 = m_blowoffBand2 = Bandpass();
+    m_wastegateLast = 0;
 
     m_blockBand1 = m_blockBand2 = m_tickBand = m_tickRing = Bandpass();
     m_tickEnvelope = 0;
@@ -480,16 +482,19 @@ float Synthesizer::fiNoise() {
 // Turbocharger and supercharger sounds (from kyan0s-git/engine-sim), driven
 // by control channels from the simulation: [0] shaft or rotor frequency [Hz]
 // (times the whistle pitch), [1] whine level (positive displacement) or the
-// compressor's once per revolution tone, [2] blow-off flow, [3] compressor
-// flow, [4] surge, [5] external wastegate venting, [6] mode (10 * type +
-// blow-off type + 100 * full blades + 10000 * splitter blades; types 1
-// turbo, 2 Roots, 3 twin-screw, 4 centrifugal; blow-off 0 vented,
-// 1 recirculating, 2 none), [7] blade passing tone, [8] splitter passing
-// tone and [9] buzz-saw (the compressor's tones as levels relative to
-// the reference blade passing tone, see
-// ForcedInduction::getCompressorTones()). All follow the loudness of the
-// engine: the exhaust channels' units aren't the same loudness from one
-// engine script to another, so they can't carry an absolute level.
+// compressor's once per revolution tone, [2] blow-off jet, [3] intake roar,
+// [4] surge, [5] the exhaust pulses an external wastegate vents (in the
+// exhaust channels' units), [6] mode (10 * type + blow-off type + 100 *
+// full blades + 10000 * splitter blades; types 1 turbo, 2 Roots,
+// 3 twin-screw, 4 centrifugal; blow-off 0 vented, 1 recirculating, 2 none),
+// [7] blade passing tone, [8] splitter passing tone, [9] buzz-saw,
+// [10] whoosh, [11] its centre [Hz], [12] the blow-off jet's peak [Hz] and
+// [13] the deep surge rate [Hz] (levels relative to the reference blade
+// passing tone, see ForcedInduction::getCompressorTones() and
+// getAirNoise()). They follow the loudness of the engine: the exhaust
+// channels' units aren't the same loudness from one engine script to
+// another, so they can't carry an absolute level. The wastegate's pipe is
+// the exception: it is the engine's own exhaust pulses, unmuffled.
 float Synthesizer::renderForcedInduction(int inputSample, float signal) {
     if (m_auxChannelCount < ForcedInductionChannelCount) return 0.0f;
 
@@ -500,7 +505,6 @@ float Synthesizer::renderForcedInduction(int inputSample, float signal) {
 
     const int mode = static_cast<int>(std::lround(aux[6][inputSample]));
     const int type = (mode / 10) % 10;
-    const int blowoffType = mode % 10;
     const int blades = std::max((mode / 100) % 100, 1);
     const int splitters = mode / 10000;
     if (type == 0) return 0.0f;
@@ -520,9 +524,13 @@ float Synthesizer::renderForcedInduction(int inputSample, float signal) {
     const float shaft = std::max(aux[0][inputSample], 0.0f);
     const float whine = std::max(aux[1][inputSample], 0.0f);
     const float blowoff = std::max(aux[2][inputSample], 0.0f);
-    const float flow = std::max(aux[3][inputSample], 0.0f);
+    const float roar = std::max(aux[3][inputSample], 0.0f);
     const float surge = std::max(aux[4][inputSample], 0.0f);
-    const float wastegate = std::max(aux[5][inputSample], 0.0f);
+    const float wastegate = aux[5][inputSample];
+    const float whoosh = std::max(aux[10][inputSample], 0.0f);
+    const float whooshFrequency = aux[11][inputSample];
+    const float blowoffFrequency = aux[12][inputSample];
+    const float surgeRate = aux[13][inputSample];
 
     // Filter centres follow the shaft speed; updated every 32 samples
     float tonal = 0;
@@ -531,7 +539,8 @@ float Synthesizer::renderForcedInduction(int inputSample, float signal) {
         const float bladeFrequency = blades * shaft;
         if ((m_fiCounter++ & 31) == 0) {
             m_whistleBand.set(bladeFrequency, 12.0f, fs);
-            m_whooshBand.set(500.0f + 0.35f * std::clamp(400.0f + 2.4f * shaft, 300.0f, 9000.0f), 0.9f, fs);
+            m_whooshBand.set(std::max(whooshFrequency, 1000.0f), 0.8f, fs);
+            m_roarBand.set(1500.0f, 0.6f, fs);
         }
 
         // The compressor's tones, all on the shaft's phase: once per
@@ -569,7 +578,10 @@ float Synthesizer::renderForcedInduction(int inputSample, float signal) {
             if (norm > 0) compressor += buzzSaw * buzz / std::sqrt(norm);
         }
 
-        tonal += 0.45f * flow * flow * m_whooshBand.process(fiNoise());
+        // The air: the compressor's whoosh near surge and the roar of the
+        // air rushing in, both broadband
+        compressor += 2.0f * whoosh * m_whooshBand.process(fiNoise());
+        compressor += 2.0f * roar * m_roarBand.process(fiNoise());
     }
     else {
         // Supercharger rotor whine: lobe passing frequency with harmonics
@@ -592,36 +604,46 @@ float Synthesizer::renderForcedInduction(int inputSample, float signal) {
         tonal += whine * (0.45f * tone + 1.5f * m_whistleBand.process(fiNoise()));
     }
 
-    // Compressor surge without a blow-off valve: a fluttering chop
+    // Compressor surge without a blow-off valve: a fluttering chop at the
+    // deep surge rate
     float bursts = 0;
     if (surge > 0.01f) {
-        m_flutterPhase += twoPi * (11.0 + 7.0 * surge) / fs;
+        m_flutterPhase += twoPi * std::clamp(surgeRate, 4.0f, 40.0f) / fs;
         if (m_flutterPhase > twoPi) m_flutterPhase -= twoPi;
         const float gate = static_cast<float>(std::pow(std::max(std::sin(m_flutterPhase), 0.0), 3.0));
         if ((m_fiCounter & 31) == 1) m_flutterBand.set(380.0f, 1.6f, fs);
         bursts += 2.0f * surge * gate * m_flutterBand.process(fiNoise());
     }
 
-    // Blow-off: a sharp vented "pssh" or a soft recirculating whoosh
+    // Blow-off: the jet's broadband hiss around its peak, with a wider
+    // shoulder above it (a recirculating valve's comes out through the
+    // inlet, which the simulation has taken off)
     if (blowoff > 0.001f) {
         if ((m_fiCounter & 31) == 2) {
-            m_blowoffBand1.set(blowoffType == 1 ? 1100.0f : 2600.0f, blowoffType == 1 ? 1.2f : 0.7f, fs);
-            m_blowoffBand2.set(6500.0f, 1.3f, fs);
+            m_blowoffBand1.set(std::max(blowoffFrequency, 800.0f), 0.7f, fs);
+            m_blowoffBand2.set(std::max(2.5f * blowoffFrequency, 2000.0f), 1.0f, fs);
         }
         const float r = fiNoise();
-        bursts += (blowoffType == 1)
-            ? 0.7f * blowoff * m_blowoffBand1.process(r)
-            : blowoff * (1.6f * m_blowoffBand1.process(r) + 0.8f * m_blowoffBand2.process(r));
+        bursts += 0.44f * blowoff * (1.6f * m_blowoffBand1.process(r) + 0.8f * m_blowoffBand2.process(r));
     }
 
-    // External wastegate venting through its own pipe
-    if (wastegate > 0.01f) {
-        if ((m_fiCounter & 31) == 3) m_wastegateBand.set(1500.0f, 2.5f, fs);
-        bursts += 0.6f * wastegate * m_wastegateBand.process(fiNoise());
+    // External wastegate: its share of the exhaust pulses, out of a short
+    // pipe with no muffler. An open pipe end radiates as a monopole, its
+    // pressure following the rate of change of the flow, so the pulses come
+    // out as a rasp (rising 6 dB per octave, taken as unity at 500 Hz). The
+    // muffled exhaust has the impulse responses' gain; the open pipe takes
+    // about 10 dB less off.
+    float pipe = 0;
+    if (wastegate != 0.0f || m_wastegateLast != 0.0f) {
+        float gain = 0;
+        for (int i = 0; i < m_inputChannelCount; ++i) gain += m_filters[i].impulseGain;
+        gain /= std::max(m_inputChannelCount, 1);
+        pipe = 3.0f * gain * (wastegate - m_wastegateLast) * fs / (2.0f * 3.14159265f * 500.0f);
+        m_wastegateLast = wastegate;
     }
 
     return volume * ((tonal + 0.35f * compressor) * (1.1f * m_mixEnvelope + 0.4f * floor)
-        + bursts * reference * 1.5f);
+        + bursts * reference * 1.5f + pipe);
 }
 
 // A diesel's engine noise, driven by two control channels from the

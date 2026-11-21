@@ -45,7 +45,7 @@ variable geometry turbo ([diesel.md](diesel.md)).
 | `turbine_diameter` | 0 | Turbine wheel diameter; its flow goes with the wheel's area (54 mm flows about 0.15 kg/s at 0.64 A/R, the size that goes with the default compressor). 0 sizes it from `compressor_flow` |
 | `variable_geometry` | false | Vanes in the turbine housing (VGT, VNT) instead of a wastegate: closed they act as a small housing and spool the turbo at low rpm, and they open to hold the boost |
 | `min_turbine_ar` | 0 | Variable geometry: the A/R with the vanes closed; 0 takes a quarter of `turbine_ar` |
-| `exhaust_sound` | `"before_turbine"` | `"after_turbine"` hears the exhaust past the turbine, which smooths its pulses and takes its share of their pressure, as a muffler does |
+| `exhaust_sound` | `"after_turbine"` | Hears the exhaust past the turbine, which smooths its pulses and takes its share of their pressure, as a muffler does. `"before_turbine"` hears it before (the old default) |
 | `turbine_efficiency` | 0.7 | |
 | `inertia` | 0.00003 | Rotating assembly (kg m²): more inertia, more lag |
 | `bearings` | `"journal"` | `"journal"` or `"ball"` (less friction, quicker spool) |
@@ -136,18 +136,34 @@ of the engine:
   another, so it can't carry an absolute level).
 * **Supercharger whine**: the rotor lobe passing frequency with its harmonics (Roots and
   twin-screw), or the same compressor tones as a turbo's (centrifugal). It follows rotor speed and boost.
-* **Blow-off**: a hiss (or a softer whoosh for a recirculating valve) while the valve vents,
-  louder the more boost it releases, so a lift from full boost is heard but cruising with the
-  valve open is quiet. Without a valve the compressor surges, heard as a flutter.
-* **External wastegate**: a rasp while it vents.
+* **Whoosh and intake roar** (centrifugal compressors): broadband noise the compressor makes as
+  it nears surge, at high pressure ratio and low flow, from the flow stalling in the wheel
+  (4 to 12 kHz in car turbos; Dehner et al., ASME J. Turbomach. 2021). It climbs with the cube
+  of the tip speed, and comes in fully between about half and a quarter of the compressor's
+  choke flow coefficient. The air rushing into the inlet adds a roar around 1.5 kHz that rises
+  with the cube of its velocity. Both get out through the inlet like the whistle.
+* **Blow-off**: the valve's gas jet. Its speed comes from the charge pressure expanding to the
+  outside, its diameter from the vented flow at that speed; its level goes with the diameter
+  times the fourth power of the speed (Lighthill) and its peak frequency with a Strouhal number
+  of 0.2. A lift from full boost starts as a loud, high hiss that falls in pitch and level as
+  the charge empties, and a lift from little boost is quiet. A recirculating valve vents into
+  the compressor's inlet, so its jet only gets out through the inlet: with a factory intake it
+  is barely heard.
+* **Surge flutter**: without a valve the flow reverses through the compressor in deep surge
+  cycles at about 0.4 times the Helmholtz frequency of the charge volume with the compressor's
+  duct (Greitzer), so larger intercooler pipes flutter slower (a 6 L charge on a 60 mm wheel
+  about 15 times a second).
+* **External wastegate**: what it bypasses leaves through its own short pipe with no muffler
+  instead of going on to the muffled exhaust. The open pipe end radiates the rate of change
+  of those pulses, a rasp.
 * **The turbine** absorbs part of the exhaust pulses, so a turbocharged engine sounds more
-  muffled than the same engine without one. By default the exhaust is heard before the
-  turbine, softened by a fixed share. With `exhaust_sound: "after_turbine"` it is heard past
-  it: the turbine and wastegate take their share of the pressure drop to the outside, so only
-  the rest of the pulses go on to the muffler, and the exhaust going through the wheel loses
-  the sharp edges of its pulses (a low-pass from 4 kHz down to 700 Hz as more of it goes
-  through). A turbo engine idling on closed vanes or a shut wastegate then sounds quieter, not
-  brighter.
+  muffled than the same engine without one. The exhaust is heard past it: the turbine and
+  wastegate take their share of the pressure drop to the outside, so only the rest of the
+  pulses go on to the muffler, and the exhaust going through the wheel loses the sharp edges of
+  its pulses (a low-pass from 4 kHz down to 700 Hz as more of it goes through). A turbo engine
+  idling on closed vanes or a shut wastegate then sounds quieter, not brighter. With
+  `exhaust_sound: "before_turbine"` the exhaust is heard before the turbine instead, softened
+  by a fixed share (the old default).
 
 ## Headless check
 
@@ -161,8 +177,7 @@ printing boost and shaft speed every 0.1 s. See `assets/probe_*.mr`.
 ## Notes
 
 * `units.psi` in `es/constants/units.mr` used mass-pounds; it now uses pound-force.
-* By default the exhaust sound is taken before the turbine, so with the wastegate shut at idle
-  a turbocharged engine idles somewhat brighter than the same engine without one;
-  `exhaust_sound: "after_turbine"` avoids that. The default stays as it was so the existing
-  engines sound the same.
+* The exhaust sound used to be taken before the turbine by default, so with the wastegate shut
+  at idle a turbocharged engine idled somewhat brighter than the same engine without one. It is
+  now taken after the turbine; `exhaust_sound: "before_turbine"` keeps the old sound.
 * Upstream source ends at v0.1.11a and has no Wankel engine, so boosted rotaries are not possible here.

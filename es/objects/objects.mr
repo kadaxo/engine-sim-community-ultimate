@@ -679,7 +679,8 @@ private node _forced_induction => __engine_sim__forced_induction {
 // variable_geometry: vanes in the turbine housing hold the boost instead of a
 // wastegate, acting as min_turbine_ar when closed (0: 0.25 * turbine_ar) and
 // turbine_ar when open
-// exhaust_sound: "before_turbine" or "after_turbine" (smoother pulses)
+// exhaust_sound: "after_turbine" (the turbine smooths the pulses and takes its
+// share of their pressure, as a muffler does) or "before_turbine"
 // compressor_inlet: what the compressor draws through, which decides how much
 // of its whistle gets out: "silenced" (a factory airbox with a resonator),
 // "airbox" or "open" (an open filter)
@@ -693,7 +694,7 @@ public node turbocharger {
     input turbine_diameter: 0.0;
     input variable_geometry: false;
     input min_turbine_ar: 0.0;
-    input exhaust_sound: "before_turbine";
+    input exhaust_sound: "after_turbine";
     input turbine_efficiency: 0.7;
     input inertia: 0.00003;
     input bearings: "journal";

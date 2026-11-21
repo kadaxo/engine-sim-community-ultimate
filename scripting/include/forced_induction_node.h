@@ -41,7 +41,7 @@ namespace es_script {
             params.turbineDiameter = m_turbineDiameter;
             params.variableGeometry = m_variableGeometry;
             params.minTurbineAr = m_minTurbineAr;
-            params.soundAfterTurbine = (m_exhaustSound == "after_turbine");
+            params.soundAfterTurbine = (m_exhaustSound != "before_turbine");
             params.turbineEfficiency = m_turbineEfficiency;
             params.inertia = m_inertia;
             params.ballBearings = (m_bearings == "ball");
@@ -124,7 +124,7 @@ namespace es_script {
         double m_turbineDiameter = 0.0;
         bool m_variableGeometry = false;
         double m_minTurbineAr = 0.0;
-        std::string m_exhaustSound = "before_turbine";
+        std::string m_exhaustSound = "after_turbine";
         double m_turbineEfficiency = 0.7;
         double m_inertia = 3e-5;
         std::string m_bearings = "journal";
