@@ -79,7 +79,7 @@ void GasSystem::changeTemperature(double dT, double n) {
     m_state.E_k += dT * 0.5 * m_degreesOfFreedom * n * constants::R;
 }
 
-double GasSystem::react(double n, const Mix &mix) {
+double GasSystem::react(double n, const Mix &mix, double o2PerFuel) {
     const double l_n_fuel = mix.p_fuel * n;
     const double l_n_o2 = mix.p_o2 * n;
 
@@ -88,10 +88,12 @@ double GasSystem::react(double n, const Mix &mix) {
     const double system_n_inert = n_inert();
     const double system_n = this->n();
 
-    // Assuming the following reaction:
-    // 25[O2] + 2[C8H16] -> 16[CO2] + 18[H2O]
-    constexpr double ideal_o2_ratio = 25.0 / 2;
-    constexpr double ideal_fuel_ratio = 2.0 / 25;
+    // The fuel takes o2PerFuel moles of oxygen per mole (octane's 12.5 by
+    // default: 25[O2] + 2[C8H16] -> 16[CO2] + 18[H2O]); the products keep
+    // octane's ratio to the reactants
+    if (o2PerFuel <= 0) o2PerFuel = 25.0 / 2;
+    const double ideal_o2_ratio = o2PerFuel;
+    const double ideal_fuel_ratio = 1.0 / o2PerFuel;
     constexpr double output_input_ratio = (16.0 + 18.0) / (25 + 2);
 
     const double ideal_fuel_n = ideal_fuel_ratio * l_n_o2;

@@ -141,7 +141,13 @@ public node monster_truck_540_blown_v8 {
         starter_speed: 400 * units.rpm,
         redline: 6500 * units.rpm,
         throttle_gamma: 1.8,
+        // Monster trucks burn methanol: CH3OH, 1.5 O2 per molecule
         fuel: fuel(
+            name: "Methanol",
+            molecular_mass: 32.04 * units.g,
+            energy_density: 19.9 * units.kJ / units.g,
+            density: 0.792 * units.kg / units.L,
+            molecular_afr: 1.5,
             max_burning_efficiency: 0.96
         ),
         hf_gain: 0.012,
@@ -207,6 +213,7 @@ public node monster_truck_540_blown_v8 {
         runner_length: 6.0 * units.inch,
         idle_flow_rate: k_carb(0.004),
         idle_throttle_plate_position: 0.997,
+        molecular_afr: 1.5,             // methanol (see the fuel)
         velocity_decay: 0.5
     )
 
@@ -387,14 +394,14 @@ public node monster_truck_540_blown_v8 {
 
     // An 8-71 Roots blower, as Monster Jam's 540s run (GMC pattern: two
     // twisted three-lobe rotors, about 436 cubic inches a turn) on the belt,
-    // with no bypass valve and no intercooler. The real engines burn
-    // methanol; this one stays on petrol, which the combustion model handles
-    // (its spark burn assumes petrol's ratio of oxygen to fuel). Overdriven
-    // 2:1 it makes about 23 psi and 1200 hp at 6300 rpm
+    // with no bypass valve and no intercooler, on methanol as the real ones.
+    // Overdriven 2.2:1 it makes about 29 psi and 1140 hp at 6300 rpm (the
+    // real ones make 1400 to 1500, revving higher; the simulation treats the
+    // methanol as a gas in the charge, without its cooling as it evaporates)
     supercharger blower(
         type: "roots",
         displacement: 436 * units.cubic_inches,
-        drive_ratio: 2.0,
+        drive_ratio: 2.2,
         bypass_valve: false
     )
     engine.add_forced_induction(blower)

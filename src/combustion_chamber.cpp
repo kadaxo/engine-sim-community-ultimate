@@ -520,7 +520,7 @@ void CombustionChamber::flow(double dt) {
             const double n = (litVolume / volume) * m_system.n();
 
             const double fuelBurned =
-                m_system.react(n * m_flameEvent.efficiency, m_flameEvent.globalMix);
+                m_system.react(n * m_flameEvent.efficiency, m_flameEvent.globalMix, m_fuel->getMolecularAfr());
             const double massFuelBurned = fuelBurned * m_fuel->getMolecularMass();
             m_system.changeEnergy(
                 massFuelBurned * m_fuel->getEnergyDensity());
@@ -565,7 +565,7 @@ void CombustionChamber::afterburn(double dt) {
     if (mix.p_fuel <= 0 || mix.p_o2 <= 0 || runner.temperature() < 900.0) return;
 
     const double share = std::min(dt / 0.0003, 1.0);
-    const double fuelBurned = runner.react(runner.n() * share, mix);
+    const double fuelBurned = runner.react(runner.n() * share, mix, m_fuel->getMolecularAfr());
     runner.changeEnergy(fuelBurned * m_fuel->getMolecularMass() * m_fuel->getEnergyDensity());
     m_afterburnFuel += fuelBurned * m_fuel->getMolecularMass();
 }

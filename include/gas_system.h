@@ -52,7 +52,9 @@ class GasSystem {
         void changeMix(const Mix &mix);
         void injectFuel(double n);
 
-        double react(double n, const Mix &mix);
+        // Burns the fuel in n moles of the mix with o2PerFuel moles of oxygen
+        // for each mole of fuel (12.5 for octane, the fuel's molecular_afr)
+        double react(double n, const Mix &mix, double o2PerFuel = 25.0 / 2);
 
         // Burns up to n_fuel moles of fuel sprayed into the gas (a diesel's
         // injection: the liquid fuel isn't part of the gas until it burns),
