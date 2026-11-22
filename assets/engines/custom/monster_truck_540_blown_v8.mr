@@ -385,6 +385,20 @@ public node monster_truck_540_blown_v8 {
         .connect_wire(wires.wire7, (6.0 / 8.0) * cycle)
         .connect_wire(wires.wire2, (7.0 / 8.0) * cycle)
 
+    // An 8-71 Roots blower, as Monster Jam's 540s run (GMC pattern: two
+    // twisted three-lobe rotors, about 436 cubic inches a turn) on the belt,
+    // with no bypass valve and no intercooler. The real engines burn
+    // methanol; this one stays on petrol, which the combustion model handles
+    // (its spark burn assumes petrol's ratio of oxygen to fuel). Overdriven
+    // 2:1 it makes about 23 psi and 1200 hp at 6300 rpm
+    supercharger blower(
+        type: "roots",
+        displacement: 436 * units.cubic_inches,
+        drive_ratio: 2.0,
+        bypass_valve: false
+    )
+    engine.add_forced_induction(blower)
+
     engine.add_ignition_module(ignition)
 }
 

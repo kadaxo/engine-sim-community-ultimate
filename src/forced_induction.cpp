@@ -117,6 +117,12 @@ ForcedInduction::ForcedInduction() {
     m_externalWastegate = false;
     m_twinScroll = false;
     m_whistlePitch = 1.0;
+    m_rotorLobes = 3;
+    m_rotorEfficiency = 0.55;
+    m_rotorTwist = 0;
+    m_gearTeeth = 0;
+    m_gearWhine = 0;
+    m_whineVolume = 1.0;
     m_compressorBlades = 6;
     m_splitterBlades = 6;
     m_compressorInlet = CompressorInlet::Silenced;
@@ -148,7 +154,12 @@ void ForcedInduction::initialize(const Parameters &params) {
     m_arrangement = isTurbocharger() ? params.arrangement : Arrangement::Single;
     m_unitCount = (m_arrangement == Arrangement::Single) ? 1 : 2;
 
-    const double d = clamp(params.compressorDiameter, 0.02, 0.2);
+    // A centrifugal supercharger's impeller is larger than a car turbo's
+    // (a ProCharger P-1SC's exducer is 133 mm)
+    const double diameter = (params.compressorDiameter > 0)
+        ? params.compressorDiameter
+        : ((params.type == Type::Centrifugal) ? 0.133 : 0.09);
+    const double d = clamp(diameter, 0.02, 0.2);
     m_tipRadius = d / 2;
     m_compressorEfficiency = clamp(params.compressorEfficiency, 0.4, 0.85);
     m_maxSpeed = (params.maxSpeed > 0)
@@ -162,7 +173,15 @@ void ForcedInduction::initialize(const Parameters &params) {
         compressorFlow, 3.0 * Reference, 0.75 * Reference, units::celcius(50.0), Gamma);
 
     m_displacement = std::max(params.displacement, 0.0);
-    m_driveRatio = std::max(params.driveRatio, 0.0);
+    // A centrifugal supercharger's impeller turns about ten times as fast as
+    // the crank (a ProCharger P-1SC steps up 4.1:1 inside, and the belt
+    // overdrives it about 2.5:1), a Roots or twin-screw's rotors about twice
+    m_driveRatio = (params.driveRatio > 0)
+        ? params.driveRatio
+        : ((m_type == Type::Centrifugal) ? 10.0 : 2.0);
+    m_rotorEfficiency = (params.rotorEfficiency > 0)
+        ? clamp(params.rotorEfficiency, 0.3, 0.9)
+        : ((m_type == Type::Roots) ? 0.55 : 0.72);
     m_bypassValve = params.bypassValve;
 
     // Rotor clearances leak back about 40% (Roots) or 20% (twin screw) of
@@ -214,6 +233,13 @@ void ForcedInduction::initialize(const Parameters &params) {
     m_blowoffType = params.blowoffType;
     m_boostControl = params.boostControl;
     m_whistlePitch = clamp(params.whistlePitch, 0.25, 4.0);
+    m_rotorLobes = (params.rotorLobes > 0)
+        ? std::clamp(params.rotorLobes, 2, 8)
+        : 3;
+    m_rotorTwist = clamp(params.rotorTwist, 0.0, constants::pi);
+    m_gearTeeth = std::clamp(params.gearTeeth, 0, 200);
+    m_gearWhine = std::max(params.gearWhine, 0.0);
+    m_whineVolume = isTurbocharger() ? 1.0 : clamp(params.whineVolume, 0.0, 4.0);
     m_compressorBlades = std::clamp(params.compressorBlades, 3, 20);
     m_splitterBlades = std::clamp(params.splitterBlades, 0, 20);
     m_compressorInlet = params.compressorInlet;
@@ -438,7 +464,7 @@ void ForcedInduction::processPositiveDisplacement(double dt, const GasSystem::Mi
     m_units[0].omega = omega;
 
     const double pr = std::max(m_charge.pressure() / m_ambientPressure, 1.0);
-    const double efficiency = (m_type == Type::Roots) ? 0.55 : 0.72;
+    const double efficiency = m_rotorEfficiency;
     const double T2 = m_ambientTemperature
         * (1.0 + (std::pow(pr, Exponent) - 1.0) / efficiency);
     m_compressorOutletTemperature = T2;
@@ -718,14 +744,49 @@ double ForcedInduction::getWhineFrequency() const {
 
 double ForcedInduction::getWhineLevel() const {
     if (isPositiveDisplacement()) {
-        // Supercharger whine follows rotor speed and load
-        const double speed = clamp(m_units[0].omega / (2 * constants::pi * 250.0), 0.0, 1.0);
-        const double load = clamp(getBoost() / units::pressure(10.0, units::psi), 0.0, 1.0);
-        return speed * (0.3 + 0.7 * load);
+        // Supercharger whine is mostly the delivered air rushing back into
+        // each rotor pocket as it opens to the outlet, so it grows with the
+        // pressure ratio across the rotors, and faster than the rotor speed.
+        // With the bypass open (idle, cruise, lifting off) there is little
+        // pressure across them and the blower is much quieter.
+        const double speed = clamp(m_units[0].omega / (2 * constants::pi * 250.0), 0.0, 1.3);
+        const double pr = m_charge.pressure() / m_ambientPressure;
+        const double load = clamp((pr - 1.0) / 0.7, 0.0, 1.0);
+        return std::pow(speed, 1.5) * (0.2 + 0.8 * load);
     }
 
     // Centrifugal compressors whistle instead, see getCompressorTones()
     return 0.0;
+}
+
+double ForcedInduction::getPulsesPerTurn() const {
+    // Both of a Roots blower's rotors open their pockets to the outlet; a
+    // twin-screw's male rotor sets its pulses (three lobes against the
+    // female's five on a Whipple)
+    return (m_type == Type::Roots) ? 2.0 * m_rotorLobes : m_rotorLobes;
+}
+
+double ForcedInduction::getWhineHarmonicRatio() const {
+    // Fitted, not derived: 0.55 at the 60 degree twist of three-lobe Eaton
+    // and GMC rotors (the harmonics this whine always had), 0.2 at a TVS's
+    // 160 degrees, 0.76 for straight lobes
+    const double degrees = m_rotorTwist * 180 / constants::pi;
+    return clamp(0.76 - 0.0035 * degrees, 0.1, 0.9);
+}
+
+double ForcedInduction::getGearFrequency() const {
+    return m_gearTeeth * m_units[0].omega / (2 * constants::pi);
+}
+
+double ForcedInduction::getGearLevel() const {
+    if (m_gearTeeth <= 0 || isTurbocharger()) return 0.0;
+
+    // Gear whine comes from the teeth's transmission error under the drive's
+    // load
+    const double reference = isPositiveDisplacement() ? 2 * constants::pi * 250.0 : m_maxSpeed;
+    const double speed = clamp(m_units[0].omega / std::max(reference, 1.0), 0.0, 1.3);
+    const double load = clamp((m_charge.pressure() / m_ambientPressure - 1.0) / 0.7, 0.0, 1.0);
+    return 0.5 * m_gearWhine * std::pow(speed, 1.5) * (0.4 + 0.6 * load);
 }
 
 // The sound of a centrifugal compressor is mostly tones locked to its shaft

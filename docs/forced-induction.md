@@ -76,11 +76,16 @@ variable geometry turbo ([diesel.md](diesel.md)).
 | --- | --- | --- |
 | `type` | `"roots"` | `"roots"` or `"twin_screw"` (positive displacement: boost from low rpm) or `"centrifugal"` (boost rises with the square of speed) |
 | `displacement` | 1.9 L | Air moved per rotor revolution (Roots and twin-screw) |
-| `drive_ratio` | 2.0 | Rotor speed / crankshaft speed (for centrifugal ones, including the gearbox step-up) |
-| `compressor_diameter`, `compressor_flow`, `compressor_efficiency`, `max_speed` | 90 mm, 0.5 kg/s, 0.75, 0 | Centrifugal superchargers, as for the turbocharger |
+| `drive_ratio` | 0 | Rotor speed / crankshaft speed (for centrifugal ones, including the gearbox step-up). 0: 2.0 for Roots and twin-screw, 10 for centrifugal (a ProCharger P-1SC steps up 4.1:1 inside, and the belt overdrives it about 2.5:1) |
+| `compressor_diameter`, `compressor_flow`, `compressor_efficiency`, `max_speed` | 0, 0.5 kg/s, 0.75, 0 | Centrifugal superchargers, as for the turbocharger. Diameter 0: 133 mm, a P-1SC's exducer |
 | `compressor_blades`, `splitter_blades`, `compressor_inlet` | 6, 6, `"silenced"` | Centrifugal superchargers, as for the turbocharger |
 | `boost_leak` | 0 | As for the turbocharger |
 | `bypass_valve` | true | Recirculates the delivery at part throttle (Roots and twin-screw) |
+| `rotor_efficiency` | 0 | Adiabatic efficiency of the rotors (0: 0.55 for Roots, 0.72 for twin-screw). An Eaton TVS is better than the older Roots blowers (Eaton claims up to 12%); the supercharged LS uses 0.62 |
+| `rotor_lobes` | 0 | Lobes on each rotor (0: 3). A Roots blower whines at twice its lobes per rotor turn: 6 for GMC and Eaton M-series blowers, 8 for an Eaton TVS. A twin-screw's pitch is set by its male rotor, which the drive ratio turns: usually 3 lobes against the female's 5 (Whipple) |
+| `rotor_twist` | 60° | The rotors' twist over their length (Roots): the more twist, the weaker the whine's harmonics. 60° for GMC and Eaton M-series rotors, 160° for an Eaton TVS (170° for the R2650) |
+| `whine_volume` | 1.0 | Scales all of the supercharger's whine (lobe passing, compressor tones, gears). Makers silence some: Car and Driver found no whine from the M113K's IHI blower |
+| `gear_teeth`, `gear_whine` | 0, 1.0 | Teeth on the drive gear on the compressor's shaft (a Roots or twin-screw's timing gears, a centrifugal's step-up pinion): they whine at teeth times its speed, scaled by `gear_whine` (0 teeth: no gear whine) |
 | `blowoff_valve`, `blowoff_type` | true, `"atmospheric"` | Centrifugal superchargers |
 | `intercooler_effectiveness` | 0.0 | |
 | `charge_volume` | 4 L | |
@@ -157,7 +162,15 @@ of the engine:
   (the exhaust's level in the synthesizer isn't the same loudness from one engine script to
   another, so it can't carry an absolute level).
 * **Supercharger whine**: the rotor lobe passing frequency with its harmonics (Roots and
-  twin-screw), or the same compressor tones as a turbo's (centrifugal). It follows rotor speed and boost.
+  twin-screw), or the same compressor tones as a turbo's (centrifugal). A Roots blower's whine
+  is mostly the delivered air rushing back into each rotor pocket as it opens to the outlet, so
+  it grows with the pressure ratio across the rotors and with the rotor speed to the power 1.5;
+  with the bypass open (idle, cruise, lifting off) the blower is much quieter. Twisted rotors
+  open each pocket gradually, so the harmonics fall off faster: each is 0.55 of the one below
+  at 60° of twist and 0.2 at a TVS's 160° (a fit, not a derivation). Drive gears add a whine at
+  their tooth mesh, with sidebands at the shaft speed; it follows the load. On a centrifugal
+  supercharger the step-up pinion turns with the impeller, so its mesh climbs past hearing at
+  high rpm.
 * **Whoosh and intake roar** (centrifugal compressors): broadband noise the compressor makes as
   it nears surge, at high pressure ratio and low flow, from the flow stalling in the wheel
   (4 to 12 kHz in car turbos; Dehner et al., ASME J. Turbomach. 2021). It climbs with the cube

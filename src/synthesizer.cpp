@@ -49,6 +49,8 @@ Synthesizer::Synthesizer() {
     m_filters = nullptr;
 
     m_whinePhase = 0;
+    m_gearPhase = 0;
+    m_gearShaftPhase = 0;
     m_flutterPhase = 0;
     m_fiCounter = 0;
     m_mixEnvelope = 0;
@@ -99,6 +101,8 @@ void Synthesizer::initialize(const Parameters &p) {
     // it from rand() would shift the random numbers the combustion uses, and
     // so change every engine's sound and power for a given seed.
     m_whinePhase = 0;
+    m_gearPhase = 0;
+    m_gearShaftPhase = 0;
     m_flutterPhase = 0;
     m_fiCounter = 0;
     m_mixEnvelope = 0;
@@ -720,15 +724,21 @@ float Synthesizer::renderForcedInduction(int inputSample, float signal) {
         }
     }
     else {
-        // Supercharger rotor whine: lobe passing frequency with harmonics
-        const double lobes = (type == 2) ? 6.0 : 5.0;
+        // Supercharger rotor whine: lobe passing frequency with harmonics,
+        // which fall off faster the more the rotors are twisted
+        const float pulses = aux[19][inputSample];
+        const double lobes = (pulses > 0) ? pulses : ((type == 2) ? 6.0 : 5.0);
         const double f = std::min(shaft * lobes, 0.2 * fs);
         m_whinePhase += twoPi * f / fs;
         if (m_whinePhase > twoPi) m_whinePhase -= twoPi;
         const double p = m_whinePhase;
         float tone = 0;
         if (type == 2) {
-            tone = static_cast<float>(std::sin(p) + 0.55 * std::sin(2 * p) + 0.35 * std::sin(3 * p) + 0.2 * std::sin(4 * p));
+            const float r = std::clamp(aux[20][inputSample], 0.0f, 0.95f);
+            float w = 1.0f;
+            for (int k = 1; k <= 6 && k * f < 0.45 * fs; ++k, w *= r) {
+                tone += w * static_cast<float>(std::sin(k * p));
+            }
         }
         else {
             tone = static_cast<float>(std::sin(p) + 0.45 * std::sin(3 * p) + 0.25 * std::sin(5 * p));
@@ -738,6 +748,21 @@ float Synthesizer::renderForcedInduction(int inputSample, float signal) {
             m_whistleBand.set(static_cast<float>(2.0 * f + 200.0), 6.0f, fs);
         }
         tonal += whine * (0.45f * tone + 1.5f * m_whistleBand.process(fiNoise()));
+    }
+
+    // Supercharger drive gears: a whine at the tooth mesh, with sidebands
+    // from the shaft's run-out
+    const float gear = std::max(aux[21][inputSample], 0.0f);
+    const float gearFrequency = aux[22][inputSample];
+    if (gear > 0.0f && gearFrequency > 0.0f && gearFrequency < 0.45f * fs) {
+        m_gearPhase += twoPi * gearFrequency / fs;
+        if (m_gearPhase > twoPi) m_gearPhase -= twoPi;
+        m_gearShaftPhase += twoPi * shaft / fs;
+        if (m_gearShaftPhase > twoPi) m_gearShaftPhase -= twoPi;
+        const float fade = std::clamp((0.45f * fs - gearFrequency) / (0.05f * fs), 0.0f, 1.0f);
+        const float mesh = static_cast<float>(std::sin(m_gearPhase)
+            + ((2 * gearFrequency < 0.45f * fs) ? 0.3 * std::sin(2 * m_gearPhase) : 0.0));
+        tonal += 0.45f * gear * fade * (1.0f + 0.3f * static_cast<float>(std::sin(m_gearShaftPhase))) * mesh;
     }
 
     // Compressor surge without a blow-off valve: a fluttering chop at the

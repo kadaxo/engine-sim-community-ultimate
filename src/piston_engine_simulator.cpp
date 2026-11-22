@@ -535,6 +535,18 @@ void PistonEngineSimulator::writeToSynthesizer() {
         aux[16] = rattlePulses;
         aux[17] = air.leak;
         aux[18] = air.leakFrequency;
+        aux[19] = forcedInduction->getPulsesPerTurn();
+        aux[20] = forcedInduction->getWhineHarmonicRatio();
+        aux[21] = forcedInduction->getGearLevel();
+        aux[22] = forcedInduction->getGearFrequency();
+
+        // A supercharger's whine, as loud as its maker let it be
+        const double whineVolume = forcedInduction->getWhineVolume();
+        aux[1] *= whineVolume;
+        aux[7] *= whineVolume;
+        aux[8] *= whineVolume;
+        aux[9] *= whineVolume;
+        aux[21] *= whineVolume;
         aux[6] = forcedInduction->getSoundMode();
     }
 

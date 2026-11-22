@@ -659,6 +659,12 @@ private node _forced_induction => __engine_sim__forced_induction {
     input drive_ratio [float];
     input displacement [float];
     input bypass_valve [bool];
+    input rotor_lobes [int];
+    input rotor_efficiency [float];
+    input rotor_twist [float];
+    input gear_teeth [int];
+    input gear_whine [float];
+    input whine_volume [float];
     input intercooler_effectiveness [float];
     input charge_volume [float];
     input sequential_speed [float];
@@ -761,6 +767,12 @@ public node turbocharger {
             drive_ratio: 1.0,
             displacement: 0.0,
             bypass_valve: false,
+            rotor_lobes: 0,
+            rotor_efficiency: 0.0,
+            rotor_twist: 0.0,
+            gear_teeth: 0,
+            gear_whine: 0.0,
+            whine_volume: 1.0,
             intercooler_effectiveness: intercooler_effectiveness,
             charge_volume: charge_volume,
             sequential_speed: sequential_speed,
@@ -785,17 +797,34 @@ public node turbocharger {
 
 // type: "roots", "twin_screw" or "centrifugal"
 // drive_ratio: compressor speed / crankshaft speed (centrifugal superchargers
-// include the gearbox step-up)
+// include the gearbox step-up; 0: 2.0 for roots and twin_screw, 10.0 for
+// centrifugal)
+// compressor_diameter: centrifugal (0: 133 mm, a ProCharger P-1SC's)
+// rotor_efficiency: adiabatic efficiency of the rotors (0: 0.55 for roots,
+// 0.72 for twin_screw; an Eaton TVS is better than the older roots)
 // displacement: air moved per rotor revolution (roots and twin_screw)
+// rotor_lobes: lobes on each rotor (0: 3; a twin_screw's male rotor, which
+// the drive_ratio turns, usually has 3 against the female's 5); a roots blower whines at twice its lobes per rotor turn
+// rotor_twist: the rotors' twist over their length (roots): the more twist,
+// the purer the whine (60 deg: Eaton M-series and GMC, 160 deg: Eaton TVS)
+// gear_teeth: teeth on the drive gear on the compressor's shaft (the timing
+// gears of a roots or twin_screw, a centrifugal's step-up pinion): they whine
+// at teeth times its speed (0: no gear whine); gear_whine scales it
 public node supercharger {
     input type: "roots";
-    input drive_ratio: 2.0;
+    input drive_ratio: 0.0;
     input displacement: 1.9 * units.L;
-    input compressor_diameter: 90 * units.mm;
+    input compressor_diameter: 0.0;
     input compressor_flow: 0.5 * units.kg / units.sec;
     input compressor_efficiency: 0.75;
     input max_speed: 0.0;
     input bypass_valve: true;
+    input rotor_lobes: 0;
+    input rotor_efficiency: 0.0;
+    input rotor_twist: 60 * units.deg;
+    input gear_teeth: 0;
+    input gear_whine: 1.0;
+    input whine_volume: 1.0;              // all of its whine; some makers silence it
     input blowoff_valve: true;
     input intercooler_effectiveness: 0.0;
     input charge_volume: 4.0 * units.L;
@@ -826,6 +855,12 @@ public node supercharger {
             drive_ratio: drive_ratio,
             displacement: displacement,
             bypass_valve: bypass_valve,
+            rotor_lobes: rotor_lobes,
+            rotor_efficiency: rotor_efficiency,
+            rotor_twist: rotor_twist,
+            gear_teeth: gear_teeth,
+            gear_whine: gear_whine,
+            whine_volume: whine_volume,
             intercooler_effectiveness: intercooler_effectiveness,
             charge_volume: charge_volume,
             sequential_speed: 0.0,

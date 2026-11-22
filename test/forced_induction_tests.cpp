@@ -91,6 +91,71 @@ TEST_F(ForcedInductionTest, RootsBlowerBoostsAndLoadsTheCrank) {
     EXPECT_NEAR(fi.getShaftSpeed(), units::rpm(10000), units::rpm(1));
 }
 
+TEST_F(ForcedInductionTest, SuperchargerSoundFollowsItsRotorsAndGears) {
+    ForcedInduction::Parameters params;
+    params.type = ForcedInduction::Type::Roots;
+    params.displacement = units::volume(1.2, units::L);
+    params.driveRatio = 2.0;
+
+    // Both rotors of a Roots blower pass their lobes; a twin-screw's male
+    // rotor sets its pulses
+    ForcedInduction threeLobe, fourLobe, screw;
+    threeLobe.initialize(params);
+    params.rotorLobes = 4;
+    params.rotorTwist = 160 * 3.14159265358979 / 180;
+    fourLobe.initialize(params);
+    params.type = ForcedInduction::Type::TwinScrew;
+    params.rotorLobes = 0;
+    screw.initialize(params);
+    EXPECT_EQ(threeLobe.getPulsesPerTurn(), 6.0);
+    EXPECT_EQ(fourLobe.getPulsesPerTurn(), 8.0);
+    EXPECT_EQ(screw.getPulsesPerTurn(), 3.0);
+
+    // Left at 0, the drive takes the type's: a centrifugal's impeller turns
+    // about ten times as fast as the crank, rotors about twice
+    ForcedInduction::Parameters unset;
+    unset.driveRatio = 0;
+    unset.compressorDiameter = 0;
+    unset.type = ForcedInduction::Type::Centrifugal;
+    ForcedInduction centrifugal;
+    centrifugal.initialize(unset);
+    EXPECT_EQ(centrifugal.getDriveRatio(), 10.0);
+    unset.type = ForcedInduction::Type::Roots;
+    ForcedInduction roots;
+    roots.initialize(unset);
+    EXPECT_EQ(roots.getDriveRatio(), 2.0);
+
+    // More twist, weaker harmonics
+    EXPECT_NEAR(threeLobe.getWhineHarmonicRatio(), 0.55, 0.01);
+    EXPECT_LT(fourLobe.getWhineHarmonicRatio(), 0.25);
+
+    // Drive gears whine at their mesh only when they are given teeth
+    params.type = ForcedInduction::Type::Roots;
+    params.gearTeeth = 30;
+    ForcedInduction geared;
+    geared.initialize(params);
+    connect(&geared);
+    const double dt = 1.0 / 20000;
+    for (int i = 0; i < 20000; ++i) step(&geared, dt);
+    EXPECT_NEAR(geared.getGearFrequency(), 30 * 10000 / 60.0, 1.0);
+    EXPECT_GT(geared.getGearLevel(), 0.0);
+    EXPECT_EQ(threeLobe.getGearLevel(), 0.0);
+
+    // A maker can silence a supercharger's whine; a turbo's tones stay
+    params.whineVolume = 0.2;
+    ForcedInduction quiet;
+    quiet.initialize(params);
+    EXPECT_DOUBLE_EQ(quiet.getWhineVolume(), 0.2);
+    params.type = ForcedInduction::Type::Turbocharger;
+    ForcedInduction turbo;
+    turbo.initialize(params);
+    EXPECT_DOUBLE_EQ(turbo.getWhineVolume(), 1.0);
+
+    // Under boost the whine is louder than with no pressure across the rotors
+    EXPECT_GT(geared.getBoost(), units::pressure(0.2, units::bar));
+    EXPECT_GT(geared.getWhineLevel(), 0.4);
+}
+
 TEST_F(ForcedInductionTest, TurbochargerNeedsExhaustEnergy) {
     ForcedInduction::Parameters params;
     params.type = ForcedInduction::Type::Turbocharger;

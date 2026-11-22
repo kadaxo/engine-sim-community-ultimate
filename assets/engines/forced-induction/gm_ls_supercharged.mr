@@ -423,11 +423,18 @@ public node ls_v8 {
     // Forced induction: a crank-driven Roots blower (an Eaton TVS2300-sized
     // rotor pack) with a bypass valve and an air-to-water intercooler. It
     // delivers its displacement every turn, so boost comes early, and the
-    // drive loads the crankshaft (the dyno shows the loss).
+    // drive loads the crankshaft (the dyno shows the loss). The TVS's two
+    // four-lobe rotors are twisted 160 degrees, which smooths its whine. The
+    // drive keeps the rotors under the R2300's 15,000 rpm or so at the rev
+    // limit (GM drives the LS9's 2.32:1), and the TVS compresses more
+    // efficiently than the older Roots blowers (Eaton: up to 12% better).
     supercharger blower(
         type: "roots",
         displacement: 2.3 * units.L,
-        drive_ratio: 2.4,
+        drive_ratio: 2.2,
+        rotor_efficiency: 0.62,
+        rotor_lobes: 4,
+        rotor_twist: 160 * units.deg,
         intercooler_effectiveness: 0.6
     )
     engine.add_forced_induction(blower)

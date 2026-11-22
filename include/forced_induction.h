@@ -170,9 +170,31 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
             double antiLagMinSpeed = 2 * 3.14159265358979 * 3000 / 60; // [rad/s]
 
             // Superchargers
-            double driveRatio = 1.0;                // compressor speed / crank speed
+            // Compressor speed / crank speed (0: 2 for Roots and twin-screw,
+            // 10 for centrifugal, the step-up gears and the belt together)
+            double driveRatio = 1.0;
             double displacement = 1.9e-3;           // positive displacement, per rev [m^3]
             bool bypassValve = true;                // vents the charge at part throttle
+
+            // Adiabatic efficiency of a Roots or twin-screw's rotors (0: 0.55
+            // for Roots, 0.72 for twin-screw)
+            double rotorEfficiency = 0;
+
+            // Supercharger sound only. Lobes on each rotor (0: 3 for Roots,
+            // 3 on a twin-screw's male rotor); a Roots blower's two rotors
+            // send twice their lobes past the outlet each turn. The rotors'
+            // twist over their length smooths each lobe's backflow pulse, so
+            // the more twist, the weaker the whine's harmonics [rad]. Drive
+            // gears whine at their mesh: teeth times the speed of the gear on
+            // the compressor's shaft (0: no gear whine), at gearWhine times
+            // a typical level.
+            int rotorLobes = 0;
+            double rotorTwist = 60.0 * 3.14159265358979 / 180;
+            int gearTeeth = 0;
+            double gearWhine = 1.0;
+            // Scales all of a supercharger's whine (lobe passing, compressor
+            // tones, gears): makers silence some, as Mercedes did the M113K's
+            double whineVolume = 1.0;
 
             // Charge air
             double intercoolerEffectiveness = 0.7;
@@ -280,6 +302,16 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
         // Audio: compressor whine and blow-off noise
         double getWhineFrequency() const;   // [Hz]
         double getWhineLevel() const;       // positive displacement [0, 1]
+        int getRotorLobes() const { return m_rotorLobes; }
+        double getRotorTwist() const { return m_rotorTwist; }
+        // Lobes passing the outlet per turn of the compressor's shaft
+        double getPulsesPerTurn() const;
+        // Each harmonic of the lobe passing tone over the one below it
+        double getWhineHarmonicRatio() const;
+        // Drive gear mesh [Hz] and its whine level (0 without gears)
+        double getGearFrequency() const;
+        double getGearLevel() const;
+        double getWhineVolume() const { return m_whineVolume; }
         CompressorTones getCompressorTones() const;
         int getCompressorBlades() const { return m_compressorBlades; }
         int getSplitterBlades() const { return m_splitterBlades; }
@@ -398,6 +430,12 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
         bool m_externalWastegate;
         bool m_twinScroll;
         double m_whistlePitch;
+        int m_rotorLobes;
+        double m_rotorEfficiency;
+        double m_rotorTwist;
+        int m_gearTeeth;
+        double m_gearWhine;
+        double m_whineVolume;
         int m_compressorBlades;
         int m_splitterBlades;
         CompressorInlet m_compressorInlet;

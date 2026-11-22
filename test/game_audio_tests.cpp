@@ -777,8 +777,10 @@ TEST(ForcedInductionEngineTests, RootsBlowerBoostsFromLowRpm) {
 
     holdAt(session.get(), 2000, 1.0);
     session->advance(1.5, nullptr, nullptr);
+    // About 2 psi already at 2000 rpm (its 2.2:1 drive keeps the rotors under
+    // the TVS2300's speed limit at the rev limiter)
     const double low = psi(fi->getBoost());
-    EXPECT_GT(low, 2.5);
+    EXPECT_GT(low, 1.5);
     EXPECT_GT(fi->getDriveTorque(), 0.0);
 
     holdAt(session.get(), 4500, 1.0);
@@ -797,8 +799,9 @@ TEST(ForcedInductionEngineTests, SuperchargerWhinesAtTheRotorLobeFrequency) {
     std::vector<float> on;
     session->advance(0.5, &on, nullptr);
 
-    // A Roots rotor pack passes six lobes per turn
-    const double lobes = 6 * fi->getShaftSpeed() / (2 * 3.14159265358979323846);
+    // The TVS's two four-lobe rotors pass eight lobes per turn
+    ASSERT_EQ(fi->getPulsesPerTurn(), 8.0);
+    const double lobes = 8 * fi->getShaftSpeed() / (2 * 3.14159265358979323846);
     EXPECT_GT(lobes, 800.0);
     EXPECT_GT(toneProminence(on, lobes), 15.0) << "no whine at " << lobes << " Hz";
 

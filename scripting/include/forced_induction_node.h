@@ -72,6 +72,12 @@ namespace es_script {
             params.driveRatio = m_driveRatio;
             params.displacement = m_displacement;
             params.bypassValve = m_bypassValve;
+            params.rotorLobes = m_rotorLobes;
+            params.rotorEfficiency = m_rotorEfficiency;
+            params.rotorTwist = m_rotorTwist;
+            params.gearTeeth = m_gearTeeth;
+            params.gearWhine = m_gearWhine;
+            params.whineVolume = m_whineVolume;
             params.intercoolerEffectiveness = m_intercoolerEffectiveness;
             params.chargeVolume = m_chargeVolume;
             params.sequentialSpeed = m_sequentialSpeed;
@@ -102,6 +108,12 @@ namespace es_script {
             addInput("drive_ratio", &m_driveRatio);
             addInput("displacement", &m_displacement);
             addInput("bypass_valve", &m_bypassValve);
+            addInput("rotor_lobes", &m_rotorLobes);
+            addInput("rotor_efficiency", &m_rotorEfficiency);
+            addInput("rotor_twist", &m_rotorTwist);
+            addInput("gear_teeth", &m_gearTeeth);
+            addInput("gear_whine", &m_gearWhine);
+            addInput("whine_volume", &m_whineVolume);
             addInput("intercooler_effectiveness", &m_intercoolerEffectiveness);
             addInput("charge_volume", &m_chargeVolume);
             addInput("sequential_speed", &m_sequentialSpeed);
@@ -149,6 +161,12 @@ namespace es_script {
         double m_driveRatio = 1.0;
         double m_displacement = 1.9e-3;
         bool m_bypassValve = true;
+        int m_rotorLobes = 0;
+        double m_rotorEfficiency = 0.0;
+        double m_rotorTwist = 60.0 * 3.14159265358979 / 180;
+        int m_gearTeeth = 0;
+        double m_gearWhine = 1.0;
+        double m_whineVolume = 1.0;
         double m_intercoolerEffectiveness = 0.7;
         double m_chargeVolume = 6e-3;
         double m_sequentialSpeed = 400.0;

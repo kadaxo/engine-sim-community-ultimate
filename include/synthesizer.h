@@ -22,7 +22,7 @@ class Synthesizer {
         // Control channels a simulation writes after its exhaust channels to
         // drive the turbocharger and supercharger sounds, see
         // renderForcedInduction()
-        static constexpr int ForcedInductionChannelCount = 19;
+        static constexpr int ForcedInductionChannelCount = 23;
 
         // Control channels after those for a diesel's engine noise, see
         // renderEngineNoise(): the combustion pressure rise and the injector
@@ -161,6 +161,8 @@ class Synthesizer {
         float fiNoise();
 
         double m_whinePhase;
+        // Supercharger drive gears: the mesh, and the shaft that modulates it
+        double m_gearPhase, m_gearShaftPhase;
         double m_flutterPhase;
         unsigned int m_fiCounter;
         float m_mixEnvelope;
