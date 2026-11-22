@@ -29,6 +29,13 @@
 // quarter, half and full.
 //
 //   boost-probe <main.mr> --combustion <rpm>
+//
+// --cr prints the cylinders' compression ratio as the simulation has it
+// (each one's largest volume over its smallest, over 1 s of the dyno
+// turning the crank at 1500 rpm), to
+// catch scripts whose head and piston don't add up to the engine they model.
+//
+//   boost-probe <main.mr> --cr
 #include "../scripting/include/compiler.h"
 #include "../include/transmission.h"
 #include "../include/units.h"
@@ -46,7 +53,7 @@
 
 int main(int argc, char **argv) {
     if (argc < 2) {
-        std::fprintf(stderr, "usage: boost-probe <main.mr> [rpm ...]\n       boost-probe <main.mr> --snap <rpm>\n       boost-probe <main.mr> --idle\n       boost-probe <main.mr> --crank [--starter-speed <rpm>]\n       boost-probe <main.mr> --combustion <rpm>\n");
+        std::fprintf(stderr, "usage: boost-probe <main.mr> [rpm ...]\n       boost-probe <main.mr> --snap <rpm>\n       boost-probe <main.mr> --idle\n       boost-probe <main.mr> --crank [--starter-speed <rpm>]\n       boost-probe <main.mr> --combustion <rpm>\n       boost-probe <main.mr> --cr\n");
         return 2;
     }
 
@@ -56,10 +63,12 @@ int main(int argc, char **argv) {
     bool crankMode = false;
     double starterSpeed = 0;
     double combustionRpm = 0;
+    bool crMode = false;
     for (int i = 2; i < argc; ++i) {
         if (std::string(argv[i]) == "--snap" && i + 1 < argc) snapRpm = std::atof(argv[++i]);
         else if (std::string(argv[i]) == "--idle") idleMode = true;
         else if (std::string(argv[i]) == "--crank") crankMode = true;
+        else if (std::string(argv[i]) == "--cr") crMode = true;
         else if (std::string(argv[i]) == "--starter-speed" && i + 1 < argc) starterSpeed = std::atof(argv[++i]);
         else if (std::string(argv[i]) == "--combustion" && i + 1 < argc) combustionRpm = std::atof(argv[++i]);
         else rpms.push_back(std::atof(argv[i]));
@@ -218,6 +227,41 @@ int main(int argc, char **argv) {
     ForcedInduction *fi = engine->getForcedInduction();
     if (fi != nullptr) {
         std::printf("%s\n", fi->getDescription().c_str());
+    }
+
+    if (crMode) {
+        // The dyno turns the crank at 1500 rpm, so every cylinder goes through
+        // whole strokes even if the engine won't idle
+        sim->m_dyno.m_enabled = true;
+        sim->m_dyno.m_hold = true;
+        sim->m_dyno.m_rotationSpeed = units::rpm(1500);
+        for (int f = 0; f < 30; ++f) { engine->setSpeedControl(0.0); frame(); }
+
+        const int n = engine->getCylinderCount();
+        std::vector<double> vMin(n, 1e9), vMax(n, 0.0);
+        for (int f = 0; f < 60; ++f) {
+            engine->setSpeedControl(0.0);
+            sim->startFrame(1.0 / 60.0);
+            while (sim->simulateStep()) {
+                for (int i = 0; i < n; ++i) {
+                    const double v = engine->getChamber(i)->getVolume();
+                    vMin[i] = std::fmin(vMin[i], v);
+                    vMax[i] = std::fmax(vMax[i], v);
+                }
+            }
+            sim->endFrame();
+            drain();
+        }
+
+        double lo = 1e9, hi = 0;
+        for (int i = 0; i < n; ++i) {
+            lo = std::fmin(lo, vMax[i] / vMin[i]);
+            hi = std::fmax(hi, vMax[i] / vMin[i]);
+        }
+        std::printf("compression ratio %.2f to %.2f, swept %.1f cc per cylinder\n",
+            lo, hi, (vMax[0] - vMin[0]) / units::volume(1.0, units::cc));
+        sim->destroy();
+        return 0;
     }
 
     if (combustionRpm > 0) {

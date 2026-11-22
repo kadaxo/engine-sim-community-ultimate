@@ -180,7 +180,9 @@ public node even_fire_v6_90 {
             turbulence_to_flame_speed_ratio: turbulence_to_flame_speed_ratio()
         ),
         throttle_gamma: 2.0, 
-        simulation_frequency: 4200
+        // 4200 was too coarse for an 11,200 rpm engine with 100 g pistons: holding
+        // 6000 rpm on the dyno ran away and crashed
+        simulation_frequency: 15000
     )
 
     wires wires()
