@@ -118,7 +118,7 @@ private node add_flow_sample {
 public node Rb25_head {
     input intake_camshaft;
     input exhaust_camshaft;
-    input chamber_volume: 34.0 * units.cc;
+    input chamber_volume: 72.7 * units.cc;
     input flip_display: true;
     
     input flow_attenuation: 1.0;

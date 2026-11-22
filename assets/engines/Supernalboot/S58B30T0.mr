@@ -117,7 +117,7 @@ private node add_flow_sample {
 public node bmw_S58B30T0_head {
     input intake_camshaft;
     input exhaust_camshaft;
-    input chamber_volume: 34.0 * units.cc;
+    input chamber_volume: 43.1 * units.cc;
     input flip_display: false;
 	
 	input flow_attenuation: 1.0;

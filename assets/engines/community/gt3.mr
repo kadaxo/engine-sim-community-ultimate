@@ -157,7 +157,7 @@ label rot(120.0 * units.deg)
 
     cylinder_bank_parameters bank_params(
         bore: 102 * units.mm,
-        deck_height: 220 * units.mm
+        deck_height: 220 * units.mm - 11.77 * units.mm
     )
 
     intake intake(

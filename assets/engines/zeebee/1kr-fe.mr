@@ -185,7 +185,7 @@ public node i3 {
 
     b0.set_cylinder_head (
         generic_small_engine_head(
-            chamber_volume: 31.71 * units.cc,
+            chamber_volume: 35 * units.cc,
             intake_camshaft: camshaft.intake_cam,
             exhaust_camshaft: camshaft.exhaust_cam
         )

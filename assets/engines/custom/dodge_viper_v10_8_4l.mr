@@ -21,7 +21,7 @@ private node wires {
 private node viper_v10_head {
     input intake_camshaft;
     input exhaust_camshaft;
-    input chamber_volume: 78.0 * units.cc;
+    input chamber_volume: 91.2 * units.cc;
     input intake_runner_volume: 200.0 * units.cc;
     input intake_runner_cross_section_area: 2.2 * units.inch * 2.2 * units.inch;
     input exhaust_runner_volume: 80.0 * units.cc;

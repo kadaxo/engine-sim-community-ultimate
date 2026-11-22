@@ -336,7 +336,7 @@ private node gt3_head {
     input exhaust_camshaft;
     input flow_attenuation: 1.0;
     input lift_scale: 0.85;
-    input chamber_volume: 66.8 * units.cc;
+    input chamber_volume: 95.5 * units.cc;
     input flip_display: false;
     alias output __out: head;
 

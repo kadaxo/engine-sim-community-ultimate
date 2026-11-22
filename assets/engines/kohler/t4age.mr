@@ -126,7 +126,7 @@ private node add_flow_sample {
 public node toyota_4age_head {
     input intake_camshaft;
     input exhaust_camshaft;
-    input chamber_volume: 36.0 * units.cc;
+    input chamber_volume: 44.5 * units.cc;
     input flip_display: false;
     alias output __out: head;
 

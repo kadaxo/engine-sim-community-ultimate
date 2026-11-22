@@ -278,7 +278,7 @@ public node ea211 {
 
     b0.set_cylinder_head (
         generic_small_engine_head(
-            chamber_volume: 26 * units.cc,
+            chamber_volume: 38.1 * units.cc,
             intake_camshaft: camshaft.intake_cam,
             exhaust_camshaft: camshaft.exhaust_cam
         )

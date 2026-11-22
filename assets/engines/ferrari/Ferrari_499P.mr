@@ -17,7 +17,7 @@ private node wires {
 private node even_fire_v6_head {
     input intake_camshaft;
     input exhaust_camshaft;
-    input chamber_volume: 17 * units.cc;
+    input chamber_volume: 60.2 * units.cc;
     input intake_runner_volume: 249.6 * units.cc;
     input intake_runner_cross_section_area: 2.70 * units.inch * 2.70 * units.inch;
     input exhaust_runner_volume: 150.0 * units.cc;

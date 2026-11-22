@@ -19,7 +19,7 @@ private node wires {
 private node chevy_427_head {
     input intake_camshaft;
     input exhaust_camshaft;
-    input chamber_volume: 106.0 * units.cc;
+    input chamber_volume: 76.1 * units.cc;
     input intake_runner_volume: 210.0 * units.cc;
     input intake_runner_cross_section_area: 2.25 * units.inch * 2.25 * units.inch;
     input exhaust_runner_volume: 85.0 * units.cc;

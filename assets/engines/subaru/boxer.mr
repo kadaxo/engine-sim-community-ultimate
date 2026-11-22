@@ -168,7 +168,7 @@ public node ej22 {
 
     cylinder_bank_parameters bank_params(
         bore: 97 * units.mm,
-        deck_height: 194 * units.mm
+        deck_height: 194 * units.mm - 0.95 * units.mm
     )
 
     intake intake(

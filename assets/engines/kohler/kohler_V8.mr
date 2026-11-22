@@ -240,14 +240,14 @@ public node kohler_V8 {
 
     b0.set_cylinder_head (
         generic_small_engine_head(
-            chamber_volume: 50 * units.cc,
+            chamber_volume: 84.1 * units.cc,
             intake_camshaft: camshaft.intake_cam_0,
             exhaust_camshaft: camshaft.exhaust_cam_0
         )
     )
     b1.set_cylinder_head (
         generic_small_engine_head(
-            chamber_volume: 50 * units.cc,
+            chamber_volume: 84.1 * units.cc,
             intake_camshaft: camshaft.intake_cam_1,
             exhaust_camshaft: camshaft.exhaust_cam_1,
             flip_display: true

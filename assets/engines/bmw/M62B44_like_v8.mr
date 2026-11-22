@@ -70,7 +70,7 @@ public node bmw_m62b44_like_v8 {
 
     cylinder_bank_parameters bank_params(
         bore: 92.0 * units.mm,
-        deck_height: 8.9 * units.inch
+        deck_height: 8.9 * units.inch + 4.22 * units.mm
     )
 
     chevy_bbc_stock_intake intake(

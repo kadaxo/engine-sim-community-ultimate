@@ -30,7 +30,7 @@ private node wires {
 private node ej25_head {
     input intake_camshaft;
     input exhaust_camshaft;
-    input chamber_volume: 67 * units.cc;
+    input chamber_volume: 85.3 * units.cc;
     input intake_runner_volume: 149.6 * units.cc;
     input intake_runner_cross_section_area: 1.75 * units.inch * 1.75 * units.inch;
     input exhaust_runner_volume: 50.0 * units.cc;

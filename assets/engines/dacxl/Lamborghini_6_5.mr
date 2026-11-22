@@ -202,7 +202,7 @@ public node v12_transmission {
 public node lamborghini_6_5_head {
     input intake_camshaft;
     input exhaust_camshaft;
-    input chamber_volume: 41.0 * units.cc;
+    input chamber_volume: 38 * units.cc;
     input flip_display: false;
 	
 	input flow_attenuation: 1.00;

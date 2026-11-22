@@ -19,7 +19,7 @@ private node wires {
 private node amg_m177_head {
     input intake_camshaft;
     input exhaust_camshaft;
-    input chamber_volume: 48.0 * units.cc;
+    input chamber_volume: 65.5 * units.cc;
     input intake_runner_volume: 120.0 * units.cc;
     input intake_runner_cross_section_area: 1.8 * units.inch * 1.8 * units.inch;
     input exhaust_runner_volume: 45.0 * units.cc;

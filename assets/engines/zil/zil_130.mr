@@ -134,7 +134,7 @@ private node add_flow_sample {
 public node zil_130_head {
     input intake_camshaft;
     input exhaust_camshaft;
-    input chamber_volume: 74.0 * units.cc;
+    input chamber_volume: 135.7 * units.cc;
     input flip_display: false;
     input flow_attenuation: 0.9;
     input lift_scale: 1.0;

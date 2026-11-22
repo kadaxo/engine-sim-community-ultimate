@@ -17,7 +17,7 @@ private node wires {
 private node rb26_head {
     input intake_camshaft;
     input exhaust_camshaft;
-    input chamber_volume: 64.0 * units.cc;
+    input chamber_volume: 57.1 * units.cc;
     input intake_runner_volume: 100.0 * units.cc;
     input intake_runner_cross_section_area: 1.6 * units.inch * 1.6 * units.inch;
     input exhaust_runner_volume: 40.0 * units.cc;

@@ -19,7 +19,7 @@ private node wires {
 private node hemi_392_head {
     input intake_camshaft;
     input exhaust_camshaft;
-    input chamber_volume: 73.0 * units.cc;
+    input chamber_volume: 81.1 * units.cc;
     input intake_runner_volume: 180.0 * units.cc;
     input intake_runner_cross_section_area: 2.1 * units.inch * 2.1 * units.inch;
     input exhaust_runner_volume: 65.0 * units.cc;

@@ -1160,8 +1160,10 @@ TEST(ForcedInductionEngineTests, RearEngineMovesTheTurboToTheBack) {
         return bandShare(clip, 8000, 16000);
     };
 
+    // Behind the car about 3 dB more (the EJ25's exhaust, at its real 8.2:1,
+    // carries a good part of the band too); in front of it about 9 dB less
     const std::string front = forcedInductionConfig("subaru_ej25_twin_scroll_turbo.mr").scriptPath;
-    EXPECT_GT(share(rear, 1), share(front, 1) + 3.0) << "behind the car";
+    EXPECT_GT(share(rear, 1), share(front, 1) + 2.0) << "behind the car";
     EXPECT_LT(share(rear, 2), share(front, 2) - 3.0) << "in front of the car";
 }
 

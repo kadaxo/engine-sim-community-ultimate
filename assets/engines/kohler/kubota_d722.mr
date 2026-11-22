@@ -180,7 +180,7 @@ public node kubota_d722 {
 
     b0.set_cylinder_head (
         generic_small_engine_head(
-            chamber_volume: 50 * units.cc,
+            chamber_volume: 44.5 * units.cc,
             intake_camshaft: camshaft.intake_cam,
             exhaust_camshaft: camshaft.exhaust_cam
         )
