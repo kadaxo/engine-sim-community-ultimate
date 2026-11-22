@@ -148,7 +148,7 @@ Run `build/engine-sim-app` on Linux and macOS or `build\Release\engine-sim-app.e
 
 `pwsh scripts/package-windows.ps1` (in a Developer PowerShell for Visual Studio) makes the Windows release zip from a Release build and checks that it runs on its own; `scripts/package.sh` does the same for macOS and Linux. `.github/workflows/release.yml` builds all three on GitHub, with the libraries the downloads need (see the comments there).
 
-`ctest --test-dir build -C Release` runs the unit tests, `engine-sim-export --out <dir>` exports a game audio set for the engine in `assets/main.mr` (or `--script <file.mr>`, see [docs/game-audio-export.md](docs/game-audio-export.md)), and `boost-probe <script.mr> [rpm ...]` runs an engine script headlessly on the dyno (handy for checking a new engine). `shift-probe <script.mr>` drives the car through a set of up- and downshifts and prints whether each one completes.
+`ctest --test-dir build -C Release -j <cores>` runs the unit tests and an idle check of every engine (`-L slow` for only those, `-LE slow` for the rest; about two minutes on 16 cores), `engine-sim-export --out <dir>` exports a game audio set for the engine in `assets/main.mr` (or `--script <file.mr>`, see [docs/game-audio-export.md](docs/game-audio-export.md)), and `boost-probe <script.mr> [rpm ...]` runs an engine script headlessly on the dyno (handy for checking a new engine). `shift-probe <script.mr>` drives the car through a set of up- and downshifts and prints whether each one completes.
 
 ## Credits
 

@@ -123,7 +123,17 @@ int main(int argc, char **argv) {
     for (int i = 0; i < engine->getExhaustSystemCount(); ++i) {
         sim->synthesizer().initializeImpulseResponse(impulse, 1, 1.0f, i);
     }
-    sim->startAudioRenderingThread();
+
+    // The audio is rendered offline after each frame, as engine-sim-export
+    // does, so the probe runs as fast as the computer allows instead of in
+    // real time; with no latency to regulate, every frame simulates exactly
+    // its 1/60 s.
+    sim->setTargetSynthesizerLatency(0.0);
+    std::vector<float> rendered;
+    auto drain = [&]() {
+        sim->synthesizer().renderOffline(rendered);
+        rendered.clear();
+    };
 
     std::printf("engine \"%s\"  %.2f L\n",
         engine->getName().c_str(),
@@ -132,13 +142,11 @@ int main(int argc, char **argv) {
     engine->getIgnitionModule()->m_enabled = true;
     sim->m_starterMotor.m_enabled = true;
 
-    static int16_t audio[4096];
     auto frame = [&]() {
         sim->startFrame(1.0 / 60.0);
         while (sim->simulateStep()) { /* run */ }
         sim->endFrame();
-        sim->readAudioOutput(735, audio);
-        std::this_thread::sleep_for(std::chrono::milliseconds(16));
+        drain();
     };
 
     if (crankMode) {
@@ -245,7 +253,7 @@ int main(int argc, char **argv) {
                     }
                 }
                 sim->endFrame();
-                sim->readAudioOutput(735, audio);
+                drain();
             }
 
             std::printf("%-10s %5.0f rpm  peak %6.1f bar  rise %5.2f bar/deg (max %5.2f)  dyno %6.1f Nm  cycles %d\n",

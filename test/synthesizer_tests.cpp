@@ -164,3 +164,41 @@ TEST(SynthesizerTests, RealtimeThreadMatchesOfflineRender) {
     live.destroy();
     offline.destroy();
 }
+
+// The exhaust's convolution: summed directly for its first block of taps and
+// through the FFT after that, the same as summing every tap directly, for
+// impulse responses shorter than a block, a block long, just over, and as
+// long as the synthesizer allows
+#include "../include/convolution_filter.h"
+
+#include <random>
+
+TEST(ConvolutionFilterTests, MatchesTheDirectSum) {
+    std::mt19937 random(7);
+    std::uniform_real_distribution<float> uniform(-1.0f, 1.0f);
+    const int B = ConvolutionFilter::BlockSize;
+    for (const int taps : { 1, 50, B, B + 1, 3 * B + 17, 10000 }) {
+        std::vector<float> h(taps);
+        for (int i = 0; i < taps; ++i) h[i] = uniform(random) * std::exp(-3.0f * i / taps);
+
+        ConvolutionFilter filter;
+        filter.initialize(taps);
+        std::copy(h.begin(), h.end(), filter.getImpulseResponse());
+
+        const int n = 3 * taps + 5 * B;
+        std::vector<float> x(n);
+        for (float &v : x) v = uniform(random);
+
+        double worst = 0, peak = 0;
+        for (int i = 0; i < n; ++i) {
+            const float y = filter.f(x[i]);
+            double direct = 0;
+            for (int t = 0; t < taps && t <= i; ++t) direct += static_cast<double>(h[t]) * x[i - t];
+            worst = std::max(worst, std::abs(y - direct));
+            peak = std::max(peak, std::abs(direct));
+        }
+        filter.destroy();
+
+        EXPECT_LT(worst, 1e-4 * peak + 1e-6) << taps << " taps";
+    }
+}
