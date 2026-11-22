@@ -42,6 +42,7 @@ Engine::Engine() {
 
     m_initialSimulationFrequency = 10000.0;
     m_initialHighFrequencyGain = 0.01;
+    m_location = 0;
     m_initialJitter = 0.5;
     m_initialNoise = 1.0;
 }
@@ -73,6 +74,7 @@ void Engine::initialize(const Parameters &params) {
     m_name = params.name;
     m_throttle = params.throttle;
     m_initialHighFrequencyGain = params.initialHighFrequencyGain;
+    m_location = params.location;
     m_initialSimulationFrequency = params.initialSimulationFrequency;
     m_initialJitter = params.initialJitter;
     m_initialNoise = params.initialNoise;

@@ -152,6 +152,7 @@ public node t_f312 {
 
     engine engine(
         name: "Ferrari 312T Flat 12",
+        engine_location: "mid",
         starter_torque: 80 * units.Nm,
         starter_speed: 150 * units.rpm,
         redline: 13200 * units.rpm,

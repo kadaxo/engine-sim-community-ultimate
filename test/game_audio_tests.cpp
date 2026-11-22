@@ -1133,6 +1133,35 @@ TEST(ForcedInductionEngineTests, ListenerPositionMovesTheTurboAgainstTheExhaust)
     EXPECT_GT(front, beside + 3.0) << "beside " << beside << " dB, in front " << front << " dB";
 }
 
+// A rear engine sits at the back with the exhaust: behind the car its turbo
+// is about as near as the exhaust (more of the sound above 8 kHz than with
+// the engine at the front), in front of the car both are far (less of it).
+TEST(ForcedInductionEngineTests, RearEngineMovesTheTurboToTheBack) {
+    const std::string name = "name: \"Subaru EJ25 Turbo\",";
+    const std::string rear = forcedInductionVariant("subaru_ej25_twin_scroll_turbo.mr", "rear-engine",
+        name, name + " engine_location: \"rear\",");
+    auto share = [](const std::string &script, int position) {
+        SessionConfig config = defaultEngineConfig();
+        config.scriptPath = script;
+        config.listenerPosition = position;
+        std::srand(1);
+        std::string error;
+        std::unique_ptr<EngineSession> session = EngineSession::create(config, &error);
+        EXPECT_TRUE(session) << error;
+        if (!session) return 0.0;
+        session->setIgnition(true);
+        holdAt(session.get(), 4000, 1.0);
+        session->advance(2.0, nullptr, nullptr);
+        std::vector<float> clip;
+        session->advance(0.5, &clip, nullptr);
+        return bandShare(clip, 8000, 16000);
+    };
+
+    const std::string front = forcedInductionConfig("subaru_ej25_twin_scroll_turbo.mr").scriptPath;
+    EXPECT_GT(share(rear, 1), share(front, 1) + 3.0) << "behind the car";
+    EXPECT_LT(share(rear, 2), share(front, 2) - 3.0) << "in front of the car";
+}
+
 // Inside the car the body takes out most of the high frequencies (the
 // whistle, the hiss) and the cabin's modes lift the low ones: from the
 // example Subaru at full throttle, the share of the sound above 2 kHz falls

@@ -765,6 +765,7 @@ void EngineSimApplication::loadEngine(
     audioParams.inputSampleNoise = static_cast<float>(engine->getInitialJitter());
     audioParams.airNoise = static_cast<float>(engine->getInitialNoise());
     audioParams.dF_F_mix = static_cast<float>(engine->getInitialHighFrequencyGain());
+    audioParams.engineLocation = engine->getLocation();
     audioParams.levelerMode = m_levelerMode;
     m_simulator->synthesizer().setAudioParameters(audioParams);
 

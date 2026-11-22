@@ -239,8 +239,14 @@ of the engine:
   from beside, with a corner of 250 Hz and leaks 35 dB down; the exhaust through the floor and
   the boot, 120 Hz and 45 dB down, a low rumble. The cabin's first modes (about 70, 120 and
   155 Hz for an average car) lift what passes through them by 4 to 8 dB: the boom as the firing
-  frequency crosses one. The whistle and blow-off are much quieter inside; the engine assumed
-  is at the front. All estimates. Compressor wheels usually have 6 full and 6 splitter blades; aftermarket
+  frequency crosses one. The whistle and blow-off are much quieter inside. The engine bay is
+  at the front unless the engine says otherwise: `engine(..., engine_location: "mid")` puts it
+  just behind the seats (2.75 m from the front of the car), `"rear"` over the rear axle (4 m),
+  as on a 911. Behind the car a rear engine is about as near as the exhaust and a mid one 5 dB
+  further; in front of it both are far. Inside, a mid engine is 10 dB nearer than from beside,
+  a rear one 6 dB, both behind a rear bulkhead that lets more through than a front firewall
+  (400 Hz, leaks 30 dB down). The stock Porsche 911 engines are marked rear, and the Ferrari,
+  Lamborghini, McLaren, Cosworth F1 and Veyron engines mid. All estimates. Compressor wheels usually have 6 full and 6 splitter blades; aftermarket
   wheels come in 5+5, 7+7, 9+0 and 11+0, which moves the blade passing tone
   (`compressor_blades`, `splitter_blades`).
 

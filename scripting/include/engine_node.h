@@ -50,6 +50,7 @@ namespace es_script {
             parameters.exhaustSystemCount = (int)exhaustSystems.size();
             parameters.intakeCount = (int)intakes.size();
             parameters.throttle = m_throttle->generate();
+            parameters.location = (m_location == "rear") ? 2 : (m_location == "mid") ? 1 : 0;
             engine->initialize(parameters);
 
             {
@@ -184,6 +185,7 @@ namespace es_script {
             addInput("hf_gain", &m_parameters.initialHighFrequencyGain);
             addInput("jitter", &m_parameters.initialJitter);
             addInput("noise", &m_parameters.initialNoise);
+            addInput("engine_location", &m_location);
 
             ObjectReferenceNode<EngineNode>::registerInputs();
         }
@@ -202,6 +204,7 @@ namespace es_script {
         FuelNode *m_fuel = nullptr;
 
         Engine::Parameters m_parameters;
+        std::string m_location = "front";
         std::vector<CrankshaftNode *> m_crankshafts;
         std::vector<CylinderBankNode *> m_cylinderBanks;
     };

@@ -190,6 +190,7 @@ public node eng {
 
     engine engine(
         name: "Porsche 993 3.6",
+        engine_location: "rear",
         starter_torque: 150 * units.lb_ft,
         starter_speed: 500 * units.rpm,
         redline: 6500 * units.rpm,

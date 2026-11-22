@@ -137,6 +137,7 @@ public node lamborghini_v10_5_2l {
 
     engine engine(
         name: "Lamborghini 5.2L DOHC V10",
+        engine_location: "mid",
         starter_torque: 160 * units.lb_ft,
         starter_speed: 250 * units.rpm,
         redline: 8800 * units.rpm,

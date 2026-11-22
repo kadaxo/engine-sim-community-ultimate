@@ -46,6 +46,11 @@ class Engine : public Part {
             double initialHighFrequencyGain;
             double initialNoise;
             double initialJitter;
+
+            // Where the engine sits in the car, for the listener positions
+            // (see Synthesizer::AudioParameters): 0 at the front, 1 in the
+            // middle (behind the seats), 2 at the back
+            int location = 0;
         };
 
     public:
@@ -120,6 +125,7 @@ class Engine : public Part {
 
         double getSimulationFrequency() const { return m_initialSimulationFrequency; }
         double getInitialHighFrequencyGain() const { return m_initialHighFrequencyGain; }
+        int getLocation() const { return m_location; }
         double getInitialNoise() const { return m_initialNoise; }
         double getInitialJitter() const { return m_initialJitter; }
 
@@ -149,6 +155,7 @@ class Engine : public Part {
 
         double m_initialSimulationFrequency;
         double m_initialHighFrequencyGain;
+        int m_location;
         double m_initialNoise;
         double m_initialJitter;
 

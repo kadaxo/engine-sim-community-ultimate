@@ -263,6 +263,7 @@ public node Lamborghini_6_5 {
 
     engine engine(
         name: "Lamborghini 6.5 V12 LP770-4 (Aventador SVJ) V2",
+        engine_location: "mid",
         starter_torque: 200 * units.Nm,
         starter_speed: 250 * units.rpm,
         redline: 8500 * units.rpm,

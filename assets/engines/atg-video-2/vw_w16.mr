@@ -270,6 +270,7 @@ public node eng {
 
     engine engine(
         name: "VAG 8.0 W16",
+        engine_location: "mid",
         //starter_torque: 100 * units.lb_ft,
         starter_torque: 110 * units.Nm,
         starter_speed: 200 * units.rpm,

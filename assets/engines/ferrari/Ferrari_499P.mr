@@ -125,6 +125,7 @@ public node even_fire_v6_90 {
 
     engine engine(
         name: "Ferrari 499P '23",
+        engine_location: "mid",
         starter_torque: 225 * units.lb_ft,
         starter_speed: 300 * units.rpm,
         redline: 8000 * units.rpm,

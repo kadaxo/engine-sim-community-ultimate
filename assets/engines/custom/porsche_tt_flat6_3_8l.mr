@@ -127,6 +127,7 @@ public node porsche_tt_flat6_3_8l {
 
     engine engine(
         name: "Porsche 3.8L Twin-Turbo Flat-6",
+        engine_location: "rear",
         starter_torque: 180 * units.lb_ft,
         starter_speed: 250 * units.rpm,
         redline: 8000 * units.rpm,

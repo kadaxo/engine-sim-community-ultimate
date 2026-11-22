@@ -158,6 +158,7 @@ public node ferrari_412_t2_v12 {
 
     engine engine(
         name: "Ferrari 412 T2 [V12]",
+        engine_location: "mid",
         starter_torque: 70 * units.lb_ft,
         starter_speed: 500 * units.rpm,
         redline: 18000 * units.rpm,

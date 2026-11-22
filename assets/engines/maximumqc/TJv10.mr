@@ -277,6 +277,7 @@ public node V10F1{
 
     engine engine(
         name: "Cosworth 3.0L TJ V10",
+        engine_location: "mid",
         starter_torque: 300 * units.lb_ft,
         starter_speed: 300 * units.rpm,
         redline: 19800 * units.rpm,

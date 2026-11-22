@@ -51,9 +51,13 @@ class Synthesizer {
 
             // Where the listener stands: 0 beside the car, 1 behind it, 2 in
             // front of it, 3 inside it. The exhaust comes from the back, and
-            // the turbo and the engine's own noise from the engine bay at
-            // the front.
+            // the turbo and the engine's own noise from the engine bay (see
+            // engineLocation).
             int listenerPosition = 0;
+
+            // Where the engine bay is: 0 at the front, 1 in the middle
+            // (behind the seats), 2 at the back with the exhaust
+            int engineLocation = 0;
         };
 
         struct Parameters {

@@ -146,6 +146,7 @@ public node f136_v8 {
 
     engine engine(
         name: "Ferrari F136",
+        engine_location: "mid",
         starter_torque: 200 * units.lb_ft,
         starter_speed: 200 * units.rpm,
         redline: 9000 * units.rpm,

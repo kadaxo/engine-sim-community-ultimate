@@ -193,6 +193,7 @@ std::unique_ptr<game_audio::EngineSession> game_audio::EngineSession::create(
     audioParams.airNoise = static_cast<float>(engine->getInitialNoise());
     audioParams.dF_F_mix = static_cast<float>(engine->getInitialHighFrequencyGain());
     audioParams.listenerPosition = config.listenerPosition;
+    audioParams.engineLocation = engine->getLocation();
     simulator->synthesizer().setAudioParameters(audioParams);
 
     for (int i = 0; i < engine->getExhaustSystemCount(); ++i) {

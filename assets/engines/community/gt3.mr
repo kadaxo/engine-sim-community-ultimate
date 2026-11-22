@@ -94,6 +94,7 @@ public node gt3 {
 
     engine engine(
         name: "Porsche 911 GT3 (992)",
+        engine_location: "rear",
         starter_torque: 200 * units.lb_ft,
 		starter_speed: 1200 * units.rpm,
         redline: 9050 * units.rpm,
