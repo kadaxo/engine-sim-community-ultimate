@@ -49,7 +49,7 @@ The [original project's releases](https://github.com/ange-yaghi/engine-sim/relea
 | Down Arrow | Down Gear |
 | . | Brake (hold) |
 | K | Toggle smart shifting (off by default): the clutch and throttle are worked for you to rev-match each shift, at most half a second |
-| 6 | Where you listen from: beside the car (default), behind it (the exhaust comes forward, the turbo goes back) or in front of it |
+| 6 | Where you listen from: beside the car (default), behind it (the exhaust comes forward, the turbo goes back), in front of it, or inside it (through the body, with the cabin's boom) |
 | L | Cycle the volume leveler: ORIGINAL (default, the original peak leveler), OFF (fixed gain with only a limiter, so revving gets squashed hard) and LOUDNESS (steady loudness from idle to full revs) |
 | Z + Scroll | Volume |
 | X + Scroll | Convolution Level |

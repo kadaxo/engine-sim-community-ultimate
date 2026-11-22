@@ -59,6 +59,10 @@ Synthesizer::Synthesizer() {
     m_lastTick = 0;
     m_engineNoiseState = 0x85EBCA6Bu;
     m_engineNoiseFiltersSet = false;
+
+    m_farExhaustLow = m_farBayLow = 0;
+    m_insideExhaustLow = m_insideBayLow = 0;
+    m_cabinModesSet = false;
 }
 
 Synthesizer::~Synthesizer() {
@@ -103,6 +107,9 @@ void Synthesizer::initialize(const Parameters &p) {
     m_blowoffBand1 = m_blowoffBand2 = Bandpass();
     m_wastegateLast = 0;
     m_farExhaustLow = m_farBayLow = 0;
+    m_insideExhaustLow = m_insideBayLow = 0;
+    m_cabinMode1 = m_cabinMode2 = m_cabinMode3 = Bandpass();
+    m_cabinModesSet = false;
     m_faultNoiseState = 0x27D4EB2Fu;
     m_whirlPhase = 0;
     m_whirlDrift = 0;
@@ -473,10 +480,54 @@ float Synthesizer::renderRawSample(int inputSample) {
     switch (m_audioParameters.listenerPosition) {
         case 1: signal = exhaust + farEnd(bay, m_farBayLow); break;
         case 2: signal = farEnd(exhaust, m_farExhaustLow) + bay; break;
+        case 3: signal = insideTheCar(exhaust, bay); break;
         default: signal = exhaust + bay; break;
     }
 
     return m_antialiasing.fast_f(signal);
+}
+
+// Inside the car (a front-engined one). The body's panels and glass let
+// sound through by their mass: 15 dB or so is lost at low frequencies, and
+// above a corner the loss grows 6 dB an octave (the mass law), about 20 dB at
+// 100 Hz and 40 dB at 1 to 2 kHz from the exhaust, until the seals' leaks
+// take over and it levels off. The engine bay is behind the firewall, about
+// half as far away as from beside the car (6 dB nearer), and the firewall
+// and its pass-throughs let more through (a corner of 250 Hz, levelling at
+// 35 dB down) than the floor and the boot do for the exhaust at the back
+// (120 Hz, 45 dB down): from inside, the engine bay's sounds come from in
+// front and the exhaust as a low rumble. The cabin is a closed box: its first
+// modes, along its length (about 2.5 m, 70 Hz), across it (120 Hz) and from
+// floor to roof (155 Hz), lift what passes through them by 4 to 8 dB, which
+// is the boom when the firing frequency crosses one. All estimates for an
+// average car.
+float Synthesizer::insideTheCar(float exhaust, float bay) {
+    const float fs = m_audioSampleRate;
+    if (!m_cabinModesSet) {
+        m_cabinMode1.set(70.0f, 5.0f, fs);
+        m_cabinMode2.set(120.0f, 5.0f, fs);
+        m_cabinMode3.set(155.0f, 5.0f, fs);
+        m_cabinModesSet = true;
+    }
+
+    const float twoPi = 2.0f * 3.14159265f;
+    const float bayCorner = 1.0f - std::exp(-twoPi * 250.0f / fs);
+    const float floorCorner = 1.0f - std::exp(-twoPi * 120.0f / fs);
+    m_insideBayLow += (bay - m_insideBayLow) * bayCorner;
+    m_insideExhaustLow += (exhaust - m_insideExhaustLow) * floorCorner;
+    if (std::fpclassify(m_insideBayLow) == FP_SUBNORMAL) m_insideBayLow = 0;
+    if (std::fpclassify(m_insideExhaustLow) == FP_SUBNORMAL) m_insideExhaustLow = 0;
+
+    static constexpr float Through = 0.178f;      // -15 dB
+    const float firewall = 2.0f * (Through * m_insideBayLow + 0.0178f * bay);    // 6 dB nearer; leaks -35 dB
+    const float floor = Through * m_insideExhaustLow + 0.0056f * exhaust;         // leaks -45 dB
+    const float in = firewall + floor;
+
+    // A band-pass of unity peak gain added k times lifts its mode by 1 + k
+    return in
+        + 1.51f * m_cabinMode1.process(in)      // +8 dB
+        + 0.78f * m_cabinMode2.process(in)      // +5 dB
+        + 0.58f * m_cabinMode3.process(in);     // +4 dB
 }
 
 void Synthesizer::Bandpass::set(float f, float q, float fs) {

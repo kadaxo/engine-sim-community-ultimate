@@ -36,7 +36,7 @@ namespace game_audio {
         double crankThrottle = 0.0;
 
         // Where the listener stands (see Synthesizer::AudioParameters): 0
-        // beside the car, 1 behind it, 2 in front of it
+        // beside the car, 1 behind it, 2 in front of it, 3 inside it
         int listenerPosition = 0;
     };
 

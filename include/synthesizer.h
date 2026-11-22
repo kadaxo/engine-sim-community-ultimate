@@ -50,8 +50,9 @@ class Synthesizer {
             float forcedInductionVolume = 1.0f;
 
             // Where the listener stands: 0 beside the car, 1 behind it, 2 in
-            // front of it. The exhaust comes from the back, and the turbo
-            // and the engine's own noise from the engine bay at the front.
+            // front of it, 3 inside it. The exhaust comes from the back, and
+            // the turbo and the engine's own noise from the engine bay at
+            // the front.
             int listenerPosition = 0;
         };
 
@@ -166,6 +167,12 @@ class Synthesizer {
 
         // Listener position: the far end's sound, above 1.5 kHz
         float m_farExhaustLow, m_farBayLow;
+
+        // Inside the car: what the body lets through, and the cabin's modes
+        float insideTheCar(float exhaust, float bay);
+        float m_insideExhaustLow, m_insideBayLow;
+        Bandpass m_cabinMode1, m_cabinMode2, m_cabinMode3;
+        bool m_cabinModesSet;
 
         // Turbo wear and faults, with their own noise source so they leave
         // the other sounds as they were

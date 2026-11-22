@@ -30,8 +30,9 @@ Input
   --starter-rpm <rpm>      Starter cranking speed (default: the engine's own;
                            real starters crank at about 200-300 rpm)
   --crank-throttle <0-1>   Throttle held while cranking (default: 0)
-  --listener <position>    beside (default), behind or front: the exhaust is
-                           at the back, the turbo and engine noise at the front
+  --listener <position>    beside (default), behind, front or inside: the
+                           exhaust is at the back, the turbo and engine noise
+                           at the front; inside hears them through the body
 
 Output
   --out <dir>              Output root (default: ./engine-audio-export)
@@ -182,6 +183,7 @@ Misc
                 if (value == "beside") o->session.listenerPosition = 0;
                 else if (value == "behind") o->session.listenerPosition = 1;
                 else if (value == "front") o->session.listenerPosition = 2;
+                else if (value == "inside") o->session.listenerPosition = 3;
                 else ok = false;
             }
             else if (arg == "--rpm-min") ok = number(&o->rpmMin);

@@ -1221,12 +1221,14 @@ void EngineSimApplication::processEngineInput() {
     // Wheel deltas are discrete input. Preserve the old 60 FPS sensitivity.
     const double wheelControlDelta = mouseWheelDelta / 60.0;
 
-    // Where the listener stands: beside the car, behind it or in front
+    // Where the listener is: beside the car, behind it, in front or inside
     if (m_engine.ProcessKeyDown(ysKey::Code::N6)) {
         Synthesizer::AudioParameters audioParams = m_simulator->synthesizer().getAudioParameters();
-        audioParams.listenerPosition = (audioParams.listenerPosition + 1) % 3;
+        audioParams.listenerPosition = (audioParams.listenerPosition + 1) % 4;
         m_simulator->synthesizer().setAudioParameters(audioParams);
-        static const char *const Positions[] = { "LISTENER: BESIDE THE CAR", "LISTENER: BEHIND THE CAR", "LISTENER: IN FRONT OF THE CAR" };
+        static const char *const Positions[] = {
+            "LISTENER: BESIDE THE CAR", "LISTENER: BEHIND THE CAR",
+            "LISTENER: IN FRONT OF THE CAR", "LISTENER: INSIDE THE CAR" };
         m_infoCluster->setLogMessage(Positions[audioParams.listenerPosition]);
     }
 

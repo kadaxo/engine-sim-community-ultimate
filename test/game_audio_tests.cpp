@@ -1133,6 +1133,36 @@ TEST(ForcedInductionEngineTests, ListenerPositionMovesTheTurboAgainstTheExhaust)
     EXPECT_GT(front, beside + 3.0) << "beside " << beside << " dB, in front " << front << " dB";
 }
 
+// Inside the car the body takes out most of the high frequencies (the
+// whistle, the hiss) and the cabin's modes lift the low ones: from the
+// example Subaru at full throttle, the share of the sound above 2 kHz falls
+// by more than 15 dB and the share from 50 to 200 Hz rises. The sound is
+// quieter too.
+TEST(ForcedInductionEngineTests, InsideTheCarTheBodyTakesTheHighFrequencies) {
+    auto clip = [](int position) {
+        SessionConfig config = forcedInductionConfig("subaru_ej25_twin_scroll_turbo.mr");
+        config.listenerPosition = position;
+        std::srand(1);
+        std::string error;
+        std::unique_ptr<EngineSession> session = EngineSession::create(config, &error);
+        EXPECT_TRUE(session) << error;
+        std::vector<float> audio;
+        if (!session) return audio;
+        session->setIgnition(true);
+        holdAt(session.get(), 3000, 1.0);
+        session->advance(2.0, nullptr, nullptr);
+        session->advance(1.0, &audio, nullptr);
+        return audio;
+    };
+
+    const std::vector<float> beside = clip(0), inside = clip(3);
+    ASSERT_FALSE(beside.empty());
+    ASSERT_FALSE(inside.empty());
+    EXPECT_LT(bandShare(inside, 2000, 16000), bandShare(beside, 2000, 16000) - 15.0);
+    EXPECT_GT(bandShare(inside, 50, 200), bandShare(beside, 50, 200));
+    EXPECT_LT(meanSquare(inside), meanSquare(beside));
+}
+
 // Diesel injection, run in the example turbodiesel
 
 namespace {

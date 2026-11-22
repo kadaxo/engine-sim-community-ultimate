@@ -233,7 +233,14 @@ of the engine:
   against the near end's 3 m (a 4.5 m car), 8 dB down by spreading, and the car's body shields
   it by another 4 dB or so above 1.5 kHz (an estimate). From behind, the blow-off valve on the
   example Subaru sits about 11 dB lower against the engine than from beside; from in front,
-  about 8 dB higher. Compressor wheels usually have 6 full and 6 splitter blades; aftermarket
+  about 8 dB higher. Inside the car (`--listener inside`) both come through the body, which
+  loses about 15 dB at low frequencies and 6 dB more an octave above a corner (the mass law,
+  levelling off where the seals leak): the engine bay from behind the firewall, 6 dB nearer than
+  from beside, with a corner of 250 Hz and leaks 35 dB down; the exhaust through the floor and
+  the boot, 120 Hz and 45 dB down, a low rumble. The cabin's first modes (about 70, 120 and
+  155 Hz for an average car) lift what passes through them by 4 to 8 dB: the boom as the firing
+  frequency crosses one. The whistle and blow-off are much quieter inside; the engine assumed
+  is at the front. All estimates. Compressor wheels usually have 6 full and 6 splitter blades; aftermarket
   wheels come in 5+5, 7+7, 9+0 and 11+0, which moves the blade passing tone
   (`compressor_blades`, `splitter_blades`).
 
