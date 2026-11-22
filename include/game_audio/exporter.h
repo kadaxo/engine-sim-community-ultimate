@@ -23,9 +23,12 @@ namespace game_audio {
         constexpr const char *Shutdown = "shutdown";
         constexpr const char *RevBlip = "revs";
         constexpr const char *Sweeps = "sweeps";
+        constexpr const char *Pulls = "pulls";     // not in the default set
     }
 
+    // Every group --clips accepts, and the ones rendered when it isn't given
     std::set<std::string> allClipGroups();
+    std::set<std::string> defaultClipGroups();
 
     enum class Normalization {
         // Every clip is brought to the same integrated loudness (ITU-R
@@ -69,7 +72,7 @@ namespace game_audio {
         double settleSeconds = 2.0;
         double sweepSeconds = 12.0;
 
-        std::set<std::string> clipGroups = allClipGroups();
+        std::set<std::string> clipGroups = defaultClipGroups();
 
         Normalization normalization = Normalization::Loudness;
         double loudnessLufs = -18.0;

@@ -40,7 +40,9 @@ Output
                            this build supports)
   --clips <list>           Comma separated groups (default: all):
                              idle, onload, offload, limiter, startup,
-                             shutdown, revs, sweeps
+                             shutdown, revs, sweeps; and pulls (a full
+                             throttle run through gears 1 to 4, only
+                             when asked for)
 
 RPM loops
   --rpm-min <rpm>          Lowest loop RPM (default: engine dyno minimum)

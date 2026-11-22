@@ -371,6 +371,61 @@ namespace {
         return true;
     }
 
+    void rampClutch(EngineSession &session, double from, double to, double seconds, RenderedClip *clip) {
+        const int steps = std::max(1, static_cast<int>(std::lround(seconds / EngineSession::BlockDuration)));
+        for (int i = 1; i <= steps; ++i) {
+            session.setClutch(from + (to - from) * i / steps);
+            session.advance(seconds / steps, &clip->audio, &clip->telemetry);
+        }
+    }
+
+    // A full-throttle pull from a standstill through the first four gears:
+    // the clutch slips the car away from the launch revs, and each gear runs
+    // to just below the redline before a driver's upshift (lift, clutch in,
+    // next gear, clutch out, back on)
+    bool renderPull(EngineSession &session, const game_audio::ExportOptions &options, RenderedClip *clip) {
+        const int lastGear = std::min(3, session.gearCount() - 1);
+        if (lastGear < 0) {
+            clip->error = "the script has no gearbox";
+            return false;
+        }
+
+        if (!crankAndStart(session, nullptr, nullptr, &clip->error)) return false;
+        session.advance(options.settleSeconds, nullptr, nullptr);
+
+        const double redline = session.info().redlineRpm;
+        const double launchRpm = std::min(0.45 * redline, 3500.0);
+        const double shiftRpm = 0.95 * redline;
+
+        session.advance(0.5, &clip->audio, &clip->telemetry);
+        session.setClutch(0.0);
+        session.setGear(0);
+        session.setThrottle(1.0);
+        session.advanceUntil(
+            [launchRpm](const EngineSession &s) { return s.rpm() >= launchRpm; },
+            3.0, &clip->audio, &clip->telemetry);
+        rampClutch(session, 0.0, 1.0, 1.0, clip);
+
+        for (int gear = 0;; ++gear) {
+            session.setThrottle(1.0);
+            session.advanceUntil(
+                [shiftRpm](const EngineSession &s) { return s.rpm() >= shiftRpm; },
+                20.0, &clip->audio, &clip->telemetry);
+            if (gear == lastGear) break;
+
+            session.setThrottle(0.0);
+            rampClutch(session, 1.0, 0.0, 0.08, clip);
+            session.setGear(gear + 1);
+            rampClutch(session, 0.0, 1.0, 0.25, clip);
+        }
+
+        session.setThrottle(0.0);
+        session.advance(1.5, &clip->audio, &clip->telemetry);
+
+        finishOneShot(clip, 0.01, 0.25);
+        return true;
+    }
+
     // ---------------------------------------------------------------------
     // Plan
 
@@ -439,6 +494,10 @@ namespace {
                 "off", options.offLoadThrottle, rpmMax, rpmMin });
         }
 
+        if (wants(game_audio::groups::Pulls)) {
+            plan.push_back({ "pull_gears_1_4", game_audio::groups::Pulls, ClipKind::OneShot, "transient", 1.0, 0.0, 0.0 });
+        }
+
         return plan;
     }
 
@@ -468,6 +527,7 @@ namespace {
         else if (group == game_audio::groups::Shutdown) ok = renderShutdown(*session, options, clip);
         else if (group == game_audio::groups::RevBlip) ok = renderRevBlip(*session, options, clip);
         else if (group == game_audio::groups::Sweeps) ok = renderSweep(*session, options, clip);
+        else if (group == game_audio::groups::Pulls) ok = renderPull(*session, options, clip);
         else clip->error = "unknown clip group '" + group + "'";
 
         if (ok) {
@@ -694,6 +754,12 @@ namespace {
 } /* namespace */
 
 std::set<std::string> game_audio::allClipGroups() {
+    std::set<std::string> all = defaultClipGroups();
+    all.insert(groups::Pulls);
+    return all;
+}
+
+std::set<std::string> game_audio::defaultClipGroups() {
     return {
         groups::Idle, groups::OnLoad, groups::OffLoad, groups::Limiter,
         groups::Startup, groups::Shutdown, groups::RevBlip, groups::Sweeps

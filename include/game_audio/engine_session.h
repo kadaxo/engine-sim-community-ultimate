@@ -96,6 +96,15 @@ namespace game_audio {
         void setDynoHold(double rpm);
         void releaseDyno();
 
+        // Driving the car: the gear (-1 neutral, 0 first) and the clutch
+        // pressure (0 disengaged, 1 engaged). A gear change is immediate, as a
+        // driver's with the clutch in.
+        void setGear(int gear);
+        int gear() const;
+        int gearCount() const;
+        void setClutch(double pressure);
+        double vehicleSpeedKmh() const;
+
         // Runs the simulation for `seconds`. Audio is appended to `audio` and
         // one telemetry sample per block to `telemetry`; either may be null.
         void advance(

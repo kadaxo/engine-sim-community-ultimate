@@ -212,7 +212,7 @@ Run `engine-sim-export --help` for the full list. The most useful ones:
 | --- | --- | --- |
 | `--script <file.mr>` | `assets/main.mr` | A script that calls `set_engine` (like `main.mr`), or an engine file from `assets/engines`, which is run the way LOAD ENGINE runs it |
 | `--rpm-min/--rpm-max/--rpm-step` | dyno minimum / redline / 500 | Loop grid; the top of the range is always included |
-| `--clips` | all | `idle,onload,offload,limiter,startup,shutdown,revs,sweeps` |
+| `--clips` | all but `pulls` | `idle,onload,offload,limiter,startup,shutdown,revs,sweeps,pulls`. `pulls` (only when asked for) is a full-throttle run from a standstill through gears 1 to 4 with the script's car: a clutch launch, then upshifts just below the redline |
 | `--formats` | `ogg,mp3,wav` | |
 | `--loop-length` | 4 s | Longer loops repeat less obviously |
 | `--crossfade` | 80 ms | At least one engine cycle is always used |

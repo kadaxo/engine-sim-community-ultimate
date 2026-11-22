@@ -281,6 +281,29 @@ void game_audio::EngineSession::releaseDyno() {
     m_simulator->m_dyno.m_rotationSpeed = 0.0;
 }
 
+void game_audio::EngineSession::setGear(int gear) {
+    gear = std::max(-1, std::min(gear, gearCount() - 1));
+    while (m_transmission->getGear() < gear) m_transmission->upshift();
+    while (m_transmission->getGear() > gear) m_transmission->downshift();
+}
+
+int game_audio::EngineSession::gear() const {
+    return m_transmission->getGear();
+}
+
+int game_audio::EngineSession::gearCount() const {
+    return m_transmission->getGearCount();
+}
+
+void game_audio::EngineSession::setClutch(double pressure) {
+    m_transmission->setClutchPressure(std::max(0.0, std::min(1.0, pressure)));
+    m_transmission->setTargetClutchPressure(std::max(0.0, std::min(1.0, pressure)));
+}
+
+double game_audio::EngineSession::vehicleSpeedKmh() const {
+    return units::convert(m_vehicle->getSpeed(), units::km / units::hour);
+}
+
 double game_audio::EngineSession::rpm() const {
     return m_engine->getRpm();
 }
