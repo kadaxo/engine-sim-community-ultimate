@@ -28,43 +28,7 @@ long long AudioDiagTimeMs() {
 }
 
 Synthesizer::Synthesizer() {
-    m_inputChannels = nullptr;
-    m_inputChannelCount = 0;
-    m_auxChannelCount = 0;
-    m_totalChannelCount = 0;
-    m_inputBufferSize = 0;
-    m_inputWriteOffset = 0.0;
-    m_inputSamplesRead = 0;
-    m_latency = 0;
-
-    m_audioBufferSize = 0;
-
-    m_inputSampleRate = 0.0;
-    m_audioSampleRate = 0.0;
-
-    m_lastInputSampleOffset = 0.0;
-
-    m_run = true;
-    m_thread = nullptr;
-    m_filters = nullptr;
-
-    m_whinePhase = 0;
-    m_gearPhase = 0;
-    m_gearShaftPhase = 0;
-    m_flutterPhase = 0;
-    m_fiCounter = 0;
-    m_mixEnvelope = 0;
-    m_fiNoiseState = 0x9E3779B9u;
-    m_wastegateLast = 0;
-
-    m_tickEnvelope = 0;
-    m_lastTick = 0;
-    m_engineNoiseState = 0x85EBCA6Bu;
-    m_engineNoiseFiltersSet = false;
-
-    m_farExhaustLow = m_farBayLow = 0;
-    m_insideExhaustLow = m_insideBayLow = 0;
-    m_cabinModesSet = false;
+    /* the members have their defaults in the class */
 }
 
 Synthesizer::~Synthesizer() {
@@ -97,37 +61,11 @@ void Synthesizer::initialize(const Parameters &p) {
         m_inputChannels[i].data.initialize(p.inputBufferSize);
     }
 
-    // Forced induction sounds. Their noise has its own fixed seed: drawing
-    // it from rand() would shift the random numbers the combustion uses, and
-    // so change every engine's sound and power for a given seed.
-    m_whinePhase = 0;
-    m_gearPhase = 0;
-    m_gearShaftPhase = 0;
-    m_flutterPhase = 0;
-    m_fiCounter = 0;
-    m_mixEnvelope = 0;
-    m_fiNoiseState = 0x9E3779B9u;
-    m_whistleBand = m_whooshBand = m_roarBand = m_flutterBand = Bandpass();
-    m_blowoffBand1 = m_blowoffBand2 = Bandpass();
-    m_wastegateLast = 0;
-    m_farExhaustLow = m_farBayLow = 0;
-    m_insideExhaustLow = m_insideBayLow = 0;
-    m_cabinMode1 = m_cabinMode2 = m_cabinMode3 = Bandpass();
-    m_cabinModesSet = false;
-    m_faultNoiseState = 0x27D4EB2Fu;
-    m_whirlPhase = 0;
-    m_whirlDrift = 0;
-    m_whirlBand = m_leakBand1 = m_leakBand2 = Bandpass();
-    m_rattleBand1 = m_rattleBand2 = m_rattleBand3 = Bandpass();
-    m_rattlePeak = 0;
-    m_rattleMean = 0;
-    m_rattleAbove = false;
-
-    m_blockBand1 = m_blockBand2 = m_tickBand = m_tickRing = Bandpass();
-    m_tickEnvelope = 0;
-    m_lastTick = 0;
-    m_engineNoiseState = 0x85EBCA6Bu;
-    m_engineNoiseFiltersSet = false;
+    // The sounds start over (each keeps its state in members with
+    // defaults, and its own noise with its own fixed seed)
+    m_forcedInductionSound = ForcedInductionSound();
+    m_engineNoiseSound = EngineNoiseSound();
+    m_listener = ListenerModel();
 
     m_filters = new ProcessingFilters[p.inputChannelCount];
     for (int i = 0; i < p.inputChannelCount; ++i) {
@@ -470,462 +408,50 @@ float Synthesizer::renderRawSample(int inputSample) {
     }
 
     const float exhaust = signal;
-    const float bay = renderForcedInduction(inputSample, exhaust) + renderEngineNoise(inputSample, exhaust);
-
-    // Listener position. The car is 4.5 m long, and behind it or in front of
-    // it the listener stands 3 m from its end. The exhaust is at the back;
-    // the engine bay at the front (at the end, as the exhaust), in the middle
-    // behind the seats (2.75 m from the front) or at the back (4 m from the
-    // front, over the rear axle). A source further than the near end's 3 m is
-    // down by spreading (3 m over its distance, 8 dB from the far end), and
-    // the car's body shields one past the middle of it, taken as another
-    // 4 dB above about 1.5 kHz. Beside the car the sources are all about as
-    // far away, and the mix is as it is.
-    static constexpr float Shielded = 0.63f;
-    const float shelf = 1.0f - std::exp(-2.0f * 3.14159265f * 1500.0f / m_audioSampleRate);
-    auto distant = [shelf](float x, float &low, float gain, bool shielded) {
-        if (!shielded) return gain * x;
-        low += (x - low) * shelf;
-        if (std::fpclassify(low) == FP_SUBNORMAL) low = 0;
-        return gain * (low + Shielded * (x - low));
-    };
-
-    // The engine bay's distance from behind and in front of the car [m]
-    const int location = std::clamp(m_audioParameters.engineLocation, 0, 2);
-    static constexpr float BayFromBehind[] = { 7.5f, 4.75f, 3.5f };
-    static constexpr float BayFromFront[] = { 3.0f, 5.75f, 7.0f };
-    switch (m_audioParameters.listenerPosition) {
-        case 1: {
-            const float d = BayFromBehind[location];
-            signal = exhaust + distant(bay, m_farBayLow, 3.0f / d, d > 4.5f);
-            break;
-        }
-        case 2: {
-            const float d = BayFromFront[location];
-            signal = distant(exhaust, m_farExhaustLow, 0.4f, true)
-                + distant(bay, m_farBayLow, 3.0f / d, d > 4.5f);
-            break;
-        }
-        case 3: signal = insideTheCar(exhaust, bay); break;
-        default: signal = exhaust + bay; break;
-    }
+    const float bay = renderForcedInduction(inputSample, exhaust) + renderEngineNoise(inputSample);
+    signal = m_listener.render(
+        exhaust, bay, m_audioParameters.listenerPosition, m_audioParameters.engineLocation, m_audioSampleRate);
 
     return m_antialiasing.fast_f(signal);
 }
 
-// Inside the car. The body's panels and glass let sound through by their
-// mass: 15 dB or so is lost at low frequencies, and above a corner the loss
-// grows 6 dB an octave (the mass law), about 20 dB at 100 Hz and 40 dB at 1
-// to 2 kHz from the exhaust, until the seals' leaks take over and it levels
-// off. A front engine bay is behind the firewall, about half as far away as
-// from beside the car (6 dB nearer), and the firewall and its pass-throughs
-// let more through (a corner of 250 Hz, levelling at 35 dB down) than the
-// floor and the boot do for the exhaust at the back (120 Hz, 45 dB down):
-// the engine bay's sounds come from in front and the exhaust as a low
-// rumble. A mid engine sits just behind the seats, a third as far away as
-// from beside (10 dB nearer), and a rear one about as far as a front one;
-// both behind a rear bulkhead with no dashboard or heater in front of it,
-// which lets more through (400 Hz, 30 dB down). The cabin is a closed box: its first
-// modes, along its length (about 2.5 m, 70 Hz), across it (120 Hz) and from
-// floor to roof (155 Hz), lift what passes through them by 4 to 8 dB, which
-// is the boom when the firing frequency crosses one. All estimates for an
-// average car.
-float Synthesizer::insideTheCar(float exhaust, float bay) {
-    const float fs = m_audioSampleRate;
-    if (!m_cabinModesSet) {
-        m_cabinMode1.set(70.0f, 5.0f, fs);
-        m_cabinMode2.set(120.0f, 5.0f, fs);
-        m_cabinMode3.set(155.0f, 5.0f, fs);
-        m_cabinModesSet = true;
-    }
-
-    // The bulkhead between the engine bay and the cabin, by where the engine is
-    const int location = std::clamp(m_audioParameters.engineLocation, 0, 2);
-    static constexpr float Nearer[] = { 2.0f, 3.0f, 2.0f };
-    static constexpr float BulkheadCorner[] = { 250.0f, 400.0f, 400.0f };
-    static constexpr float BulkheadLeak[] = { 0.0178f, 0.0316f, 0.0316f };   // -35, -30 dB
-
-    const float twoPi = 2.0f * 3.14159265f;
-    const float bayCorner = 1.0f - std::exp(-twoPi * BulkheadCorner[location] / fs);
-    const float floorCorner = 1.0f - std::exp(-twoPi * 120.0f / fs);
-    m_insideBayLow += (bay - m_insideBayLow) * bayCorner;
-    m_insideExhaustLow += (exhaust - m_insideExhaustLow) * floorCorner;
-    if (std::fpclassify(m_insideBayLow) == FP_SUBNORMAL) m_insideBayLow = 0;
-    if (std::fpclassify(m_insideExhaustLow) == FP_SUBNORMAL) m_insideExhaustLow = 0;
-
-    static constexpr float Through = 0.178f;      // -15 dB
-    const float firewall = Nearer[location] * (Through * m_insideBayLow + BulkheadLeak[location] * bay);
-    const float floor = Through * m_insideExhaustLow + 0.0056f * exhaust;         // leaks -45 dB
-    const float in = firewall + floor;
-
-    // A band-pass of unity peak gain added k times lifts its mode by 1 + k
-    return in
-        + 1.51f * m_cabinMode1.process(in)      // +8 dB
-        + 0.78f * m_cabinMode2.process(in)      // +5 dB
-        + 0.58f * m_cabinMode3.process(in);     // +4 dB
-}
-
-void Synthesizer::Bandpass::set(float f, float q, float fs) {
-    const float w0 = 2.0f * 3.14159265f * std::clamp(f, 20.0f, 0.45f * fs) / fs;
-    const float alpha = std::sin(w0) / (2.0f * q);
-    const float a0 = 1.0f + alpha;
-    b0 = alpha / a0;
-    b2 = -alpha / a0;
-    a1 = -2.0f * std::cos(w0) / a0;
-    a2 = (1.0f - alpha) / a0;
-}
-
-float Synthesizer::Bandpass::process(float x) {
-    const float y = b0 * x + b2 * x2 - a1 * y1 - a2 * y2;
-    x2 = x1; x1 = x;
-    y2 = y1; y1 = y;
-    if (std::fpclassify(y1) == FP_SUBNORMAL) y1 = 0;
-    return y;
-}
-
-float Synthesizer::fiNoise() {
-    // xorshift32, uniform in [-1, 1]
-    m_fiNoiseState ^= m_fiNoiseState << 13;
-    m_fiNoiseState ^= m_fiNoiseState >> 17;
-    m_fiNoiseState ^= m_fiNoiseState << 5;
-    return static_cast<float>(m_fiNoiseState / 4294967295.0 * 2.0 - 1.0);
-}
-
-float Synthesizer::faultNoise() {
-    m_faultNoiseState ^= m_faultNoiseState << 13;
-    m_faultNoiseState ^= m_faultNoiseState >> 17;
-    m_faultNoiseState ^= m_faultNoiseState << 5;
-    return static_cast<float>(m_faultNoiseState / 4294967295.0 * 2.0 - 1.0);
-}
-
-// Turbocharger and supercharger sounds (from kyan0s-git/engine-sim), driven
-// by control channels from the simulation: [0] shaft or rotor frequency [Hz]
-// (times the whistle pitch), [1] whine level (positive displacement) or the
-// compressor's once per revolution tone, [2] blow-off jet, [3] intake roar,
-// [4] surge, [5] the exhaust pulses an external wastegate vents (in the
-// exhaust channels' units), [6] mode (10 * type + blow-off type + 100 *
-// full blades + 10000 * splitter blades; types 1 turbo, 2 Roots,
-// 3 twin-screw, 4 centrifugal; blow-off 0 vented, 1 recirculating, 2 none),
-// [7] blade passing tone, [8] splitter passing tone, [9] buzz-saw,
-// [10] whoosh, [11] its centre [Hz], [12] the blow-off jet's peak [Hz] and
-// [13] the deep surge rate [Hz], [14] worn bearings' whirl, [15] its
-// frequency over the shaft's, [16] the exhaust pulses that knock a worn
-// wastegate's flapper (exhaust channels' units), [17] a boost leak's jet and
-// [18] its peak [Hz] (levels relative to the reference blade
-// passing tone, see ForcedInduction::getCompressorTones() and
-// getAirNoise()). They follow the loudness of the engine: the exhaust
-// channels' units aren't the same loudness from one engine script to
-// another, so they can't carry an absolute level. The wastegate's pipe is
-// the exception: it is the engine's own exhaust pulses, unmuffled.
-float Synthesizer::renderForcedInduction(int inputSample, float signal) {
-    if (m_auxChannelCount < ForcedInductionChannelCount) return 0.0f;
-
-    const float *aux[ForcedInductionChannelCount];
-    for (int k = 0; k < ForcedInductionChannelCount; ++k) {
-        aux[k] = m_inputChannels[m_inputChannelCount + k].transferBuffer;
-    }
-
-    const int mode = static_cast<int>(std::lround(aux[6][inputSample]));
-    const int type = (mode / 10) % 10;
-    const int blades = std::max((mode / 100) % 100, 1);
-    const int splitters = mode / 10000;
-    if (type == 0) return 0.0f;
-
-    const float volume = m_audioParameters.forcedInductionVolume;
-    const float fs = m_audioSampleRate;
-    const float envelopeDecay = 1.0f - 1.0f / (0.3f * fs);
-    const float floor = 0.08f * m_audioParameters.levelerTarget;
-    const double twoPi = 2 * 3.14159265358979323846;
-
-    // The sounds follow the loudness of the engine (with a floor so that a
-    // blow-off on a quiet overrun is still heard)
-    const float a = std::abs(signal);
-    m_mixEnvelope = std::max(a * (1 - envelopeDecay) + m_mixEnvelope * envelopeDecay, 0.0f);
-    const float reference = 0.8f * m_mixEnvelope + floor;
-
-    const float shaft = std::max(aux[0][inputSample], 0.0f);
-    const float whine = std::max(aux[1][inputSample], 0.0f);
-    const float blowoff = std::max(aux[2][inputSample], 0.0f);
-    const float roar = std::max(aux[3][inputSample], 0.0f);
-    const float surge = std::max(aux[4][inputSample], 0.0f);
-    const float wastegate = aux[5][inputSample];
-    const float whoosh = std::max(aux[10][inputSample], 0.0f);
-    const float whooshFrequency = aux[11][inputSample];
-    const float blowoffFrequency = aux[12][inputSample];
-    const float surgeRate = aux[13][inputSample];
-
-    // Filter centres follow the shaft speed; updated every 32 samples
-    float tonal = 0;
-    float compressor = 0;
-    if (type == 1 || type == 4) {
-        const float bladeFrequency = blades * shaft;
-        if ((m_fiCounter++ & 31) == 0) {
-            m_whistleBand.set(bladeFrequency, 12.0f, fs);
-            m_whooshBand.set(std::max(whooshFrequency, 1000.0f), 0.8f, fs);
-            m_roarBand.set(1500.0f, 0.6f, fs);
-        }
-
-        // The compressor's tones, all on the shaft's phase: once per
-        // revolution (with a little of twice), the blades passing, and the
-        // buzz-saw's shaft harmonics below the blade passing frequency, each
-        // with its own fixed weight (from the small differences between the
-        // blades). Tones near the top of the band fade out.
-        m_whinePhase += twoPi * shaft / fs;
-        if (m_whinePhase > twoPi) m_whinePhase -= twoPi;
-        const double p = m_whinePhase;
-        auto fade = [fs](float f) { return std::clamp((0.45f * fs - f) / (0.05f * fs), 0.0f, 1.0f); };
-
-        const float bladePass = std::max(aux[7][inputSample], 0.0f);
-        const float splitterPass = std::max(aux[8][inputSample], 0.0f);
-        const float buzzSaw = std::max(aux[9][inputSample], 0.0f);
-        compressor += whine * fade(shaft) * static_cast<float>(std::sin(p) + 0.3 * std::sin(2 * p));
-        compressor += bladePass * fade(bladeFrequency)
-            * (static_cast<float>(std::sin(blades * p)) + 2.0f * m_whistleBand.process(fiNoise()));
-        if (splitters > 0) {
-            const int n = blades + splitters;
-            compressor += splitterPass * fade(n * shaft) * static_cast<float>(std::sin(n * p));
-        }
-        if (buzzSaw > 0.0f) {
-            static constexpr float Weights[] = {
-                0.9f, 0.5f, 1.0f, 0.4f, 0.7f, 0.8f, 0.3f, 0.6f, 1.0f, 0.5f,
-                0.7f, 0.4f, 0.9f, 0.6f, 0.3f, 0.8f, 0.5f, 0.7f, 0.4f, 0.6f
-            };
-            float buzz = 0, norm = 0;
-            for (int k = 2; k < 2 * blades && k - 2 < 20; ++k) {
-                if (k == blades) continue;
-                const float w = Weights[k - 2] * fade(k * shaft);
-                buzz += w * static_cast<float>(std::sin(k * p));
-                norm += Weights[k - 2] * Weights[k - 2];
-            }
-            if (norm > 0) compressor += buzzSaw * buzz / std::sqrt(norm);
-        }
-
-        // The air: the compressor's whoosh near surge and the roar of the
-        // air rushing in, both broadband
-        compressor += 2.0f * whoosh * m_whooshBand.process(fiNoise());
-        compressor += 2.0f * roar * m_roarBand.process(fiNoise());
-
-        // Worn bearings. Oil whirl isn't locked to the shaft: its pitch
-        // wanders by a percent or two. A worn ball bearing's defect tone is
-        // rough, and swells once per revolution.
-        const float whirl = std::max(aux[14][inputSample], 0.0f);
-        const float whirlRatio = aux[15][inputSample];
-        if (whirl > 0.0f && whirlRatio > 0.0f) {
-            m_whirlDrift += (faultNoise() - m_whirlDrift) * (2.0f * 3.14159265f * 2.0f / fs);
-            const float f = whirlRatio * shaft * (1.0f + 2.0f * m_whirlDrift);
-            if ((m_fiCounter & 31) == 3) m_whirlBand.set(f, (whirlRatio < 1.0f) ? 30.0f : 8.0f, fs);
-            if (whirlRatio < 1.0f) {
-                m_whirlPhase += twoPi * f / fs;
-                if (m_whirlPhase > twoPi) m_whirlPhase -= twoPi;
-                compressor += whirl * fade(f)
-                    * (0.8f * static_cast<float>(std::sin(m_whirlPhase)) + 1.5f * m_whirlBand.process(faultNoise()));
-            }
-            else {
-                compressor += whirl * fade(f) * (1.0f + 0.5f * static_cast<float>(std::sin(p)))
-                    * 2.5f * m_whirlBand.process(faultNoise());
-            }
-        }
-    }
-    else {
-        // Supercharger rotor whine: lobe passing frequency with harmonics,
-        // which fall off faster the more the rotors are twisted
-        const float pulses = aux[19][inputSample];
-        const double lobes = (pulses > 0) ? pulses : ((type == 2) ? 6.0 : 5.0);
-        const double f = std::min(shaft * lobes, 0.2 * fs);
-        m_whinePhase += twoPi * f / fs;
-        if (m_whinePhase > twoPi) m_whinePhase -= twoPi;
-        const double p = m_whinePhase;
-        float tone = 0;
-        if (type == 2) {
-            const float r = std::clamp(aux[20][inputSample], 0.0f, 0.95f);
-            float w = 1.0f;
-            for (int k = 1; k <= 6 && k * f < 0.45 * fs; ++k, w *= r) {
-                tone += w * static_cast<float>(std::sin(k * p));
-            }
-        }
-        else {
-            tone = static_cast<float>(std::sin(p) + 0.45 * std::sin(3 * p) + 0.25 * std::sin(5 * p));
-        }
-
-        if ((m_fiCounter++ & 31) == 0) {
-            m_whistleBand.set(static_cast<float>(2.0 * f + 200.0), 6.0f, fs);
-        }
-        tonal += whine * (0.45f * tone + 1.5f * m_whistleBand.process(fiNoise()));
-    }
-
-    // Supercharger drive gears: a whine at the tooth mesh, with sidebands
-    // from the shaft's run-out
-    const float gear = std::max(aux[21][inputSample], 0.0f);
-    const float gearFrequency = aux[22][inputSample];
-    if (gear > 0.0f && gearFrequency > 0.0f && gearFrequency < 0.45f * fs) {
-        m_gearPhase += twoPi * gearFrequency / fs;
-        if (m_gearPhase > twoPi) m_gearPhase -= twoPi;
-        m_gearShaftPhase += twoPi * shaft / fs;
-        if (m_gearShaftPhase > twoPi) m_gearShaftPhase -= twoPi;
-        const float fade = std::clamp((0.45f * fs - gearFrequency) / (0.05f * fs), 0.0f, 1.0f);
-        const float mesh = static_cast<float>(std::sin(m_gearPhase)
-            + ((2 * gearFrequency < 0.45f * fs) ? 0.3 * std::sin(2 * m_gearPhase) : 0.0));
-        tonal += 0.45f * gear * fade * (1.0f + 0.3f * static_cast<float>(std::sin(m_gearShaftPhase))) * mesh;
-    }
-
-    // Compressor surge without a blow-off valve: a fluttering chop at the
-    // deep surge rate
-    float bursts = 0;
-    if (surge > 0.01f) {
-        m_flutterPhase += twoPi * std::clamp(surgeRate, 4.0f, 40.0f) / fs;
-        if (m_flutterPhase > twoPi) m_flutterPhase -= twoPi;
-        const float gate = static_cast<float>(std::pow(std::max(std::sin(m_flutterPhase), 0.0), 3.0));
-        if ((m_fiCounter & 31) == 1) m_flutterBand.set(380.0f, 1.6f, fs);
-        bursts += 2.0f * surge * gate * m_flutterBand.process(fiNoise());
-    }
-
-    // Blow-off: the jet's broadband hiss around its peak, with a wider
-    // shoulder above it (a recirculating valve's comes out through the
-    // inlet, which the simulation has taken off)
-    if (blowoff > 0.001f) {
-        if ((m_fiCounter & 31) == 2) {
-            m_blowoffBand1.set(std::max(blowoffFrequency, 800.0f), 0.7f, fs);
-            m_blowoffBand2.set(std::max(2.5f * blowoffFrequency, 2000.0f), 1.0f, fs);
-        }
-        const float r = fiNoise();
-        bursts += 0.44f * blowoff * (1.6f * m_blowoffBand1.process(r) + 0.8f * m_blowoffBand2.process(r));
-    }
-
-    // A leak in the charge pipe: a jet like the blow-off valve's, steady
-    // while the charge is above the outside's pressure
-    const float leak = std::max(aux[17][inputSample], 0.0f);
-    if (leak > 0.001f) {
-        const float leakFrequency = aux[18][inputSample];
-        if ((m_fiCounter & 31) == 4) {
-            m_leakBand1.set(std::max(leakFrequency, 800.0f), 0.7f, fs);
-            m_leakBand2.set(std::max(2.5f * leakFrequency, 2000.0f), 1.0f, fs);
-        }
-        const float r = faultNoise();
-        bursts += 0.44f * leak * (1.6f * m_leakBand1.process(r) + 0.8f * m_leakBand2.process(r));
-    }
-
-    // External wastegate: its share of the exhaust pulses, out of a short
-    // pipe with no muffler. An open pipe end radiates as a monopole, its
-    // pressure following the rate of change of the flow, so the pulses come
-    // out as a rasp (rising 6 dB per octave, taken as unity at 500 Hz). The
-    // muffled exhaust has the impulse responses' gain; the open pipe takes
-    // about 10 dB less off.
-    float pipe = 0;
-    if (wastegate != 0.0f || m_wastegateLast != 0.0f) {
-        float gain = 0;
-        for (int i = 0; i < m_inputChannelCount; ++i) gain += m_filters[i].impulseGain;
-        gain /= std::max(m_inputChannelCount, 1);
-        pipe = 3.0f * gain * (wastegate - m_wastegateLast) * fs / (2.0f * 3.14159265f * 500.0f);
-        m_wastegateLast = wastegate;
-    }
-
-    // A worn wastegate's flapper: each exhaust pulse throws it across its
-    // play. The steady part of the pressure holds it to one side; the
-    // pulses riding on it throw it across. It strikes the linkage as a
-    // pulse rises through half of the pulses' recent height above the
-    // mean, and the seat side, more softly, as it falls back, each strike
-    // ringing the flapper and housing's modes (about 2.3, 4.1 and 6.9 kHz).
-    // The strike follows the pulse's height, in the exhaust channels' units
-    // like the wastegate's pipe above, less where a strong steady flow pins
-    // the flapper against the linkage (full load) than where the pulses
-    // throw it about freely (idle and cruise).
-    const float knock = aux[16][inputSample];
-    float rattle = 0;
-    if (knock != 0.0f || m_rattlePeak > 0.0f) {
-        if ((m_fiCounter & 31) == 5 || m_rattleBand1.b0 == 0.0f) {
-            m_rattleBand1.set(2300.0f, 20.0f, fs);
-            m_rattleBand2.set(4100.0f, 25.0f, fs);
-            m_rattleBand3.set(6900.0f, 30.0f, fs);
-        }
-        m_rattleMean += (knock - m_rattleMean) / (0.03f * fs);
-        const float pulse = knock - m_rattleMean;
-        m_rattlePeak = std::max(std::abs(pulse), m_rattlePeak * (1.0f - 1.0f / (0.05f * fs)));
-        if (m_rattlePeak < 1e-9f) m_rattlePeak = 0.0f;
-        float strike = 0;
-        const bool above = pulse > 0.5f * m_rattlePeak;
-        if (above && !m_rattleAbove) strike = m_rattlePeak;
-        else if (!above && m_rattleAbove) strike = -0.5f * m_rattlePeak;
-        m_rattleAbove = above;
-
-        if (strike != 0.0f) {
-            strike *= (1.0f + 0.3f * faultNoise())
-                * m_rattlePeak / (m_rattlePeak + 0.5f * std::abs(m_rattleMean) + 1e-12f);
-        }
-        float gain = 0;
-        for (int i = 0; i < m_inputChannelCount; ++i) gain += m_filters[i].impulseGain;
-        gain /= std::max(m_inputChannelCount, 1);
-        const float x = 40.0f * gain * strike;
-        rattle = m_rattleBand1.process(x) + 0.7f * m_rattleBand2.process(x) + 0.5f * m_rattleBand3.process(x);
-    }
-
-    return volume * ((tonal + 0.35f * compressor) * (1.1f * m_mixEnvelope + 0.4f * floor)
-        + bursts * reference * 1.5f + pipe + rattle);
-}
-
-// A diesel's engine noise, driven by two control channels from the
-// simulation, both in the exhaust channels' units (the simulation scales
-// them by the same per-cylinder gains): [0] the cylinders' combustion
-// pressure rise, which rings the engine block, and [1] the injector ticks'
-// level on the steps an injection starts. Both then get the impulse
-// responses' mean gain, so the noise sits with the exhaust at any volume
-// setting but doesn't follow its loudness: the knock stands out at idle,
-// where the exhaust is quiet, as a real diesel's does. Engines without
-// diesel injection leave both at zero, which renders exact silence.
-float Synthesizer::renderEngineNoise(int inputSample, float signal) {
-    (void)signal;
-    if (m_auxChannelCount < AuxChannelCount) return 0.0f;
-
-    const float *rise = m_inputChannels[m_inputChannelCount + ForcedInductionChannelCount].transferBuffer;
-    const float *tick = m_inputChannels[m_inputChannelCount + ForcedInductionChannelCount + 1].transferBuffer;
-    const float x = rise[inputSample];
-    const float t = tick[inputSample];
-
-    if (x == 0.0f && t == 0.0f && m_tickEnvelope == 0.0f && !m_engineNoiseFiltersSet) {
-        return 0.0f;
-    }
-
-    const float fs = m_audioSampleRate;
-    if (!m_engineNoiseFiltersSet) {
-        // The block and head ring around 1.4 and 3 kHz; the injector's
-        // needle and solenoid click higher
-        m_blockBand1.set(1400.0f, 1.2f, fs);
-        m_blockBand2.set(3000.0f, 2.5f, fs);
-        m_tickBand.set(6500.0f, 2.0f, fs);
-        m_tickRing.set(3600.0f, 14.0f, fs);
-        m_engineNoiseFiltersSet = true;
-    }
-
+float Synthesizer::meanImpulseGain() const {
     float gain = 0;
     for (int i = 0; i < m_inputChannelCount; ++i) gain += m_filters[i].impulseGain;
     gain /= std::max(m_inputChannelCount, 1);
-    const float convAmount = m_audioParameters.convolution;
-    gain = convAmount * gain + (1 - convAmount);
+    return gain;
+}
 
-    const float block = m_blockBand1.process(x) + 0.6f * m_blockBand2.process(x);
+// See ForcedInductionSound for the control channels
+float Synthesizer::renderForcedInduction(int inputSample, float signal) {
+    if (m_auxChannelCount < ForcedInductionChannelCount) return 0.0f;
 
-    // Ticks: a short burst on each injection start. The control channel
-    // ramps up over a few samples; the burst takes its peak.
-    float ring = 0.0f;
-    if (t > m_lastTick) {
-        ring = t - m_lastTick;
-        m_tickEnvelope = std::max(m_tickEnvelope, t);
+    float channels[ForcedInductionChannelCount];
+    for (int k = 0; k < ForcedInductionChannelCount; ++k) {
+        channels[k] = m_inputChannels[m_inputChannelCount + k].transferBuffer[inputSample];
     }
-    m_lastTick = t;
 
-    float ticks = 0.0f;
-    if (m_tickEnvelope > 0.0f) {
-        m_engineNoiseState ^= m_engineNoiseState << 13;
-        m_engineNoiseState ^= m_engineNoiseState >> 17;
-        m_engineNoiseState ^= m_engineNoiseState << 5;
-        const float r = static_cast<float>(m_engineNoiseState / 4294967295.0 * 2.0 - 1.0);
+    ForcedInductionSound::Settings settings;
+    settings.volume = m_audioParameters.forcedInductionVolume;
+    settings.levelerTarget = m_audioParameters.levelerTarget;
+    settings.sampleRate = m_audioSampleRate;
+    settings.exhaustGain = meanImpulseGain();
+    return m_forcedInductionSound.render(channels, signal, settings);
+}
 
-        ticks = m_tickEnvelope * 1.5f * m_tickBand.process(r);
-        m_tickEnvelope *= 1.0f - 1.0f / (0.0008f * fs);
-        if (m_tickEnvelope < 1e-6f * std::abs(t) || m_tickEnvelope < 1e-12f) m_tickEnvelope = 0.0f;
-    }
-    ticks += 4.0f * m_tickRing.process(ring);
+// See EngineNoiseSound: the two channels after the forced induction's
+float Synthesizer::renderEngineNoise(int inputSample) {
+    if (m_auxChannelCount < AuxChannelCount) return 0.0f;
 
-    return gain * (block + ticks);
+    const int first = m_inputChannelCount + ForcedInductionChannelCount;
+    EngineNoiseSound::Settings settings;
+    settings.sampleRate = m_audioSampleRate;
+    settings.exhaustGain = meanImpulseGain();
+    settings.convolution = m_audioParameters.convolution;
+    return m_engineNoiseSound.render(
+        m_inputChannels[first].transferBuffer[inputSample],
+        m_inputChannels[first + 1].transferBuffer[inputSample],
+        settings);
 }
 
 int16_t Synthesizer::renderAudio(int inputSample) {

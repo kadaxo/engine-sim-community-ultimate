@@ -8,6 +8,9 @@
 #include "jitter_filter.h"
 #include "ring_buffer.h"
 #include "butterworth_low_pass_filter.h"
+#include "forced_induction_sound.h"
+#include "engine_noise_sound.h"
+#include "listener_model.h"
 
 #include <cstdint>
 #include <cinttypes>
@@ -22,12 +25,12 @@ class Synthesizer {
         // Control channels a simulation writes after its exhaust channels to
         // drive the turbocharger and supercharger sounds, see
         // renderForcedInduction()
-        static constexpr int ForcedInductionChannelCount = 23;
+        static constexpr int ForcedInductionChannelCount = ForcedInductionSound::ChannelCount;
 
         // Control channels after those for a diesel's engine noise, see
         // renderEngineNoise(): the combustion pressure rise and the injector
         // ticks
-        static constexpr int EngineNoiseChannelCount = 2;
+        static constexpr int EngineNoiseChannelCount = EngineNoiseSound::ChannelCount;
 
         // All the control channels a simulation writes
         static constexpr int AuxChannelCount = ForcedInductionChannelCount + EngineNoiseChannelCount;
@@ -141,93 +144,48 @@ class Synthesizer {
     protected:
         float renderRawSample(int inputSample);
 
-        // Turbocharger and supercharger sounds for one output sample, from
-        // the control channels; signal is the engine sound of that sample,
-        // whose loudness the sounds follow.
+        // The turbocharger and supercharger sounds and a diesel's engine
+        // noise for one output sample, from the control channels; signal is
+        // the exhaust sound of that sample
         float renderForcedInduction(int inputSample, float signal);
+        float renderEngineNoise(int inputSample);
 
-        // A diesel's engine noise for one output sample: the block ringing
-        // from the combustion pressure rise and the injector ticks; signal
-        // is the exhaust sound of that sample, whose loudness they follow
-        float renderEngineNoise(int inputSample, float signal);
+        // The impulse responses' mean gain, which sounds that bypass the
+        // exhaust convolution use to sit with it
+        float meanImpulseGain() const;
 
-        struct Bandpass {
-            float b0 = 0, b2 = 0, a1 = 0, a2 = 0;
-            float x1 = 0, x2 = 0, y1 = 0, y2 = 0;
-            void set(float f, float q, float fs);
-            float process(float x);
-        };
+        ForcedInductionSound m_forcedInductionSound;
+        EngineNoiseSound m_engineNoiseSound;
+        ListenerModel m_listener;
 
-        float fiNoise();
-
-        double m_whinePhase;
-        // Supercharger drive gears: the mesh, and the shaft that modulates it
-        double m_gearPhase, m_gearShaftPhase;
-        double m_flutterPhase;
-        unsigned int m_fiCounter;
-        float m_mixEnvelope;
-        uint32_t m_fiNoiseState;
-        Bandpass m_whistleBand, m_whooshBand, m_roarBand, m_flutterBand;
-        Bandpass m_blowoffBand1, m_blowoffBand2;
-        float m_wastegateLast;
-
-        // Listener position: the far end's sound, above 1.5 kHz
-        float m_farExhaustLow, m_farBayLow;
-
-        // Inside the car: what the body lets through, and the cabin's modes
-        float insideTheCar(float exhaust, float bay);
-        float m_insideExhaustLow, m_insideBayLow;
-        Bandpass m_cabinMode1, m_cabinMode2, m_cabinMode3;
-        bool m_cabinModesSet;
-
-        // Turbo wear and faults, with their own noise source so they leave
-        // the other sounds as they were
-        float faultNoise();
-        uint32_t m_faultNoiseState;
-        double m_whirlPhase;
-        float m_whirlDrift;
-        Bandpass m_whirlBand, m_leakBand1, m_leakBand2;
-        Bandpass m_rattleBand1, m_rattleBand2, m_rattleBand3;
-        float m_rattlePeak;
-        float m_rattleMean;
-        bool m_rattleAbove;
-
-        // Engine noise (diesel injection), with its own noise source
-        Bandpass m_blockBand1, m_blockBand2, m_tickBand, m_tickRing;
-        float m_tickEnvelope;
-        float m_lastTick;
-        uint32_t m_engineNoiseState;
-        bool m_engineNoiseFiltersSet;
-
-    //protected:
         ButterworthLowPassFilter<float> m_antialiasing;
         LevelingFilter m_levelingFilter;
-        InputChannel *m_inputChannels;
+        InputChannel *m_inputChannels = nullptr;
         AudioParameters m_audioParameters;
-        int m_inputChannelCount;
-        int m_auxChannelCount;
-        int m_totalChannelCount;
-        int m_inputBufferSize;
-        int m_inputSamplesRead;
-        int m_latency;
-        double m_inputWriteOffset;
-        double m_lastInputSampleOffset;
+        int m_inputChannelCount = 0;
+        int m_auxChannelCount = 0;
+        int m_totalChannelCount = 0;
+        int m_inputBufferSize = 0;
+        int m_inputSamplesRead = 0;
+        int m_latency = 0;
+        double m_inputWriteOffset = 0.0;
+        double m_lastInputSampleOffset = 0.0;
 
         RingBuffer<int16_t> m_audioBuffer;
-        int m_audioBufferSize;
+        int m_audioBufferSize = 0;
 
-        float m_inputSampleRate;
-        float m_audioSampleRate;
+        float m_inputSampleRate = 0.0f;
+        float m_audioSampleRate = 0.0f;
 
-        std::thread *m_thread;
-        std::atomic<bool> m_run;
-        bool m_processed;
+        std::thread *m_thread = nullptr;
+        std::atomic<bool> m_run{ true };
+        bool m_processed = true;
 
         std::mutex m_inputLock;
         std::mutex m_lock0;
         std::condition_variable m_cv0;
 
-        ProcessingFilters *m_filters;
+        ProcessingFilters *m_filters = nullptr;
 };
 
 #endif /* ATG_ENGINE_SIM_ENGINE_SYNTHESIZER_H */

@@ -100,6 +100,10 @@ add_library(engine-sim STATIC
     src/standard_valvetrain.cpp
     src/starter_motor.cpp
     src/synthesizer.cpp
+    src/synth_dsp.cpp
+    src/forced_induction_sound.cpp
+    src/engine_noise_sound.cpp
+    src/listener_model.cpp
     src/throttle.cpp
     src/transmission.cpp
     src/utilities.cpp
@@ -149,6 +153,10 @@ add_library(engine-sim STATIC
     include/standard_valvetrain.h
     include/starter_motor.h
     include/synthesizer.h
+    include/synth_dsp.h
+    include/forced_induction_sound.h
+    include/engine_noise_sound.h
+    include/listener_model.h
     include/throttle.h
     include/transmission.h
     include/units.h
