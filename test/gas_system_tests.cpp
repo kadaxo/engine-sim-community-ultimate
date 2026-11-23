@@ -4,7 +4,14 @@
 #include "../include/units.h"
 #include "../include/csv_io.h"
 
+#include <filesystem>
 #include <sstream>
+#include <string>
+
+// The tables these tests dump go to the build folder, not the working directory
+static std::string testOutput(const char *name) {
+    return (std::filesystem::path(ENGINE_SIM_TEST_OUTPUT_DIR) / name).string();
+}
 
 TEST(GasSystemTests, GasSystemSanity) {
     GasSystem system;
@@ -257,7 +264,7 @@ TEST(GasSystemTests, IntakeStrokeTest) {
     }
 
     csv.m_rows = 100 + 1;
-    csv.writeCsv("intake_stroke.csv");
+    csv.writeCsv(testOutput("intake_stroke.csv").c_str());
     csv.destroy();
 }
 
@@ -506,7 +513,7 @@ TEST(GasSystemTests, GasVelocityReducesStaticPressure) {
     EXPECT_NEAR(finalMolecules, initialMolecules, 1E-6);
     EXPECT_NEAR(finalSystemEnergy, initialSystemEnergy, 1E-4);
 
-    csv.writeCsv("gas_system_test_output.csv", nullptr, '\t');
+    csv.writeCsv(testOutput("gas_system_test_output.csv").c_str(), nullptr, '\t');
     csv.destroy();
 }
 
@@ -638,7 +645,7 @@ TEST(GasSystemTests, GasVelocityProducesScavengingEffect) {
         csv.write(std::to_string(exhaustStaticPressure).c_str());
     }
 
-    csv.writeCsv("gas_system_test_output.csv", nullptr, '\t');
+    csv.writeCsv(testOutput("gas_system_test_output.csv").c_str(), nullptr, '\t');
     csv.destroy();
 }
 
@@ -779,7 +786,7 @@ TEST(GasSystemTests, GasVelocityProducesRamEffect) {
         csv.write(std::to_string(P_1).c_str());
     }
 
-    csv.writeCsv("gas_system_test_output.csv", nullptr, '\t');
+    csv.writeCsv(testOutput("gas_system_test_output.csv").c_str(), nullptr, '\t');
     csv.destroy();
 
     const double delay = max_n_angle - max_v_angle;
@@ -821,6 +828,6 @@ TEST(GasSystemTests, GasVelocityStabilizesInClosedSystem) {
         csv.write(std::to_string(system1.velocity_x()).c_str());
     }
 
-    csv.writeCsv("gas_system_test_output.csv", nullptr, '\t');
+    csv.writeCsv(testOutput("gas_system_test_output.csv").c_str(), nullptr, '\t');
     csv.destroy();
 }

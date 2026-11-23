@@ -418,9 +418,11 @@ target_link_libraries(engine-sim-test
     engine-sim
 )
 
-# The engine list tests read the bundled engine scripts
+# The engine list tests read the bundled engine scripts; the gas system
+# tests write their CSV tables to the build folder
 target_compile_definitions(engine-sim-test
-    PRIVATE ENGINE_SIM_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+    PRIVATE ENGINE_SIM_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+            ENGINE_SIM_TEST_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}")
 
 include(GoogleTest)
 # Discover at test time: listing the tests runs the executable, which fails
