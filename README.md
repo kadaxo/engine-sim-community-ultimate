@@ -21,7 +21,7 @@ It is not a scientific tool: it is designed to sound and respond like an engine,
 - **Works with screen readers.** Speech and braille through NVDA, JAWS, Narrator and others, keys that read out every gauge, a spoken engine list, and keyboard alternatives for everything the mouse did. See the [accessibility guide](docs/accessibility.html).
 - **Builds on Windows, Linux and macOS** with no Boost dependency, plus fixes to the physics, rendering and memory handling. The macOS app has been tried on an Apple Silicon Mac, and the Linux app on Ubuntu 22.04 (under WSL).
 
-[COMMUNITY.md](COMMUNITY.md) lists where every change came from.
+[COMMUNITY.md](COMMUNITY.md) lists where every change came from, and [CHANGELOG.md](CHANGELOG.md) what changed in each release.
 
 ## Getting it
 

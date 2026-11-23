@@ -6,9 +6,11 @@ name: Release
 # - Run it by hand (Actions > Release > Run workflow) to get them as
 #   artifacts of the run, to try before tagging. "platforms" picks which to
 #   build.
-# - Pushing a version tag such as v0.2.1 builds all three and creates a draft
+# - Pushing a version tag such as v0.3.0 builds all three and creates a draft
 #   GitHub release with them and SHA256SUMS. The tag must match the version
-#   in CMakeLists.txt. Check the draft, then publish it on GitHub.
+#   in CMakeLists.txt, and CHANGELOG.md needs a "## 0.3.0" section, which
+#   becomes the release's "What's new". Check the draft, then publish it on
+#   GitHub.
 
 on:
   workflow_dispatch:
@@ -386,6 +388,12 @@ jobs:
       contents: write
 
     steps:
+      - name: Check out the changelog
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: CHANGELOG.md
+          sparse-checkout-cone-mode: false
+
       - name: Download the builds
         uses: actions/download-artifact@v8
         with:
@@ -410,6 +418,37 @@ jobs:
           sha256sum -- * > SHA256SUMS
           cat SHA256SUMS
 
+      # On manual runs too, so a missing changelog entry shows before tagging
+      - name: Write the release notes
+        env:
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: |
+          set -euo pipefail
+          if [ -n "$TAG" ]; then
+            VERSION="${TAG#v}"
+          else
+            VERSION=$(ls upload | sed -n -E 's/^engine-sim-community-(.+)-(windows-x64|macos-arm64|linux-x64)\..*$/\1/p' | head -n 1)
+          fi
+          # The lines under "## <version>" up to the next "## " heading
+          awk -v v="$VERSION" '
+            /^## / { if (found) exit; if ($2 == v) { found = 1; next } }
+            found { print }
+          ' CHANGELOG.md > whats-new.md
+          if ! grep -q '[^[:space:]]' whats-new.md; then
+            echo "::error::CHANGELOG.md has no \"## $VERSION\" section"
+            exit 1
+          fi
+          # Relative links (docs/diesel.md) would point into the releases page
+          sed -i -E "s#\]\(([^):]+)\)#](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_SHA/\1)#g" whats-new.md
+          {
+            echo "## What's new"
+            cat whats-new.md
+            echo
+            echo "## Downloads"
+            echo
+          } > notes.md
+          cat notes.md
+
       - name: Create a draft release
         if: github.ref_type == 'tag'
         env:
@@ -422,7 +461,7 @@ jobs:
           for p in windows-x64.zip macos-arm64.zip linux-x64.tar.gz; do
             ls engine-sim-community-*-"$p" > /dev/null 2>&1 || { echo "::error::No $p download"; exit 1; }
           done
-          cat > ../notes.md <<'EOF'
+          cat >> ../notes.md <<'EOF'
           **Windows** (10 or 11, 64-bit): download `engine-sim-community-*-windows-x64.zip`, unzip it anywhere you can write to, and run `engine-sim-app.exe`. Nothing needs installing. The app isn't signed, so Windows may show "Windows protected your PC": choose **More info**, then **Run anyway**.
 
           **macOS** (Apple Silicon, macOS 11 or newer): download `engine-sim-community-*-macos-arm64.zip`, unzip it and move `Engine Sim.app` to Applications. The app isn't signed by an Apple developer, so the first time macOS refuses to open it: open **System Settings > Privacy & Security** and choose **Open Anyway** next to the message about Engine Sim.
@@ -431,7 +470,7 @@ jobs:
 
           `SHA256SUMS` holds the checksum of each download.
 
-          See the README for the controls and what's new in this collection.
+          See the README for the controls, and CHANGELOG.md for earlier releases.
           EOF
           gh release create "$TAG" * \
             --repo "$GITHUB_REPOSITORY" \

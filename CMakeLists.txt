@@ -35,7 +35,7 @@ endif (DISCORD_ENABLED)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "cmake")
 
-project(engine-sim VERSION 0.2.1)
+project(engine-sim VERSION 0.3.0)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -723,7 +723,7 @@ install(DIRECTORY ${_delta_basic}/fonts/Silkscreen
 
 # Documentation, and the engine builder at the path the guide links to
 # (the guide opens with F4, from the data folder)
-install(FILES README.md COMMUNITY.md LICENSE
+install(FILES README.md CHANGELOG.md COMMUNITY.md LICENSE
     DESTINATION . COMPONENT release)
 install(DIRECTORY docs
     DESTINATION "${_release_data}" COMPONENT release)
