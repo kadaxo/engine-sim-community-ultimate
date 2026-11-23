@@ -268,16 +268,16 @@ jobs:
           archive: false
           if-no-files-found: error
 
-  # x86-64, built on Ubuntu 22.04 so it runs on distributions with glibc
-  # 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36 and later). SDL2 and
-  # SDL2_image come from the system; Prism and the encoders from vcpkg,
-  # linked statically. Prism needs GCC 13's C++ library
-  # (std::atomic_unsigned_lock_free), newer than Ubuntu 22.04's GCC 12: GCC
-  # 13 comes from the ubuntu-toolchain-r PPA and its libstdc++ is linked into
-  # the programs, so they don't need it on the user's system.
+  # x86-64, built on Ubuntu 24.04 so it runs on distributions with glibc
+  # 2.39 or newer (Ubuntu 24.04, Debian 13, Fedora 40 and later); GitHub
+  # retires its Ubuntu 22.04 runners on 2027-04-17. SDL2 and SDL2_image come
+  # from the system; Prism and the encoders from vcpkg, linked statically.
+  # Prism needs GCC 13's C++ library (std::atomic_unsigned_lock_free), Ubuntu
+  # 24.04's own GCC; libstdc++ is linked into the programs, so they don't
+  # need a new one on the user's system.
   linux:
     if: github.event_name != 'workflow_dispatch' || contains(inputs.platforms, 'linux')
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 180
     env:
       CC: gcc-13
@@ -292,7 +292,6 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
           sudo apt-get update
           sudo apt-get install -y gcc-13 g++-13 libsdl2-dev libsdl2-image-dev flex bison \
             autoconf autoconf-archive automake libtool libltdl-dev pkg-config \
@@ -305,9 +304,9 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: ~/.cache/vcpkg/archives
-          key: vcpkg-release-${{ runner.os }}-${{ runner.arch }}-ubuntu22-gcc13-${{ env.VCPKG_COMMIT }}-${{ hashFiles('cmake/vcpkg-overlay-ports/**', 'cmake/vcpkg-triplets/**') }}
+          key: vcpkg-release-${{ runner.os }}-${{ runner.arch }}-ubuntu24-gcc13-${{ env.VCPKG_COMMIT }}-${{ hashFiles('cmake/vcpkg-overlay-ports/**', 'cmake/vcpkg-triplets/**') }}
           restore-keys: |
-            vcpkg-release-${{ runner.os }}-${{ runner.arch }}-ubuntu22-gcc13-${{ env.VCPKG_COMMIT }}-
+            vcpkg-release-${{ runner.os }}-${{ runner.arch }}-ubuntu24-gcc13-${{ env.VCPKG_COMMIT }}-
 
       - name: Build the libraries with vcpkg
         id: vcpkg-build
@@ -466,7 +465,7 @@ jobs:
 
           **macOS** (Apple Silicon, macOS 11 or newer): download `engine-sim-community-*-macos-arm64.zip`, unzip it and move `Engine Sim.app` to Applications. The app isn't signed by an Apple developer, so the first time macOS refuses to open it: open **System Settings > Privacy & Security** and choose **Open Anyway** next to the message about Engine Sim.
 
-          **Linux** (x86-64, glibc 2.35 or newer, such as Ubuntu 22.04, Debian 12 or Fedora 36 and later): install SDL2, SDL2_image and OpenGL (`sudo apt install libsdl2-2.0-0 libsdl2-image-2.0-0 libopengl0 libgl1`, `sudo dnf install SDL2 SDL2_image libglvnd-opengl` or `sudo pacman -S sdl2 sdl2_image`), unpack `engine-sim-community-*-linux-x64.tar.gz` and run `./engine-sim-app` in its folder.
+          **Linux** (x86-64, glibc 2.39 or newer, such as Ubuntu 24.04, Debian 13 or Fedora 40 and later): install SDL2, SDL2_image and OpenGL (`sudo apt install libsdl2-2.0-0 libsdl2-image-2.0-0 libopengl0 libgl1`, `sudo dnf install SDL2 SDL2_image libglvnd-opengl` or `sudo pacman -S sdl2 sdl2_image`), unpack `engine-sim-community-*-linux-x64.tar.gz` and run `./engine-sim-app` in its folder.
 
           `SHA256SUMS` holds the checksum of each download.
 

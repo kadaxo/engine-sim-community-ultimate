@@ -31,6 +31,7 @@ A release's notes on GitHub are its section below: the release workflow copies t
 - The McLaren-Honda runs at 15 kHz; at 4.2 kHz it blew up on the dyno.
 - The steam engines are gone: they only ran because of a starter bug.
 - `AUDIO_FIXES.md` and `RPM_SYNC.md` moved into `docs`.
+- The Linux download is built on Ubuntu 24.04 and needs glibc 2.39 or newer (Ubuntu 24.04, Debian 13, Fedora 40 or later); 0.2.1 ran from Ubuntu 22.04 and Debian 12 up.
 
 ### Fixed
 

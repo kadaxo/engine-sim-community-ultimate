@@ -29,7 +29,7 @@ It is not a scientific tool: it is designed to sound and respond like an engine,
 
 **macOS (Apple Silicon, macOS 11 or newer):** download `engine-sim-community-<version>-macos-arm64.zip`, unzip it and move `Engine Sim.app` to Applications. The app isn't signed by an Apple developer, so the first time macOS refuses to open it: open **System Settings > Privacy & Security** and choose **Open Anyway** next to the message about Engine Sim. `engine-sim-export` is inside the app, in `Engine Sim.app/Contents/MacOS`. Intel Macs need a build from source.
 
-**Linux (x86-64):** the download needs glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36 or later) and the system's SDL2, SDL2_image and OpenGL libraries: `sudo apt install libsdl2-2.0-0 libsdl2-image-2.0-0 libopengl0 libgl1`, `sudo dnf install SDL2 SDL2_image libglvnd-opengl` or `sudo pacman -S sdl2 sdl2_image`. Unpack `engine-sim-community-<version>-linux-x64.tar.gz` and run `./engine-sim-app` in its folder. Screen reader output goes through Speech Dispatcher, as Orca's does (tried with eSpeak NG; not yet with Orca itself).
+**Linux (x86-64):** the download needs glibc 2.39 or newer (Ubuntu 24.04, Debian 13, Fedora 40 or later) and the system's SDL2, SDL2_image and OpenGL libraries: `sudo apt install libsdl2-2.0-0 libsdl2-image-2.0-0 libopengl0 libgl1`, `sudo dnf install SDL2 SDL2_image libglvnd-opengl` or `sudo pacman -S sdl2 sdl2_image`. Unpack `engine-sim-community-<version>-linux-x64.tar.gz` and run `./engine-sim-app` in its folder. Screen reader output goes through Speech Dispatcher, as Orca's does (tried with eSpeak NG; not yet with Orca itself).
 
 The [original project's releases](https://github.com/ange-yaghi/engine-sim/releases) are older builds without any of the changes above.
 
