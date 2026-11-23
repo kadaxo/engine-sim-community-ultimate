@@ -190,9 +190,17 @@ bool Simulator::blownUp() const {
         return true;
     }
 
+    // The cylinders, and the runners either side of them: the exhaust
+    // runner's gas, which the sound comes from, can blow up while the
+    // cylinders still look sane
     for (int i = 0; i < m_engine->getCylinderCount(); ++i) {
-        const double p = m_engine->getChamber(i)->m_system.pressure();
-        if (!std::isfinite(p) || std::abs(p) > MaxChamberPressure) return true;
+        const CombustionChamber *chamber = m_engine->getChamber(i);
+        for (const GasSystem *gas : { &chamber->m_system,
+                &chamber->m_intakeRunnerAndManifold, &chamber->m_exhaustRunnerAndPrimary })
+        {
+            const double p = gas->pressure();
+            if (!std::isfinite(p) || std::abs(p) > MaxChamberPressure) return true;
+        }
     }
 
     return false;

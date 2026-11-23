@@ -534,7 +534,9 @@ TEST(EngineSessionTests, OnLoadIsLouderThanOffLoad) {
 // A step too coarse for the engine blows the simulation up: the McLaren-Honda
 // at its old 4200 Hz ran away on the dyno at 6000 rpm (to ~1e305 rpm and then
 // NaN, which crashed the app). The simulator now stops and says so, and the
-// audio stays finite.
+// audio stays finite. At 1000 Hz the exhaust runner's gas can blow up first
+// (on Linux to about 1e82, finite but past a float) while the cylinders still
+// look sane, so the runners are checked too.
 TEST(EngineSessionTests, BlownUpSimulationStops) {
     SessionConfig config = defaultEngineConfig();
     config.scriptPath = (fs::path(ENGINE_SIM_SOURCE_DIR) / "assets" / "engines" / "1987_McLaren_Honda.mr").generic_string();
@@ -979,7 +981,10 @@ TEST(ForcedInductionEngineTests, DesignerEnginesReachTheirBoost) {
         EXPECT_EQ(fi->getArrangement(), e.arrangement) << e.file;
 
         holdAt(session.get(), e.rpm, 1.0);
-        session->advance(1.5, nullptr, nullptr);
+        // Settled first: the F1 V6 is still closing the last psi or so on its
+        // target at 2.5 s (Linux and macOS made 1.50 to 1.52 psi of that "hunt"
+        // from 1.5 s), then holds it within about 0.05 psi
+        session->advance(3.0, nullptr, nullptr);
 
         double low = 1e9, high = 0;
         for (int i = 0; i < 50; ++i) {
@@ -1168,31 +1173,45 @@ TEST(ForcedInductionEngineTests, AntiLagHoldsTheBoostOffThrottle) {
     EXPECT_EQ(slow.afterburn, 0.0);
 }
 
-// A wastegate held open off boost (electric actuators) rattles near idle when
-// its linkage is worn: the pulses throw the flapper about with little steady
-// flow to pin it
+// A wastegate held open off boost (electric actuators) rattles at light load
+// when its linkage is worn: the pulses throw the flapper about with little
+// steady flow to pin it. At 1500 rpm and a light throttle the engine fires
+// steadily and the rattle adds 11 to 12 dB here. Held at 1000 rpm with the
+// throttle shut it is on the edge of firing: the rattle added 3.4 to 6.6 dB
+// from one random seed to another, and none on macOS in CI (unfired, the
+// steady flow pins the flapper and it adds nothing).
 TEST(ForcedInductionEngineTests, WornWastegateHeldOpenRattlesOffBoost) {
     const char *const Subaru = "subaru_ej25_twin_scroll_turbo.mr";
     const std::string valve = "blowoff_type: \"atmospheric\"";
-    auto idle = [&](const char *name, const std::string &settings, double *opening) {
+    struct Run {
+        std::vector<float> clip;
+        double opening = 0, rattleShare = 0, boost = 0, rpm = 0;
+    };
+    auto run = [&](const char *name, const std::string &settings) {
+        Run r;
         std::unique_ptr<EngineSession> session = startScript(
             forcedInductionVariant(Subaru, name, valve, valve + ",\n        " + settings));
-        std::vector<float> clip;
         EXPECT_TRUE(session);
-        if (!session) return clip;
-        holdAt(session.get(), 1000, 0.0);
+        if (!session) return r;
+        holdAt(session.get(), 1500, 0.06);
         session->advance(2.0, nullptr, nullptr);
-        session->advance(0.5, &clip, nullptr);
-        *opening = forcedInduction(*session)->getWastegateOpening();
-        return clip;
+        session->advance(0.5, &r.clip, nullptr);
+        const ForcedInduction *fi = forcedInduction(*session);
+        r.opening = fi->getWastegateOpening();
+        r.rattleShare = fi->getRattleShare();
+        r.boost = psi(fi->getBoost());
+        r.rpm = session->rpm();
+        return r;
     };
 
-    double open = 0, worn = 0;
-    const std::vector<float> sound = idle("open-wastegate", "wastegate_off_boost: \"open\"", &open);
-    const std::vector<float> rattle = idle("open-wastegate-rattle", "wastegate_off_boost: \"open\", wastegate_rattle: 1.0", &worn);
-    ASSERT_FALSE(sound.empty());
-    EXPECT_GT(open, 0.95);
-    EXPECT_GT(bandShare(rattle, 2000, 8000), bandShare(sound, 2000, 8000) + 4.0);
+    const Run sound = run("open-wastegate", "wastegate_off_boost: \"open\"");
+    const Run rattle = run("open-wastegate-rattle", "wastegate_off_boost: \"open\", wastegate_rattle: 1.0");
+    ASSERT_FALSE(sound.clip.empty());
+    EXPECT_GT(sound.opening, 0.95);
+    EXPECT_LT(sound.boost, 1.0);
+    EXPECT_GT(bandShare(rattle.clip, 2000, 8000), bandShare(sound.clip, 2000, 8000) + 6.0)
+        << "rpm " << rattle.rpm << ", wastegate " << rattle.opening
+        << ", rattle share " << rattle.rattleShare << ", boost " << rattle.boost << " psi";
 }
 
 // Where the listener stands: the exhaust is at the back, the turbo at the

@@ -247,8 +247,10 @@ void Synthesizer::writeInput(const double *data) {
         // also low-pass filtered
         const bool aux = (i >= m_inputChannelCount);
         // A non-finite value (a simulation blowing up) would poison the
-        // filters and the convolution for good
-        const double value = std::isfinite(data[i]) ? data[i] : 0.0;
+        // filters and the convolution for good, and so would one too big
+        // for a float (an engine's exhaust channels peak near 1e10)
+        const double value =
+            (std::isfinite(data[i]) && std::abs(data[i]) < MaxInputValue) ? data[i] : 0.0;
         const size_t baseIndex = buffer.writeIndex();
         const double distance =
             inputDistance(m_inputWriteOffset, m_lastInputSampleOffset);

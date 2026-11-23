@@ -32,6 +32,10 @@ class Synthesizer {
         // ticks
         static constexpr int EngineNoiseChannelCount = EngineNoiseSound::ChannelCount;
 
+        // Larger inputs are taken as a simulation blowing up (an engine's
+        // exhaust channels peak near 1e10; a float overflows at 3e38)
+        static constexpr double MaxInputValue = 1e20;
+
         // All the control channels a simulation writes
         static constexpr int AuxChannelCount = ForcedInductionChannelCount + EngineNoiseChannelCount;
 
