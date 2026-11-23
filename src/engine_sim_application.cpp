@@ -16,6 +16,7 @@
 #include "../include/file_dialog.h"
 #include "../include/engine_list.h"
 #include "../include/engine_script.h"
+#include "../include/engine_loader.h"
 #include "../include/data_root.h"
 
 #include "../scripting/include/compiler.h"
@@ -911,11 +912,14 @@ void EngineSimApplication::loadScript() {
     Transmission *transmission = nullptr;
 
 #ifdef ATG_ENGINE_SIM_PIRANHA_ENABLED
-    // Search for user defined assets first, then fallback to data
-    std::vector<piranha::IrPath> searchPaths;
-    searchPaths.push_back(m_userData.Append("assets").ToString());
-    searchPaths.push_back(m_dataRoot.Append("assets").ToString());
-    searchPaths.push_back(m_dataRoot.Append("es").ToString());
+    // Search for user defined assets first, then fallback to data. The
+    // scripts the app runs always set the engine themselves (an engine picked
+    // with LOAD ENGINE goes through engine_selection.mr).
+    engine_loader::Options options;
+    options.searchPaths.push_back(m_userData.Append("assets").ToString());
+    options.searchPaths.push_back(m_dataRoot.Append("assets").ToString());
+    options.searchPaths.push_back(m_dataRoot.Append("es").ToString());
+    options.runEngineFiles = false;
 
     // An engine or theme picked in the UI replaces main.mr. Otherwise try the
     // local version first, then fall back to the default one in data.
@@ -937,19 +941,15 @@ void EngineSimApplication::loadScript() {
         const auto outputLogPath = m_outputPath.Append("error_log.log").ToString();
         std::ofstream outputLog(outputLogPath, std::ios::out);
 
-        es_script::Compiler compiler;
-        compiler.initialize(searchPaths);
-        const bool compiled = compiler.compile(script.toString(), outputLog);
-        if (compiled) {
-            const es_script::Compiler::Output output = compiler.execute();
+        es_script::Compiler::Output output;
+        std::string error;
+        if (engine_loader::loadScript(script.toString(), options, &output, outputLog, &error)) {
             configure(output.applicationSettings);
 
             engine = output.engine;
             vehicle = output.vehicle;
             transmission = output.transmission;
         }
-
-        compiler.destroy();
 
         if (engine == nullptr) {
             outputLog.close();
@@ -972,27 +972,8 @@ void EngineSimApplication::loadScript() {
         return;
     }
 
-    if (vehicle == nullptr) {
-        Vehicle::Parameters vehParams;
-        vehParams.mass = units::mass(1597, units::kg);
-        vehParams.diffRatio = 3.42;
-        vehParams.tireRadius = units::distance(10, units::inch);
-        vehParams.dragCoefficient = 0.25;
-        vehParams.crossSectionArea = units::distance(6.0, units::foot) * units::distance(6.0, units::foot);
-        vehParams.rollingResistance = 2000.0;
-        vehicle = new Vehicle;
-        vehicle->initialize(vehParams);
-    }
-
-    if (transmission == nullptr) {
-        const double gearRatios[] = { 2.97, 2.07, 1.43, 1.00, 0.84, 0.56 };
-        Transmission::Parameters tParams;
-        tParams.GearCount = 6;
-        tParams.GearRatios = gearRatios;
-        tParams.MaxClutchTorque = units::torque(1000.0, units::ft_lb);
-        transmission = new Transmission;
-        transmission->initialize(tParams);
-    }
+    if (vehicle == nullptr) vehicle = engine_loader::createDefaultVehicle();
+    if (transmission == nullptr) transmission = engine_loader::createDefaultTransmission();
 
     loadEngine(engine, vehicle, transmission);
     refreshUserInterface();

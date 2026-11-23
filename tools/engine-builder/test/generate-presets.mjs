@@ -107,7 +107,8 @@ for (const engine of engines) {
     engine.file = join(outDir, `${engine.id}.mr`);
     writeFileSync(engine.file, engine.script);
 
-    // boost-probe needs a script that sets the engine
+    // A main script for the engine (boost-probe now also runs engine files
+    // directly; the wrapper keeps the test independent of that)
     engine.main = join(outDir, `${engine.id}_main.mr`);
     writeFileSync(engine.main,
         `import "engine_sim.mr"\nimport "${engine.file.replace(/\\/g, '/')}"\n\nmain()\n`);

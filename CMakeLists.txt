@@ -174,8 +174,10 @@ if (PIRANHA_ENABLED)
         scripting/src/compiler.cpp
         scripting/src/engine_context.cpp
         scripting/src/language_rules.cpp
+        src/engine_loader.cpp
 
         # Include files
+        include/engine_loader.h
         scripting/include/actions.h
         scripting/include/camshaft_node.h
         scripting/include/forced_induction_node.h

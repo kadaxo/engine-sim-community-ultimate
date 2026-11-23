@@ -36,7 +36,7 @@
 // catch scripts whose head and piston don't add up to the engine they model.
 //
 //   boost-probe <main.mr> --cr
-#include "../scripting/include/compiler.h"
+#include "../include/engine_loader.h"
 #include "../include/transmission.h"
 #include "../include/units.h"
 #include "../include/vehicle.h"
@@ -75,51 +75,23 @@ int main(int argc, char **argv) {
     }
     if (rpms.empty()) rpms = { 2000, 3000, 4000, 5000, 6000 };
 
-    // Resolve imports relative to the script first; the compiler also searches es/
-    const piranha::IrPath script(argv[1]);
-    piranha::IrPath scriptDir;
-    script.getParentPath(&scriptDir);
-
-    es_script::Compiler compiler;
-    compiler.initialize({ scriptDir });
-    if (!compiler.compile(script, std::cerr)) {
-        std::fprintf(stderr, "compile failed\n");
-        compiler.destroy();
+    // A main script or an engine file from assets/engines, with the app's
+    // default car if it sets none
+    es_script::Compiler::Output out;
+    std::string error;
+    if (!engine_loader::loadScript(argv[1], engine_loader::toolOptions(argv[1], argv[0]), &out, std::cerr, &error)) {
+        std::fprintf(stderr, "%s\n", error.c_str());
         return 1;
     }
 
-    const es_script::Compiler::Output out = compiler.execute();
-    compiler.destroy();
     if (out.engine == nullptr) {
         std::fprintf(stderr, "script produced no engine\n");
         return 1;
     }
 
-    // Same defaults as EngineSimApplication::loadScript() for scripts that
-    // only set an engine
+    engine_loader::addDefaults(&out);
     Vehicle *vehicle = out.vehicle;
-    if (vehicle == nullptr) {
-        Vehicle::Parameters vehParams;
-        vehParams.mass = units::mass(1597, units::kg);
-        vehParams.diffRatio = 3.42;
-        vehParams.tireRadius = units::distance(10, units::inch);
-        vehParams.dragCoefficient = 0.25;
-        vehParams.crossSectionArea = units::distance(6.0, units::foot) * units::distance(6.0, units::foot);
-        vehParams.rollingResistance = 2000.0;
-        vehicle = new Vehicle;
-        vehicle->initialize(vehParams);
-    }
-
     Transmission *transmission = out.transmission;
-    if (transmission == nullptr) {
-        static const double gearRatios[] = { 2.97, 2.07, 1.43, 1.00, 0.84, 0.56 };
-        Transmission::Parameters tParams;
-        tParams.GearCount = 6;
-        tParams.GearRatios = gearRatios;
-        tParams.MaxClutchTorque = units::torque(1000.0, units::ft_lb);
-        transmission = new Transmission;
-        transmission->initialize(tParams);
-    }
 
     Engine *engine = out.engine;
     Simulator *sim = engine->createSimulator(vehicle, transmission);

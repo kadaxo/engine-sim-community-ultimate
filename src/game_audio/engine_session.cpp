@@ -10,60 +10,15 @@
 #include "../../include/units.h"
 #include "../../include/vehicle.h"
 
-#include "../../include/engine_script.h"
-#include "../../scripting/include/compiler.h"
+#include "../../include/engine_loader.h"
 
 #include <cstdint>
 #include <algorithm>
 #include <cassert>
 #include <cmath>
-#include <filesystem>
-#include <fstream>
-#include <mutex>
-#include <random>
 #include <sstream>
 
 namespace {
-
-    // The piranha-based script compiler stores its output in a process-wide
-    // singleton, so compilation must not run concurrently.
-    std::mutex &compilerMutex() {
-        static std::mutex m;
-        return m;
-    }
-
-    // Compiles and runs a script. Must be called with compilerMutex() held.
-    bool runScript(
-        const std::string &path,
-        const std::vector<piranha::IrPath> &searchPaths,
-        es_script::Compiler::Output *output,
-        std::string *error)
-    {
-        // initialize() also clears the previous compile's output, so nothing
-        // leaks into this one if the script omits a node.
-        es_script::Compiler compiler;
-        compiler.initialize(searchPaths);
-
-        std::stringstream log;
-        if (!compiler.compile(path.c_str(), log)) {
-            compiler.destroy();
-
-            *error = "failed to compile '" + path + "'"
-                + (log.str().empty() ? std::string() : ":\n" + log.str());
-            return false;
-        }
-
-        *output = compiler.execute();
-        compiler.destroy();
-        return true;
-    }
-
-    std::string readTextFile(const std::string &path) {
-        std::ifstream file(path, std::ios::in | std::ios::binary);
-        std::stringstream contents;
-        contents << file.rdbuf();
-        return contents.str();
-    }
 
     // Time constant of the throttle response. The interactive application
     // moves the speed control halfway to its target every frame (~60 Hz),
@@ -93,83 +48,27 @@ std::unique_ptr<game_audio::EngineSession> game_audio::EngineSession::create(
     std::unique_ptr<EngineSession> session(new EngineSession);
 
     {
-        std::lock_guard<std::mutex> lock(compilerMutex());
-
-        std::vector<piranha::IrPath> searchPaths;
-        for (const std::string &path : config.searchPaths) {
-            searchPaths.push_back(path.c_str());
-        }
+        engine_loader::Options options;
+        options.searchPaths = config.searchPaths;
 
         es_script::Compiler::Output output;
-        if (!runScript(config.scriptPath, searchPaths, &output, error)) {
+        std::stringstream log;
+        std::string loadError;
+        if (!engine_loader::loadScript(config.scriptPath, options, &output, log, &loadError)) {
+            *error = loadError + (log.str().empty() ? std::string() : ":\n" + log.str());
             return nullptr;
         }
 
-        // Engine files from assets/engines only define nodes. Run them the way
-        // LOAD ENGINE does, from a script that imports the file and calls it.
-        const std::string call = (output.engine == nullptr)
-            ? engineScriptCall(readTextFile(config.scriptPath))
-            : std::string();
-        if (!call.empty()) {
-            namespace fs = std::filesystem;
-
-            std::error_code ec;
-            const fs::path engineFile = fs::weakly_canonical(fs::absolute(config.scriptPath, ec), ec);
-            const fs::path wrapper = fs::temp_directory_path(ec)
-                / ("engine-sim-export-" + std::to_string(std::random_device()()) + ".mr");
-
-            {
-                std::ofstream script(wrapper, std::ios::out);
-                script << "import \"engine_sim.mr\"\n";
-                script << "import \"" << engineFile.generic_string() << "\"\n\n";
-                script << call << "\n";
-                if (!script) {
-                    *error = "can't write '" + wrapper.string() + "'";
-                    return nullptr;
-                }
-            }
-
-            std::string wrapperError;
-            const bool ran = runScript(wrapper.generic_string(), searchPaths, &output, &wrapperError);
-            fs::remove(wrapper, ec);
-            if (!ran) {
-                *error = "'" + config.scriptPath + "' doesn't call set_engine(), and running it as an engine file ("
-                    + call + ") failed:\n" + wrapperError;
-                return nullptr;
-            }
+        if (output.engine == nullptr) {
+            *error = "'" + config.scriptPath + "' doesn't define an engine (it neither calls set_engine() nor defines a public engine node)";
+            return nullptr;
         }
 
+        // Same fallbacks as the interactive application
+        engine_loader::addDefaults(&output);
         session->m_engine = output.engine;
         session->m_vehicle = output.vehicle;
         session->m_transmission = output.transmission;
-    }
-
-    if (session->m_engine == nullptr) {
-        *error = "'" + config.scriptPath + "' doesn't define an engine (it neither calls set_engine() nor defines a public engine node)";
-        return nullptr;
-    }
-
-    // Same fallbacks as the interactive application.
-    if (session->m_vehicle == nullptr) {
-        Vehicle::Parameters vehParams;
-        vehParams.mass = units::mass(1597, units::kg);
-        vehParams.diffRatio = 3.42;
-        vehParams.tireRadius = units::distance(10, units::inch);
-        vehParams.dragCoefficient = 0.25;
-        vehParams.crossSectionArea = units::distance(6.0, units::foot) * units::distance(6.0, units::foot);
-        vehParams.rollingResistance = 2000.0;
-        session->m_vehicle = new Vehicle;
-        session->m_vehicle->initialize(vehParams);
-    }
-
-    if (session->m_transmission == nullptr) {
-        const double gearRatios[] = { 2.97, 2.07, 1.43, 1.00, 0.84, 0.56 };
-        Transmission::Parameters tParams;
-        tParams.GearCount = 6;
-        tParams.GearRatios = gearRatios;
-        tParams.MaxClutchTorque = units::torque(1000.0, units::ft_lb);
-        session->m_transmission = new Transmission;
-        session->m_transmission->initialize(tParams);
     }
 
     Engine *engine = session->m_engine;
