@@ -660,10 +660,22 @@ void ForcedInduction::process(double dt) {
         else {
             processPositiveDisplacement(dt, mix);
 
-            // Bypass valve: recirculates the delivery at part throttle
+            // Bypass valve: recirculates the delivery at part throttle. It
+            // opens with manifold vacuum, and also when the throttle holds
+            // back more than a little of the charge pressure: on vacuum alone
+            // it stayed shut with the manifold near atmospheric, and the
+            // blower dead-headed against a part-open throttle (the LS made
+            // 8 psi at a third throttle and 3.4 at full, the E55 28 psi).
+            // From kyan0s-git/engine-sim 88c83a8, which opened it from 0.1 atm
+            // across the throttle; from 0.03 atm here, as at half throttle the
+            // LS still made more boost than at full (the plate costs about
+            // 0.01 atm when it's wide open).
             if (m_bypassValve) {
-                const double target =
-                    clamp((0.9 * m_ambientPressure - p_plenum) / (0.2 * m_ambientPressure), 0.0, 1.0);
+                const double vacuum =
+                    (0.9 * m_ambientPressure - p_plenum) / (0.2 * m_ambientPressure);
+                const double restricted =
+                    (m_charge.pressure() - p_plenum - 0.03 * m_ambientPressure) / (0.2 * m_ambientPressure);
+                const double target = clamp(std::max(vacuum, restricted), 0.0, 1.0);
                 m_bypass = approach(m_bypass, target, dt, 0.05);
                 if (m_bypass > 0) {
                     m_charge.flow(m_bypassK * m_bypass, dt, m_ambientPressure, m_ambientTemperature, mix);

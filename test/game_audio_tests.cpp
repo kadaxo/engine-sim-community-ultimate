@@ -788,6 +788,28 @@ TEST(ForcedInductionEngineTests, RootsBlowerBoostsFromLowRpm) {
     EXPECT_GT(psi(fi->getBoost()), low);
 }
 
+// The bypass valve keeps a blower from pushing against a part-open throttle:
+// it used to open only on manifold vacuum, so with the manifold near
+// atmospheric the LS made 8 psi at a third throttle and 3.4 at full
+TEST(ForcedInductionEngineTests, BlowerBoostsNoMoreAtPartThrottleThanAtFull) {
+    std::unique_ptr<EngineSession> session = startForcedInduction("gm_ls_supercharged.mr");
+    ASSERT_TRUE(session);
+    const ForcedInduction *fi = forcedInduction(*session);
+    ASSERT_NE(fi, nullptr);
+
+    holdAt(session.get(), 3000, 1.0);
+    session->advance(2.0, nullptr, nullptr);
+    const double full = psi(fi->getBoost());
+
+    for (const double throttle : { 0.32, 0.4, 0.5 }) {
+        session->setThrottleImmediate(throttle);
+        session->advance(2.0, nullptr, nullptr);
+        EXPECT_LT(psi(fi->getBoost()), full + 0.5)
+            << "at throttle " << throttle << " (full throttle " << full << " psi)";
+    }
+    EXPECT_FALSE(session->unstable());
+}
+
 TEST(ForcedInductionEngineTests, SuperchargerWhinesAtTheRotorLobeFrequency) {
     std::unique_ptr<EngineSession> session = startForcedInduction("gm_ls_supercharged.mr");
     ASSERT_TRUE(session);
