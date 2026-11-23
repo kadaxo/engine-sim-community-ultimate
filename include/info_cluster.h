@@ -46,6 +46,8 @@ protected:
     UiButton *m_loadEngineButton;
     UiButton *m_reloadButton;
     UiButton *m_loadThemeButton;
+    UiButton *m_keysButton;
+    UiButton *m_builderButton;
     UiButton *m_exitButton;
 };
 

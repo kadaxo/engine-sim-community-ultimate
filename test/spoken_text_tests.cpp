@@ -60,6 +60,10 @@ TEST(SpokenTextTests, EventsAreReworded) {
     EXPECT_EQ(fromLogMessage("CLUTCH DEPRESSED").text, "Clutch in");
     EXPECT_EQ(fromLogMessage("SMART SHIFTING ON").text, "Smart shifting on");
     EXPECT_EQ(fromLogMessage("Entered fullscreen mode").text, "Entered fullscreen mode");
+    EXPECT_EQ(fromLogMessage("KEY LIST SHOWN").text,
+        "Key list shown on screen. The accessibility guide, F4, has every key");
+    EXPECT_EQ(fromLogMessage("OPENING THE ENGINE BUILDER IN YOUR WEB BROWSER").text,
+        "Opening the engine builder in your web browser");
     EXPECT_EQ(fromLogMessage("Script failed, see error_log.log").category, Category::Silent);
     EXPECT_EQ(fromLogMessage("RPM sync listening on UDP 127.0.0.1:8765").category, Category::Silent);
 }

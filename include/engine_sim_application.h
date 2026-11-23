@@ -20,6 +20,7 @@
 #include "load_simulation_cluster.h"
 #include "mixer_cluster.h"
 #include "info_cluster.h"
+#include "key_list_cluster.h"
 #include "application_settings.h"
 #include "transmission.h"
 #include "rpm_sync.h"
@@ -115,6 +116,8 @@ class EngineSimApplication {
             LoadEngine,
             LoadTheme,
             Reload,
+            ToggleKeyList,
+            OpenEngineBuilder,
             Exit
         };
 
@@ -196,6 +199,14 @@ class EngineSimApplication {
         LoadSimulationCluster *m_loadSimulationCluster;
         MixerCluster *m_mixerCluster;
         InfoCluster *m_infoCluster;
+        KeyListCluster *m_keyListCluster;
+
+        // The key list (F1) covers the right of the main screen
+        bool m_keyListShown = false;
+        void toggleKeyList();
+
+        // Opens tools/engine-builder/index.html in the web browser (F2)
+        void openEngineBuilder();
         SimulationObject::ViewParameters m_viewParameters;
 
         bool m_paused;

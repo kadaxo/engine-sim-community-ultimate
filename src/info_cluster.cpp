@@ -15,6 +15,8 @@ InfoCluster::InfoCluster() {
     m_loadEngineButton = nullptr;
     m_reloadButton = nullptr;
     m_loadThemeButton = nullptr;
+    m_keysButton = nullptr;
+    m_builderButton = nullptr;
     m_exitButton = nullptr;
 }
 
@@ -34,6 +36,12 @@ void InfoCluster::initialize(EngineSimApplication *app) {
     m_loadThemeButton = addElement<UiButton>(this);
     m_loadThemeButton->m_text = "LOAD THEME";
 
+    m_keysButton = addElement<UiButton>(this);
+    m_keysButton->m_text = "KEYS";
+
+    m_builderButton = addElement<UiButton>(this);
+    m_builderButton->m_text = "BUILDER";
+
     m_exitButton = addElement<UiButton>(this);
     m_exitButton->m_text = "EXIT";
 }
@@ -49,11 +57,14 @@ void InfoCluster::update(float dt) {
     const float rowHeight = titleBounds.height() * 0.24f;
 
     Grid buttonGrid;
-    buttonGrid.h_cells = 4;
+    UiButton *buttons[] = {
+        m_loadEngineButton, m_reloadButton, m_loadThemeButton, m_keysButton, m_builderButton, m_exitButton };
+    constexpr int ButtonCount = sizeof(buttons) / sizeof(buttons[0]);
+
+    buttonGrid.h_cells = ButtonCount;
     buttonGrid.v_cells = 1;
 
-    UiButton *buttons[] = { m_loadEngineButton, m_reloadButton, m_loadThemeButton, m_exitButton };
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < ButtonCount; ++i) {
         const Bounds cell = buttonGrid.get(
             Bounds(buttonRow.width(), rowHeight, buttonRow.getPosition(Bounds::bl), Bounds::bl), i, 0);
         buttons[i]->m_bounds = cell.inset(4.0f);
@@ -74,6 +85,12 @@ void InfoCluster::signal(UiElement *element, Event event) {
     }
     else if (element == m_loadThemeButton) {
         m_app->requestAction(EngineSimApplication::UserAction::LoadTheme);
+    }
+    else if (element == m_keysButton) {
+        m_app->requestAction(EngineSimApplication::UserAction::ToggleKeyList);
+    }
+    else if (element == m_builderButton) {
+        m_app->requestAction(EngineSimApplication::UserAction::OpenEngineBuilder);
     }
     else if (element == m_exitButton) {
         m_app->requestAction(EngineSimApplication::UserAction::Exit);

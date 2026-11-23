@@ -2,6 +2,7 @@
 
 #include "../include/engine_sim_application.h"
 #include "../include/constants.h"
+#include "../include/open_in_browser.h"
 #include "../include/units.h"
 
 #include <cctype>
@@ -12,11 +13,6 @@
 #include <filesystem>
 #include <iomanip>
 #include <sstream>
-
-#ifdef _WIN32
-#include <windows.h>
-#include <shellapi.h>
-#endif
 
 namespace {
     // An engine counts as running after holding this speed with the starter
@@ -443,18 +439,7 @@ void Accessibility::openGuide() {
     const std::string guide = std::filesystem::absolute(
         m_app->getDataRoot().Append("docs/accessibility.html").ToString(), ec).string();
 
-#ifdef _WIN32
-    const int length = MultiByteToWideChar(CP_UTF8, 0, guide.c_str(), -1, nullptr, 0);
-    std::wstring wide(length > 0 ? length : 0, L'\0');
-    if (length > 0) {
-        MultiByteToWideChar(CP_UTF8, 0, guide.c_str(), -1, wide.data(), length);
-        ShellExecuteW(nullptr, L"open", wide.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-    }
-#elif defined(__APPLE__)
-    std::system(("open \"" + guide + "\" &").c_str());
-#else
-    std::system(("xdg-open \"" + guide + "\" >/dev/null 2>&1 &").c_str());
-#endif
+    openInBrowser(guide);
 }
 
 spoken_text::Units Accessibility::units() {

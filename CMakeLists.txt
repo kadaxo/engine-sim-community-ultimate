@@ -265,6 +265,9 @@ add_executable(engine-sim-app WIN32
     src/load_simulation_cluster.cpp
     src/mixer_cluster.cpp
     src/info_cluster.cpp
+    src/key_list.cpp
+    src/key_list_cluster.cpp
+    src/open_in_browser.cpp
     src/rpm_sync.cpp
     src/file_dialog.cpp
     src/accessibility.cpp
@@ -303,6 +306,9 @@ add_executable(engine-sim-app WIN32
     include/load_simulation_cluster.h
     include/mixer_cluster.h
     include/info_cluster.h
+    include/key_list.h
+    include/key_list_cluster.h
+    include/open_in_browser.h
     include/rpm_sync.h
     include/file_dialog.h
     include/accessibility.h

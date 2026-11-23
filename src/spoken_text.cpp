@@ -95,7 +95,9 @@ namespace {
         { "CLUTCH DEPRESSED", "Clutch in" },
         { "LEVELER: LOUDNESS", "Leveler loudness" },
         { "LEVELER: ORIGINAL (PEAK)", "Leveler original" },
-        { "LEVELER: OFF", "Leveler off" }
+        { "LEVELER: OFF", "Leveler off" },
+        { "KEY LIST SHOWN", "Key list shown on screen. The accessibility guide, F4, has every key" },
+        { "KEY LIST CLOSED", "Key list closed" }
     };
 }
 

@@ -18,6 +18,7 @@
 #include "../include/engine_script.h"
 #include "../include/engine_loader.h"
 #include "../include/data_root.h"
+#include "../include/open_in_browser.h"
 
 #include "../scripting/include/compiler.h"
 
@@ -116,6 +117,7 @@ EngineSimApplication::EngineSimApplication() {
     m_loadSimulationCluster = nullptr;
     m_mixerCluster = nullptr;
     m_infoCluster = nullptr;
+    m_keyListCluster = nullptr;
     m_iceEngine = nullptr;
     m_mainRenderTarget = nullptr;
 
@@ -382,13 +384,18 @@ void EngineSimApplication::process(float frame_dt) {
         speed = 1 / 1000.0;
     }
 
-    if (m_engine.IsKeyDown(ysKey::Code::F1)) {
+    // Turning the view was on F1 to F3; F1 is now the key list and F2 the
+    // engine builder
+    if (!slowMotionKeys) {
+        /* typed in the engine list */
+    }
+    else if (m_engine.IsKeyDown(ysKey::Code::N7)) {
         m_displayAngle += frame_dt * 1.0f;
     }
-    else if (m_engine.IsKeyDown(ysKey::Code::F2)) {
+    else if (m_engine.IsKeyDown(ysKey::Code::N8)) {
         m_displayAngle -= frame_dt * 1.0f;
     }
-    else if (m_engine.ProcessKeyDown(ysKey::Code::F3)) {
+    else if (m_engine.ProcessKeyDown(ysKey::Code::N9)) {
         m_displayAngle = 0.0f;
     }
 
@@ -569,19 +576,13 @@ void EngineSimApplication::render() {
         object->generateGeometry();
     }
 
-    m_viewParameters.Sublayer = 0;
-    for (SimulationObject *object : m_objects) {
-        object->render(&getViewParameters());
-    }
-
-    m_viewParameters.Sublayer = 1;
-    for (SimulationObject *object : m_objects) {
-        object->render(&getViewParameters());
-    }
-
-    m_viewParameters.Sublayer = 2;
-    for (SimulationObject *object : m_objects) {
-        object->render(&getViewParameters());
+    // The engine is drawn into its own render target, which the key list
+    // can't cover, so it isn't drawn while the list is up
+    for (int sublayer = 0; sublayer < 3 && !m_keyListShown; ++sublayer) {
+        m_viewParameters.Sublayer = sublayer;
+        for (SimulationObject *object : m_objects) {
+            object->render(&getViewParameters());
+        }
     }
 
     m_uiManager.render();
@@ -643,9 +644,27 @@ void EngineSimApplication::run() {
             chooseThemeScript();
         }
 
+        if (action == UserAction::ToggleKeyList
+            || (!engineList && m_engine.ProcessKeyDown(ysKey::Code::F1)))
+        {
+            toggleKeyList();
+        }
+
+        if (action == UserAction::OpenEngineBuilder
+            || (!engineList && m_engine.ProcessKeyDown(ysKey::Code::F2)))
+        {
+            openEngineBuilder();
+        }
+
         if (!engineList && m_engine.ProcessKeyDown(ysKey::Code::Tab)) {
-            m_screen++;
-            if (m_screen > 2) m_screen = 0;
+            if (m_keyListShown) {
+                // Back to the main screen as it was
+                toggleKeyList();
+            }
+            else {
+                m_screen++;
+                if (m_screen > 2) m_screen = 0;
+            }
         }
 
         if (!engineList && m_engine.ProcessKeyDown(ysKey::Code::F)) {
@@ -1164,6 +1183,30 @@ void EngineSimApplication::stepEngine(int direction) {
     }
 }
 
+void EngineSimApplication::toggleKeyList() {
+    m_keyListShown = !m_keyListShown;
+
+    // The list is drawn on the main screen
+    if (m_keyListShown) m_screen = 0;
+
+    m_infoCluster->setLogMessage(m_keyListShown ? "KEY LIST SHOWN" : "KEY LIST CLOSED");
+}
+
+void EngineSimApplication::openEngineBuilder() {
+    // The data root can be relative to the working directory
+    std::error_code ec;
+    const std::filesystem::path builder = std::filesystem::absolute(
+        m_dataRoot.Append("tools/engine-builder/index.html").ToString(), ec);
+
+    if (!std::filesystem::is_regular_file(builder, ec)) {
+        m_infoCluster->setLogMessage("Engine builder not found: " + builder.string());
+        return;
+    }
+
+    openInBrowser(builder.string());
+    m_infoCluster->setLogMessage("OPENING THE ENGINE BUILDER IN YOUR WEB BROWSER");
+}
+
 void EngineSimApplication::chooseThemeScript() {
     m_audioSource->SetMode(ysAudioSource::Mode::Stop);
 
@@ -1595,15 +1638,18 @@ void EngineSimApplication::renderScene() {
         m_mixerCluster->m_bounds = grid1x3.get(grid3x3.get(windowBounds, 0, 0), 0, 2);
         m_infoCluster->m_bounds = grid1x3.get(grid3x3.get(windowBounds, 0, 0), 0, 0, 1, 2);
 
-        m_engineView->setVisible(true);
-        m_rightGaugeCluster->setVisible(true);
-        m_oscCluster->setVisible(true);
+        m_keyListCluster->m_bounds = grid.get(windowBounds, 1, 0, 2, 2);
+
+        m_engineView->setVisible(!m_keyListShown);
+        m_rightGaugeCluster->setVisible(!m_keyListShown);
+        m_oscCluster->setVisible(!m_keyListShown);
+        m_keyListCluster->setVisible(m_keyListShown);
         m_performanceCluster->setVisible(true);
         m_loadSimulationCluster->setVisible(true);
         m_mixerCluster->setVisible(true);
         m_infoCluster->setVisible(true);
 
-        m_oscCluster->activate();
+        if (!m_keyListShown) m_oscCluster->activate();
     }
     else if (m_screen == 1) {
         Bounds windowBounds((float)screenWidth, (float)screenHeight, { 0, (float)screenHeight });
@@ -1619,6 +1665,7 @@ void EngineSimApplication::renderScene() {
         m_loadSimulationCluster->setVisible(false);
         m_mixerCluster->setVisible(false);
         m_infoCluster->setVisible(false);
+        m_keyListCluster->setVisible(false);
     }
     else if (m_screen == 2) {
         Bounds windowBounds((float)screenWidth, (float)screenHeight, { 0, (float)screenHeight });
@@ -1639,6 +1686,7 @@ void EngineSimApplication::renderScene() {
         m_loadSimulationCluster->setVisible(false);
         m_mixerCluster->setVisible(false);
         m_infoCluster->setVisible(false);
+        m_keyListCluster->setVisible(false);
     }
 
     const float cameraAspectRatio =
@@ -1691,6 +1739,7 @@ void EngineSimApplication::refreshUserInterface() {
     m_loadSimulationCluster = m_uiManager.getRoot()->addElement<LoadSimulationCluster>();
     m_mixerCluster = m_uiManager.getRoot()->addElement<MixerCluster>();
     m_infoCluster = m_uiManager.getRoot()->addElement<InfoCluster>();
+    m_keyListCluster = m_uiManager.getRoot()->addElement<KeyListCluster>();
 
     m_infoCluster->setLogListener(
         [this](const std::string &message) { m_accessibility.onLogMessage(message); });

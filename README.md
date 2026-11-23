@@ -10,7 +10,7 @@ It is not a scientific tool: it is designed to sound and respond like an engine,
 
 ## What's in it
 
-- **Engine builder.** A web page ([tools/engine-builder/index.html](tools/engine-builder/index.html)) with an ordinary form that writes engine scripts for 14 layouts, from singles to V12s, and reopens them for editing. It works offline and with screen readers.
+- **Engine builder.** A web page ([tools/engine-builder/index.html](tools/engine-builder/index.html), or `F2` in the simulator) with an ordinary form that writes engine scripts for 14 layouts, from singles to V12s, and reopens them for editing. It works offline and with screen readers.
 - **Game audio export.** `engine-sim-export` renders seamless rpm loops, one-shots and rpm sweeps as Ogg, WAV and MP3 with a JSON manifest, ready for Unity, Unreal, Godot, FMOD or Wwise ([docs/game-audio-export.md](docs/game-audio-export.md)).
 - **About 100 engines**, including dozens of community engine scripts, each checked to compile and run, and 7 extra UI themes.
 - **Forced induction**: turbochargers (with lag, wastegate or variable geometry vanes, and blow-off valve) and Roots, twin-screw or centrifugal superchargers, with their whistle, whine and blow-off sounds ([docs/forced-induction.md](docs/forced-induction.md)).
@@ -34,6 +34,8 @@ It is not a scientific tool: it is designed to sound and respond like an engine,
 The [original project's releases](https://github.com/ange-yaghi/engine-sim/releases) are older builds without any of the changes above.
 
 ## Controls
+
+Press `F1` (or the KEYS button) in the simulator for a list of these keys.
 
 | Key/Input | Action |
 | :---: | :---: |
@@ -65,6 +67,11 @@ The [original project's releases](https://github.com/ange-yaghi/engine-sim/relea
 | Space + Scroll | Fine throttle adjustment |
 | 1, 2, 3, 4, 5 | Simulation time warp |
 | Tab | Change screen |
+| F1 | Show or hide the key list |
+| F2 | Open the engine builder in your web browser |
+| 7, 8 / 9 | Turn the engine view one way or the other / back to straight |
+| T, U | Let the clutch slip more or less |
+| Y | Keep the clutch where it is (hold) |
 | P | Toggle Average/Instant fuel consumption |
 | Page Up / Page Down | Same as one step of the mouse wheel, with any of the keys above that use Scroll |
 | O | Open an engine script (same as the LOAD ENGINE button). With speech on, a spoken list of engines by name instead (see the accessibility guide) |
@@ -76,6 +83,8 @@ The [original project's releases](https://github.com/ange-yaghi/engine-sim/relea
 | LOAD ENGINE button | Pick an engine script (`.mr`) to run instead of the one in `main.mr` |
 | LOAD THEME button | Pick a theme script (`assets/themes`) |
 | RELOAD button | Reload the current script (same as Enter) |
+| KEYS button | Show or hide the key list (same as F1) |
+| BUILDER button | Open the engine builder (same as F2) |
 | EXIT button | Exit the program (same as Escape) |
 
 "Scroll" means the mouse wheel, or Page Up and Page Down.
