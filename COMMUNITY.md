@@ -13,7 +13,7 @@ Merged work keeps its authors. Fork branches are merged as they are, single comm
 | What | From |
 | --- | --- |
 | Cross-platform port: SDL/OpenGL on Linux and macOS, GCC/Clang fixes, runtime data paths, discord-rpc as a submodule, plus fixes for divide-by-zero, out-of-bounds and leaks on engine reload | [bobsayshilol/engine-sim](https://github.com/bobsayshilol/engine-sim) `sdl-build` |
-| Linux audio underrun fixes, a data race in the synthesizer's audio buffer, opt-in audio diagnostics, UDP RPM input (`RPM_SYNC.md`, `AUDIO_FIXES.md`) | [0xsuk/engine-sim-linux-can](https://github.com/0xsuk/engine-sim-linux-can) |
+| Linux audio underrun fixes, a data race in the synthesizer's audio buffer, opt-in audio diagnostics, UDP RPM input (`docs/RPM_SYNC.md`, `docs/AUDIO_FIXES.md`) | [0xsuk/engine-sim-linux-can](https://github.com/0xsuk/engine-sim-linux-can) |
 | MSVC fix for `collision_detector.cpp` (delta-studio patch 0001) | David ([Creesic/delta-studio](https://github.com/Creesic/delta-studio) `macos-port`) |
 | Release builds no longer need the debug D3DX DLL (delta-studio patch 0004) | [Danniel-Porto/delta-studio](https://github.com/Danniel-Porto/delta-studio) `release-directx-linking` |
 | Windows CI provisioning (Chocolatey WinFlexBison, vcpkg SDL2) | [jacksonelectrical/engine-sim](https://github.com/jacksonelectrical/engine-sim) |

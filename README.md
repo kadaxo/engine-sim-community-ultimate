@@ -17,7 +17,7 @@ It is not a scientific tool: it is designed to sound and respond like an engine,
 - **Diesel engines**: fuel injected into the cylinders with no throttle, a governor, a pilot injection, and the knock and injector ticks a diesel makes, which the engine builder writes for diesel fuel ([docs/diesel.md](docs/diesel.md)).
 - **Driving**: smart gear shifting (rev-matched shifts, `K`), brakes (`.`), average or instant fuel consumption and an odometer.
 - **More engine types**: camshaft reduction ratio, `sparks_per_cycle` and intake atmosphere for two-stroke engines and altitude setups, and a VTEC switch that changes cams only while each valve is closed.
-- **Steady sound**: an optional loudness-based volume leveler (`L`), fixes for audio underruns and a data race in the synthesizer, and a UDP rpm input ([RPM_SYNC.md](RPM_SYNC.md)).
+- **Steady sound**: an optional loudness-based volume leveler (`L`), fixes for audio underruns and a data race in the synthesizer, and a UDP rpm input ([docs/RPM_SYNC.md](docs/RPM_SYNC.md)).
 - **Works with screen readers.** Speech and braille through NVDA, JAWS, Narrator and others, keys that read out every gauge, a spoken engine list, and keyboard alternatives for everything the mouse did. See the [accessibility guide](docs/accessibility.html).
 - **Builds on Windows, Linux and macOS** with no Boost dependency, plus fixes to the physics, rendering and memory handling. The macOS app has been tried on an Apple Silicon Mac, and the Linux app on Ubuntu 22.04 (under WSL).
 

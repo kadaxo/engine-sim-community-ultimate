@@ -715,7 +715,7 @@ install(DIRECTORY ${_delta_basic}/fonts/Silkscreen
 
 # Documentation, and the engine builder at the path the guide links to
 # (the guide opens with F4, from the data folder)
-install(FILES README.md COMMUNITY.md LICENSE RPM_SYNC.md
+install(FILES README.md COMMUNITY.md LICENSE
     DESTINATION . COMPONENT release)
 install(DIRECTORY docs
     DESTINATION "${_release_data}" COMPONENT release)
