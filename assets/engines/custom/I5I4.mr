@@ -186,7 +186,7 @@ public node audi_i5_2_2L {
     wires wires()
 
     engine engine(
-        name: "Audi 2.3 inline 5",
+        name: "I5, I4, I3 Triple Crank",
         starter_torque: 200 * units.lb_ft,
         redline: 6500 * units.rpm,
         fuel: fuel(

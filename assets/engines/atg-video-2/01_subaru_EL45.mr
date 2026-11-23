@@ -197,7 +197,7 @@ public node subaru {
     alias output __out: engine;
 
     engine engine(
-        name: "Subaru EL37",
+        name: "Subaru EL45",
         starter_torque: 70 * units.lb_ft,
         starter_speed: 500 * units.rpm,
         redline: 6500 * units.rpm,

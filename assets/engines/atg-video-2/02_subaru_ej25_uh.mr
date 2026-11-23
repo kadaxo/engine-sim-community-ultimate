@@ -132,7 +132,7 @@ public node subaru_ej25 {
     alias output __out: engine;
 
     engine engine(
-        name: "Subaru EJ25",
+        name: "Subaru EJ25 (unequal headers)",
         starter_torque: 70 * units.lb_ft,
         starter_speed: 500 * units.rpm,
         redline: 6500 * units.rpm,

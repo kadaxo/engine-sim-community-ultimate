@@ -137,7 +137,7 @@ public node t2jz {
     wires wires()
 
     engine engine(
-        name: "2JZ [I6]",
+        name: "2JZ (tall gears) [I6]",
         starter_torque: 200 * units.lb_ft,
         redline: 6000 * units.rpm,
         fuel: fuel(

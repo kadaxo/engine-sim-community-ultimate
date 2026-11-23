@@ -79,7 +79,7 @@ public node single {
     wires wires()
 
     engine engine(
-        name: "50cc 4T Single",
+        name: "25cc 4T Single",
         starter_torque: 1.5 * units.lb_ft,
 		starter_speed: 500 * units.rpm,
         redline: 10200 * units.rpm,
