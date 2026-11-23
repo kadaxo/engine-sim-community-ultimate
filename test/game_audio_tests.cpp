@@ -839,6 +839,40 @@ TEST(ForcedInductionEngineTests, BlowerBoostsNoMoreAtPartThrottleThanAtFull) {
     EXPECT_FALSE(session->unstable());
 }
 
+// The monster truck's blower draws through the throttle (throttle_position:
+// "before"): at light throttle it moves thin air, so the manifold stays at
+// or below the outside's pressure. With the throttle after it, the blower
+// pushed against the part-open throttle: 34 psi at a fifth throttle.
+TEST(ForcedInductionEngineTests, BlowerUnderTheThrottleMakesNoBoostAtLightThrottle) {
+    std::unique_ptr<EngineSession> session = startForcedInduction("../custom/monster_truck_540_blown_v8.mr");
+    ASSERT_TRUE(session);
+    const ForcedInduction *fi = forcedInduction(*session);
+    ASSERT_NE(fi, nullptr);
+    ASSERT_TRUE(fi->isThrottleBeforeBlower());
+
+    holdAt(session.get(), 3000, 1.0);
+    session->advance(2.0, nullptr, nullptr);
+    const double full = psi(fi->getBoost());
+    EXPECT_GT(full, 14.0);
+
+    session->setThrottleImmediate(0.1);
+    session->advance(2.0, nullptr, nullptr);
+    EXPECT_LT(psi(fi->getBoost()), 0.5);
+
+    session->setThrottleImmediate(0.2);
+    session->advance(2.0, nullptr, nullptr);
+    EXPECT_LT(psi(fi->getBoost()), full);
+
+    // Off the throttle at 4000 rpm and let go: the manifold is deep in
+    // vacuum, and the engine must still catch itself at idle
+    holdAt(session.get(), 4000, 0.0);
+    session->advance(2.0, nullptr, nullptr);
+    session->releaseDyno();
+    session->advance(3.0, nullptr, nullptr);
+    EXPECT_GT(session->rpm(), 600.0);
+    EXPECT_FALSE(session->unstable());
+}
+
 TEST(ForcedInductionEngineTests, SuperchargerWhinesAtTheRotorLobeFrequency) {
     std::unique_ptr<EngineSession> session = startForcedInduction("gm_ls_supercharged.mr");
     ASSERT_TRUE(session);

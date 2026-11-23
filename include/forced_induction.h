@@ -26,7 +26,11 @@ class Intake;
 //    sigma * U^2 of work per kilogram.
 //  - Positive displacement superchargers (Roots and twin-screw) deliver their
 //    displacement every revolution; some of it leaks back to the inlet
-//    through the clearances.
+//    through the clearances. With the throttle before the blower (the
+//    butterflies in a hat on top of it, as on drag and monster truck
+//    engines) the throttles fill a small inlet volume that the blower draws
+//    from, so at part throttle it moves its displacement of thin air, and
+//    the charge feeds the intakes with no throttle after it.
 //
 // A turbocharger's turbine is the restriction at the exhaust outlet. It
 // extracts eta_t * c_p * T * (1 - (p_out / p_in)^((gamma - 1) / gamma)) per
@@ -175,6 +179,9 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
             double driveRatio = 1.0;
             double displacement = 1.9e-3;           // positive displacement, per rev [m^3]
             bool bypassValve = true;                // vents the charge at part throttle
+            // Roots and twin-screw: the intakes' throttles sit before the
+            // blower instead of after it
+            bool throttleBeforeBlower = false;
 
             // Adiabatic efficiency of a Roots or twin-screw's rotors (0: 0.55
             // for Roots, 0.72 for twin-screw)
@@ -238,6 +245,11 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
         virtual void apply(atg_scs::SystemState *system) override;
 
         GasSystem *getChargeSystem() { return &m_charge; }
+
+        // With the throttle before the blower, the intakes' throttles fill
+        // this volume and the blower draws from it
+        bool isThrottleBeforeBlower() const { return m_throttleBeforeBlower; }
+        GasSystem *getInletSystem() { return &m_inlet; }
 
         Type getType() const { return m_type; }
         Arrangement getArrangement() const { return m_arrangement; }
@@ -355,6 +367,11 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
         double centrifugalSourcePressureRatio(double omega) const;
         void processCentrifugal(Unit &unit, double dt, double scale, const GasSystem::Mix &mix);
         void processPositiveDisplacement(double dt, const GasSystem::Mix &mix);
+        void processThrottledBlower(double dt);
+
+        // Flow from the charge back into the blower's inlet volume
+        // (positive), at the inlet's temperature [mol]
+        double flowToInlet(double k, double dt);
         double plenumPressure() const;
         double crankSpeed() const;
         GasSystem::Mix chargeMix() const;
@@ -366,6 +383,7 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
         int m_unitCount;
 
         GasSystem m_charge;
+        GasSystem m_inlet;
 
         Crankshaft *m_crankshaft;
         Intake *m_intakes[16];
@@ -388,6 +406,10 @@ class ForcedInduction : public Part, public atg_scs::ForceGenerator {
         double m_leakK;
         double m_bypassK;
         bool m_bypassValve;
+        bool m_throttleBeforeBlower;
+
+        // Pressure ratio across a positive displacement blower's rotors
+        double rotorPressureRatio() const;
         double m_bypass;
         double m_driveRatio;
         double m_driveTorque;

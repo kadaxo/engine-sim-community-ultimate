@@ -105,7 +105,28 @@ void Intake::process(double dt) {
     flowParams.dt = dt;
 
     double idleCircuitFlow = 0;
-    if (m_forcedInduction != nullptr) {
+    if (m_forcedInduction != nullptr && m_forcedInduction->isThrottleBeforeBlower()) {
+        // Throttle before the blower: the throttle and the idle circuit
+        // fill the blower's inlet, and the blower's delivery reaches the
+        // manifold with nothing in the way
+        GasSystem *inlet = m_forcedInduction->getInletSystem();
+        m_atmosphere.reset(m_atmospherePressure, m_atmosphereTemperature, fuelAirMix);
+        flowParams.system_0 = &m_atmosphere;
+        flowParams.system_1 = inlet;
+        flowParams.k_flow = flowAttenuation * m_inputFlowK;
+        inlet->flow(flowParams);
+
+        m_atmosphere.reset(m_atmospherePressure, m_atmosphereTemperature, fuelMix);
+        flowParams.k_flow = m_idleFlowK;
+        idleCircuitFlow = inlet->flow(flowParams);
+
+        flowParams.crossSectionArea_0 = m_crossSectionArea;
+        flowParams.system_0 = m_forcedInduction->getChargeSystem();
+        flowParams.system_1 = &m_system;
+        flowParams.k_flow = m_inputFlowK;
+        m_flow = GasSystem::flow(flowParams);
+    }
+    else if (m_forcedInduction != nullptr) {
         // Boosted: the throttle and the idle circuit draw from the charge
         // air, which already carries the mixture
         GasSystem *charge = m_forcedInduction->getChargeSystem();

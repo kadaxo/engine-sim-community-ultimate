@@ -81,6 +81,7 @@ variable geometry turbo ([diesel.md](diesel.md)).
 | `compressor_blades`, `splitter_blades`, `compressor_inlet` | 6, 6, `"silenced"` | Centrifugal superchargers, as for the turbocharger |
 | `boost_leak` | 0 | As for the turbocharger |
 | `bypass_valve` | true | Recirculates the delivery at part throttle (Roots and twin-screw) |
+| `throttle_position` | `"after"` | Where the engine's throttle is (Roots and twin-screw): `"after"` the blower, as a throttle body feeding the manifold from the charge air, or `"before"` it, as the butterflies in a hat on top of the blower on drag and monster truck engines. Before the blower, the blower draws through the throttle, so at part throttle it moves thin air and makes little or no boost, with no bypass valve needed. The intake's `intake_flow_rate` is then the hat's flow, which has to pass all the air the blower takes in; the monster truck's three 4 3/8" butterflies are about 4500 cfm |
 | `rotor_efficiency` | 0 | Adiabatic efficiency of the rotors (0: 0.55 for Roots, 0.72 for twin-screw). An Eaton TVS is better than the older Roots blowers (Eaton claims up to 12%); the supercharged LS uses 0.62 |
 | `rotor_lobes` | 0 | Lobes on each rotor (0: 3). A Roots blower whines at twice its lobes per rotor turn: 6 for GMC and Eaton M-series blowers, 8 for an Eaton TVS. A twin-screw's pitch is set by its male rotor, which the drive ratio turns: usually 3 lobes against the female's 5 (Whipple) |
 | `rotor_twist` | 60° | The rotors' twist over their length (Roots): the more twist, the weaker the whine's harmonics. 60° for GMC and Eaton M-series rotors, 160° for an Eaton TVS (170° for the R2650) |
@@ -100,7 +101,12 @@ variable geometry turbo ([diesel.md](diesel.md)).
   impeller absorbs `sigma * U^2` of work per kilogram of air it moves.
 * **Positive displacement superchargers** (Roots and twin-screw) deliver their displacement
   every revolution; some leaks back through the rotor clearances (more for Roots than
-  twin-screw), so boost builds from low rpm.
+  twin-screw), so boost builds from low rpm. With the throttle after the blower, the blower
+  draws outside air and pushes against the throttle; the bypass valve vents what the
+  part-open throttle holds back. With `throttle_position: "before"`, the throttles fill a
+  small volume in front of the rotors (half a turn of displacement) and the blower takes its
+  displacement at that volume's density, so the throttle sets how much air it moves, and the
+  charge feeds the manifold with nothing in the way. The leakage returns to that volume.
 * **The turbine** is the restriction at each exhaust outlet. It extracts work from the exhaust
   leaving through it; the shaft's speed follows the turbine power minus the compressor and
   bearing power, which gives the lag. The air the compressor moves (including what the

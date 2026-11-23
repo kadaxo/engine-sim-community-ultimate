@@ -659,6 +659,7 @@ private node _forced_induction => __engine_sim__forced_induction {
     input drive_ratio [float];
     input displacement [float];
     input bypass_valve [bool];
+    input throttle_position [string];
     input rotor_lobes [int];
     input rotor_efficiency [float];
     input rotor_twist [float];
@@ -767,6 +768,7 @@ public node turbocharger {
             drive_ratio: 1.0,
             displacement: 0.0,
             bypass_valve: false,
+            throttle_position: "after",
             rotor_lobes: 0,
             rotor_efficiency: 0.0,
             rotor_twist: 0.0,
@@ -810,6 +812,11 @@ public node turbocharger {
 // gear_teeth: teeth on the drive gear on the compressor's shaft (the timing
 // gears of a roots or twin_screw, a centrifugal's step-up pinion): they whine
 // at teeth times its speed (0: no gear whine); gear_whine scales it
+// throttle_position: where the engine's throttle is, roots and twin_screw:
+// "after" the blower (the throttle body feeds the manifold from the charge
+// air) or "before" it (butterflies in a hat on top of the blower, as drag
+// and monster truck engines have: the blower draws through the throttle, so
+// at part throttle it moves thin air and makes little or no boost)
 public node supercharger {
     input type: "roots";
     input drive_ratio: 0.0;
@@ -819,6 +826,7 @@ public node supercharger {
     input compressor_efficiency: 0.75;
     input max_speed: 0.0;
     input bypass_valve: true;
+    input throttle_position: "after";       // "after" or "before" the blower
     input rotor_lobes: 0;
     input rotor_efficiency: 0.0;
     input rotor_twist: 60 * units.deg;
@@ -855,6 +863,7 @@ public node supercharger {
             drive_ratio: drive_ratio,
             displacement: displacement,
             bypass_valve: bypass_valve,
+            throttle_position: throttle_position,
             rotor_lobes: rotor_lobes,
             rotor_efficiency: rotor_efficiency,
             rotor_twist: rotor_twist,

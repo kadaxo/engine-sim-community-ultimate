@@ -77,6 +77,7 @@ ForcedInduction::ForcedInduction() {
     m_leakK = 0;
     m_bypassK = 0;
     m_bypassValve = false;
+    m_throttleBeforeBlower = false;
     m_bypass = 0;
     m_driveRatio = 1;
     m_driveTorque = 0;
@@ -183,6 +184,7 @@ void ForcedInduction::initialize(const Parameters &params) {
         ? clamp(params.rotorEfficiency, 0.3, 0.9)
         : ((m_type == Type::Roots) ? 0.55 : 0.72);
     m_bypassValve = params.bypassValve;
+    m_throttleBeforeBlower = params.throttleBeforeBlower && isPositiveDisplacement();
 
     // Rotor clearances leak back about 40% (Roots) or 20% (twin screw) of
     // the delivery at 1 bar of boost and 6000 rpm rotor speed
@@ -296,6 +298,12 @@ void ForcedInduction::initialize(const Parameters &params) {
     const double volume = std::max(params.chargeVolume, 0.5e-3);
     m_charge.initialize(m_ambientPressure, volume, m_ambientTemperature, airMix());
     m_charge.setGeometry(volume / area, std::sqrt(area), 1.0, 0.0);
+
+    // The space between the throttle and the rotors: the hat and the
+    // blower's inlet, about half a turn of displacement
+    const double inletVolume = std::max(0.5 * m_displacement, 1.0e-3);
+    m_inlet.initialize(m_ambientPressure, inletVolume, m_ambientTemperature, airMix());
+    m_inlet.setGeometry(inletVolume / area, std::sqrt(area), 1.0, 0.0);
 }
 
 void ForcedInduction::destroy() {
@@ -314,6 +322,7 @@ void ForcedInduction::addIntake(Intake *intake) {
         m_ambientTemperature = intake->getAtmosphereTemperature();
         m_compressorOutletTemperature = m_ambientTemperature;
         m_charge.reset(m_ambientPressure, m_ambientTemperature, intake->getFuelAirMix());
+        m_inlet.reset(m_ambientPressure, m_ambientTemperature, intake->getFuelAirMix());
     }
 }
 
@@ -460,6 +469,11 @@ void ForcedInduction::processCentrifugal(
 }
 
 void ForcedInduction::processPositiveDisplacement(double dt, const GasSystem::Mix &mix) {
+    if (m_throttleBeforeBlower) {
+        processThrottledBlower(dt);
+        return;
+    }
+
     const double omega = crankSpeed() * m_driveRatio;
     m_units[0].omega = omega;
 
@@ -486,6 +500,65 @@ void ForcedInduction::processPositiveDisplacement(double dt, const GasSystem::Mi
     // Drive power: the work to heat the delivered air plus 10% mechanical
     // losses
     m_units[0].compressorPower = (n / dt) * Cp_molar * (T2 - m_ambientTemperature) / 0.9;
+}
+
+void ForcedInduction::processThrottledBlower(double dt) {
+    const double omega = crankSpeed() * m_driveRatio;
+    m_units[0].omega = omega;
+
+    // The rotors take their displacement at the inlet's density, which the
+    // throttles set: at part throttle the inlet is below the outside's
+    // pressure and the blower moves less air
+    const double p_in = m_inlet.pressure();
+    const double T_inlet = m_inlet.temperature();
+    const double pr = std::max(m_charge.pressure() / std::max(p_in, 1.0), 1.0);
+    const double T2 = T_inlet * (1.0 + (std::pow(pr, Exponent) - 1.0) / m_rotorEfficiency);
+    m_compressorOutletTemperature = T2;
+    const double T_out = T2 - m_intercoolerEffectiveness * (T2 - m_ambientTemperature);
+
+    const double volumeFlow = m_displacement * omega / (2 * constants::pi);
+    double n = 0.95 * p_in * volumeFlow * dt / (constants::R * T_inlet);
+    n = clamp(n, 0.0, 0.5 * m_inlet.n());
+    if (n > 0) {
+        const GasSystem::Mix inletMix = m_inlet.mix();
+        m_inlet.loseN(n, m_inlet.kineticEnergyPerMol());
+        m_charge.inject(n, T_out, inletMix);
+    }
+
+    // Leakage back through the clearances, into the inlet
+    const double leak = flowToInlet(m_leakK, dt);
+
+    m_units[0].compressorFlow = (n - leak) / dt;
+    m_units[0].compressorPower = (n / dt) * Cp_molar * (T2 - T_inlet) / 0.9;
+
+    m_inlet.dissipateExcessVelocity();
+    m_inlet.updateVelocity(dt, 0.5);
+}
+
+double ForcedInduction::flowToInlet(double k, double dt) {
+    // The air returns at the inlet's temperature: the heat of leaking and
+    // backflowing through the rotors is already in the rotor efficiency
+    // (with the throttle after the blower this air goes back to the
+    // outside, and its heat with it). Recompressing it with its heat
+    // counted the heat twice: the charge ran 120 K hotter.
+    const double p_in = m_inlet.pressure();
+    const double T_in = m_inlet.temperature();
+    const GasSystem::Mix inletMix = m_inlet.mix();
+    const GasSystem::Mix chargeMixture = m_charge.mix();
+    const double n = m_charge.flow(k, dt, p_in, T_in, inletMix);
+    if (n > 0) {
+        m_inlet.inject(n, T_in, chargeMixture);
+    }
+    else if (n < 0) {
+        m_inlet.loseN(std::min(-n, m_inlet.n()), m_inlet.kineticEnergyPerMol());
+    }
+
+    return n;
+}
+
+double ForcedInduction::rotorPressureRatio() const {
+    const double p_in = m_throttleBeforeBlower ? m_inlet.pressure() : m_ambientPressure;
+    return m_charge.pressure() / std::max(p_in, 1.0);
 }
 
 void ForcedInduction::process(double dt) {
@@ -678,7 +751,10 @@ void ForcedInduction::process(double dt) {
                 const double target = clamp(std::max(vacuum, restricted), 0.0, 1.0);
                 m_bypass = approach(m_bypass, target, dt, 0.05);
                 if (m_bypass > 0) {
-                    m_charge.flow(m_bypassK * m_bypass, dt, m_ambientPressure, m_ambientTemperature, mix);
+                    // Back to the blower's inlet, which is outside air
+                    // unless the throttle is before the blower
+                    if (m_throttleBeforeBlower) flowToInlet(m_bypassK * m_bypass, dt);
+                    else m_charge.flow(m_bypassK * m_bypass, dt, m_ambientPressure, m_ambientTemperature, mix);
                 }
             }
         }
@@ -762,7 +838,7 @@ double ForcedInduction::getWhineLevel() const {
         // With the bypass open (idle, cruise, lifting off) there is little
         // pressure across them and the blower is much quieter.
         const double speed = clamp(m_units[0].omega / (2 * constants::pi * 250.0), 0.0, 1.3);
-        const double pr = m_charge.pressure() / m_ambientPressure;
+        const double pr = rotorPressureRatio();
         const double load = clamp((pr - 1.0) / 0.7, 0.0, 1.0);
         return std::pow(speed, 1.5) * (0.2 + 0.8 * load);
     }
@@ -797,7 +873,8 @@ double ForcedInduction::getGearLevel() const {
     // load
     const double reference = isPositiveDisplacement() ? 2 * constants::pi * 250.0 : m_maxSpeed;
     const double speed = clamp(m_units[0].omega / std::max(reference, 1.0), 0.0, 1.3);
-    const double load = clamp((m_charge.pressure() / m_ambientPressure - 1.0) / 0.7, 0.0, 1.0);
+    const double pr = isPositiveDisplacement() ? rotorPressureRatio() : m_charge.pressure() / m_ambientPressure;
+    const double load = clamp((pr - 1.0) / 0.7, 0.0, 1.0);
     return 0.5 * m_gearWhine * std::pow(speed, 1.5) * (0.4 + 0.6 * load);
 }
 

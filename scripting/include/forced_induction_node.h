@@ -72,6 +72,7 @@ namespace es_script {
             params.driveRatio = m_driveRatio;
             params.displacement = m_displacement;
             params.bypassValve = m_bypassValve;
+            params.throttleBeforeBlower = (m_throttlePosition == "before");
             params.rotorLobes = m_rotorLobes;
             params.rotorEfficiency = m_rotorEfficiency;
             params.rotorTwist = m_rotorTwist;
@@ -108,6 +109,7 @@ namespace es_script {
             addInput("drive_ratio", &m_driveRatio);
             addInput("displacement", &m_displacement);
             addInput("bypass_valve", &m_bypassValve);
+            addInput("throttle_position", &m_throttlePosition);
             addInput("rotor_lobes", &m_rotorLobes);
             addInput("rotor_efficiency", &m_rotorEfficiency);
             addInput("rotor_twist", &m_rotorTwist);
@@ -161,6 +163,7 @@ namespace es_script {
         double m_driveRatio = 1.0;
         double m_displacement = 1.9e-3;
         bool m_bypassValve = true;
+        std::string m_throttlePosition = "after";
         int m_rotorLobes = 0;
         double m_rotorEfficiency = 0.0;
         double m_rotorTwist = 60.0 * 3.14159265358979 / 180;
