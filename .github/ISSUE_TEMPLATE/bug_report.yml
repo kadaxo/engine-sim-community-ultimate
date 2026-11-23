@@ -1,0 +1,77 @@
+name: Bug report
+description: Something crashes, sounds wrong or doesn't work as described
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please check the [open issues](https://github.com/kadaxo/engine-sim-community-ultimate/issues) first, in case it's known already.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw or heard, and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen
+      description: The keys you pressed or the buttons you used, from starting the app.
+      placeholder: |
+        1. Load the GM LS (O, or LOAD ENGINE)
+        2. A, then hold S to start it
+        3. Hold R for full throttle
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The BUILD line at the top left of the app, or the name of the download.
+      placeholder: v0.3.0-community-windows
+    validations:
+      required: true
+
+  - type: dropdown
+    id: system
+    attributes:
+      label: System
+      options:
+        - Windows (download)
+        - macOS (download)
+        - Linux (download)
+        - Built from source
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Part of the program
+      options:
+        - The simulator app
+        - The engine builder
+        - engine-sim-export (game audio)
+        - Screen reader support
+        - Building from source
+        - Something else
+    validations:
+      required: true
+
+  - type: input
+    id: engine
+    attributes:
+      label: Engine
+      description: The engine's name as the app shows it, or its file in assets/engines. If it's your own script, attach the .mr file below.
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error log or files
+      description: |
+        For a script error, `error_log.log`: next to the app on Windows, in `~/.local/share/engine-sim` on macOS and Linux. Drag files or a short recording of the sound here.
+      render: text

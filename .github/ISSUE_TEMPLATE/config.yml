@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Original Engine Simulator (AngeTheGreat)
+    url: https://github.com/ange-yaghi/engine-sim
+    about: The original project, which this collection builds on. It is no longer maintained, so report problems with this collection here.
