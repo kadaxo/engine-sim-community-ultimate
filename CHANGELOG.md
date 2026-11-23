@@ -17,7 +17,7 @@ A release's notes on GitHub are its section below: the release workflow copies t
 - **Where you listen from** (`6` in the app, `--listener` in engine-sim-export): beside the car, behind it, in front of it or inside it. `engine_location: "front" | "mid" | "rear"` places the engine; the bundled 911, Ferrari, Lamborghini, McLaren, Cosworth and Veyron engines are marked.
 - **A key list** on `F1` or the KEYS button, and the **engine builder** on `F2` or the BUILDER button.
 - engine-sim-export: a full-throttle pull through the gears (`--clips pulls`).
-- Engine builder: a cross-plane V8 with Mercedes numbering and firing order, and three-valve heads.
+- Engine builder: 30 layouts instead of 14. Engines that fire unevenly: 45 and 90 degree V-twins (Harley-Davidson, Ducati), 180 and 270 degree parallel twins, the crossplane inline 4 (Yamaha R1), V4s with a 180 degree crank (Honda VFR) or Twin Pulse (Ducati), and the odd-firing 90 degree V6 (Buick) and V10 (Dodge Viper). Also a boxer twin, the small-block Chevrolet, Ford and Mercedes V8 firing orders, three-valve heads, and 7, 9 and 18 cylinder aircraft radials, with presets styled on these engines.
 - boost-probe: `--idle`, `--crank`, `--starter-speed`, `--combustion` and `--cr` (the compression ratio as simulated). boost-probe and shift-probe now take engine files from `assets/engines` and run from any folder.
 
 ### Changed
@@ -43,6 +43,7 @@ A release's notes on GitHub are its section below: the release workflow copies t
 - Engines with two exhausts or two intakes sounded one of two ways from run to run.
 - Four engines idled at 4000 to 8000 rpm with the throttle closed, the UAZ-469 and ZIL-130 didn't load, the Ferrari 499P's starter ran it to redline, and a negative `starter_torque` gave a starter with no speed limit.
 - The gas system tests wrote their CSV files into the folder they were run from.
+- The engine builder's test checked each preset's charge-air temperature instead of its torque, so it passed any engine that started; and its 5.7 V8 preset stalled when the throttle was lifted at speed.
 
 ### Faster
 

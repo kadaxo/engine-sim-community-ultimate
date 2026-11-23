@@ -10,7 +10,7 @@ It is not a scientific tool: it is designed to sound and respond like an engine,
 
 ## What's in it
 
-- **Engine builder.** A web page ([tools/engine-builder/index.html](tools/engine-builder/index.html), or `F2` in the simulator) with an ordinary form that writes engine scripts for 14 layouts, from singles to V12s, and reopens them for editing. It works offline and with screen readers.
+- **Engine builder.** A web page ([tools/engine-builder/index.html](tools/engine-builder/index.html), or `F2` in the simulator) with an ordinary form that writes engine scripts for 30 layouts, from singles, V-twins and crossplane fours to V12s and aircraft radials, and reopens them for editing. It works offline and with screen readers.
 - **Game audio export.** `engine-sim-export` renders seamless rpm loops, one-shots and rpm sweeps as Ogg, WAV and MP3 with a JSON manifest, ready for Unity, Unreal, Godot, FMOD or Wwise ([docs/game-audio-export.md](docs/game-audio-export.md)).
 - **About 100 engines**, including dozens of community engine scripts, each checked to compile and run, and 7 extra UI themes.
 - **Forced induction**: turbochargers (with lag, wastegate or variable geometry vanes, and blow-off valve) and Roots, twin-screw or centrifugal superchargers, with their whistle, whine and blow-off sounds ([docs/forced-induction.md](docs/forced-induction.md)).
