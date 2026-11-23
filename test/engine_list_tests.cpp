@@ -126,12 +126,12 @@ TEST(EngineListTests, FindsEveryBundledEngine) {
     const std::string engines = (fs::path(ENGINE_SIM_SOURCE_DIR) / "assets" / "engines").string();
     const std::vector<Entry> entries = find({ { engines, true, "" } });
 
-    // Every script under assets/engines except the two radial part libraries
+    // Every script under assets/engines except the radial part library
     int scripts = 0;
     for (const auto &file : fs::recursive_directory_iterator(engines)) {
         if (file.path().extension() == ".mr") ++scripts;
     }
-    EXPECT_EQ(static_cast<int>(entries.size()), scripts - 2);
+    EXPECT_EQ(static_cast<int>(entries.size()), scripts - 1);
 
     bool honda = false;
     for (const Entry &entry : entries) {

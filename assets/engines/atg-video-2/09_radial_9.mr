@@ -1,6 +1,6 @@
 import "engine_sim.mr"
 
-import "radial.mr"
+import "../atg-video-1/radial.mr"
 
 units units()
 constants constants()
