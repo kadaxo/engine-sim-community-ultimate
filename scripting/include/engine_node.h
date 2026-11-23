@@ -14,8 +14,10 @@
 
 #include "engine_sim.h"
 
+#include <algorithm>
 #include <map>
 #include <set>
+#include <vector>
 
 namespace es_script {
 
@@ -30,13 +32,18 @@ namespace es_script {
                 cylinderCount += bank->getCylinderCount();
             }
 
-            std::set<ExhaustSystemNode *> exhaustSystems;
-            std::set<IntakeNode *> intakes;
+            // Exhaust systems and intakes are numbered in the order the
+            // cylinders first use them. A std::set of node pointers numbered
+            // them by memory address, which changes from run to run: with two
+            // exhausts the sound channels swapped at random, so the same
+            // engine rendered two different (equally valid) noise patterns.
+            std::vector<ExhaustSystemNode *> exhaustSystems;
+            std::vector<IntakeNode *> intakes;
             for (const CylinderBankNode *bank : m_cylinderBanks) {
                 const int n = bank->getCylinderCount();
                 for (int i = 0; i < n; ++i) {
-                    exhaustSystems.insert(bank->getCylinder(i).exhaust);
-                    intakes.insert(bank->getCylinder(i).intake);
+                    addOnce(&exhaustSystems, bank->getCylinder(i).exhaust);
+                    addOnce(&intakes, bank->getCylinder(i).intake);
                 }
             }
 
@@ -73,14 +80,6 @@ namespace es_script {
                 int i = 0;
                 for (const CylinderBankNode *bank : m_cylinderBanks) {
                     context.addHead(bank->getCylinderHead(), engine->getHead(i++));
-                }
-            }
-
-            for (const CylinderBankNode *bank : m_cylinderBanks) {
-                const int n = bank->getCylinderCount();
-                for (int i = 0; i < n; ++i) {
-                    exhaustSystems.insert(bank->getCylinder(i).exhaust);
-                    intakes.insert(bank->getCylinder(i).intake);
                 }
             }
 
@@ -171,6 +170,13 @@ namespace es_script {
         }
 
     protected:
+        template <typename T_Node>
+        static void addOnce(std::vector<T_Node *> *nodes, T_Node *node) {
+            if (std::find(nodes->begin(), nodes->end(), node) == nodes->end()) {
+                nodes->push_back(node);
+            }
+        }
+
         virtual void registerInputs() {
             addInput("name", &m_parameters.name);
             addInput("starter_torque", &m_parameters.starterTorque);
