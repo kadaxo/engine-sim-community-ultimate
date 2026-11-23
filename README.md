@@ -1,6 +1,6 @@
 # Engine Simulator: community fork collection
 
-![Engine Simulator](docs/public/screenshots/screenshot_v01.png?raw=true)
+![Engine Simulator](docs/public/screenshots/screenshot_v03.png?raw=true)
 
 A real-time combustion engine simulator that produces engine sound and simulates how an engine responds. It was written by [AngeTheGreat (Ange Yaghi)](https://github.com/ange-yaghi/engine-sim), who no longer maintains the source code. This repository gathers fixes and features from the many community forks of that code, plus new work, into one version that builds and passes its tests.
 
