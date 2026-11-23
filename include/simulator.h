@@ -11,6 +11,7 @@
 #include "vehicle_drag_constraint.h"
 #include "delay_filter.h"
 #include "engine.h"
+#include "constants.h"
 
 #include <cstdint>
 #include <chrono>
@@ -27,6 +28,12 @@ public:
     };
 
     static constexpr int DynoTorqueSamples = 512;
+
+    // Faster than any engine runs: past it (or at a non-finite speed) the
+    // simulation has blown up, which a step too coarse for the engine does
+    static constexpr double MaxCrankSpeed = 100000.0 * 2 * constants::pi / 60.0;
+    // The same for the cylinders' pressure: 2000 bar, eight times a diesel's peak
+    static constexpr double MaxChamberPressure = 2000.0e5;
 
 public:
     Simulator();
@@ -76,6 +83,10 @@ public:
     double getSinceLastUpdate() const { return m_sinceLastUpdate; }
     void resetSinceLastUpdate() { m_sinceLastUpdate = 0.0; }
 
+    // True once the simulation has blown up (see MaxCrankSpeed). It then
+    // stops stepping; load the engine again (a new simulator) to go on.
+    bool isUnstable() const { return m_unstable; }
+
     virtual double getFilteredDynoTorque() const;
     virtual double getDynoPower() const;
     virtual double getAverageOutputSignal() const;
@@ -98,6 +109,7 @@ protected:
 
 private:
     void updateFilteredEngineSpeed(double dt);
+    bool blownUp() const;
 
 private:
     atg_scs::RigidBody m_vehicleMass;
@@ -127,6 +139,8 @@ private:
     double m_filteredEngineSpeed;
 
     int m_steps;
+
+    bool m_unstable;
 };
 
 #endif /* ATG_ENGINE_SIM_SIMULATOR_H */

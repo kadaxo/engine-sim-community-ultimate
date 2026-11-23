@@ -531,6 +531,35 @@ TEST(EngineSessionTests, OnLoadIsLouderThanOffLoad) {
 // Started from rest, the crank's first movement under the dyno hold is rounding
 // noise. The hold used to follow its sign, so at some simulation frequencies
 // (and with Apple Silicon's rounding) the engine ran backwards and made no power.
+// A step too coarse for the engine blows the simulation up: the McLaren-Honda
+// at its old 4200 Hz ran away on the dyno at 6000 rpm (to ~1e305 rpm and then
+// NaN, which crashed the app). The simulator now stops and says so, and the
+// audio stays finite.
+TEST(EngineSessionTests, BlownUpSimulationStops) {
+    SessionConfig config = defaultEngineConfig();
+    config.scriptPath = (fs::path(ENGINE_SIM_SOURCE_DIR) / "assets" / "engines" / "1987_McLaren_Honda.mr").generic_string();
+    config.simulationFrequency = 1000;
+    std::srand(1);
+    std::string error;
+    std::unique_ptr<EngineSession> session = EngineSession::create(config, &error);
+    ASSERT_TRUE(session) << error;
+
+    session->setIgnition(true);
+    session->setThrottleImmediate(1.0);
+    session->setDynoHold(6000);
+    std::vector<float> audio;
+    session->advanceUntil([](const EngineSession &s) { return s.unstable(); }, 20.0, &audio, nullptr);
+
+    EXPECT_TRUE(session->unstable());
+    for (const float s : audio) ASSERT_TRUE(std::isfinite(s));
+
+    // Stopped: no more steps, so the speed stays what it was
+    const double rpm = session->rpm();
+    session->advance(0.5, nullptr, nullptr);
+    const double after = session->rpm();
+    EXPECT_TRUE(after == rpm || (std::isnan(after) && std::isnan(rpm)));
+}
+
 TEST(EngineSessionTests, DynoHoldRunsForwardAtAnySimulationFrequency) {
     for (const double frequency : { 10000.0, 20000.0, 40000.0, 80000.0 }) {
         std::srand(3);

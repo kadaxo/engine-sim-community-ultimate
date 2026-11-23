@@ -123,6 +123,7 @@ class EngineSimApplication {
     protected:
         void loadScript();
         void reloadScript();
+        void handleUnstableSimulation();
         void chooseThemeScript();
         void initializeScriptSelection();
         bool writeSelectionScript();
@@ -198,6 +199,9 @@ class EngineSimApplication {
         SimulationObject::ViewParameters m_viewParameters;
 
         bool m_paused;
+        // The simulation blew up and the engine was reloaded for it; cleared
+        // by a successful load, so a failed reload isn't retried every frame
+        bool m_unstableReloadTried;
         bool m_fineThrottleControlUsed;
         bool m_smartShifting;
         LevelingFilter::Mode m_levelerMode;

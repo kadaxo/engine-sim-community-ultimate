@@ -530,6 +530,11 @@ namespace {
         else if (group == game_audio::groups::Pulls) ok = renderPull(*session, options, clip);
         else clip->error = "unknown clip group '" + group + "'";
 
+        if (session->unstable()) {
+            ok = false;
+            clip->error = "the simulation became unstable (try a higher --sim-frequency)";
+        }
+
         if (ok) {
             for (const float s : clip->audio) {
                 if (!std::isfinite(s)) {

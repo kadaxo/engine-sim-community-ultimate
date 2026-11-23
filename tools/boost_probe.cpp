@@ -156,6 +156,11 @@ int main(int argc, char **argv) {
         while (sim->simulateStep()) { /* run */ }
         sim->endFrame();
         drain();
+        if (sim->isUnstable()) {
+            std::fprintf(stderr, "the simulation became unstable at %d Hz (try a higher simulation_frequency)\n",
+                sim->getSimulationFrequency());
+            std::exit(4);
+        }
     };
 
     if (crankMode) {

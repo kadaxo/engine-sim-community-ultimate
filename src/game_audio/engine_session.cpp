@@ -308,6 +308,10 @@ double game_audio::EngineSession::rpm() const {
     return m_engine->getRpm();
 }
 
+bool game_audio::EngineSession::unstable() const {
+    return m_simulator->isUnstable();
+}
+
 void game_audio::EngineSession::advance(
     double seconds,
     std::vector<float> *audio,

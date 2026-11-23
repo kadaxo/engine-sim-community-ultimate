@@ -308,6 +308,9 @@ void Synthesizer::writeInput(const double *data) {
         // Control channels are interpolated only; the exhaust channels are
         // also low-pass filtered
         const bool aux = (i >= m_inputChannelCount);
+        // A non-finite value (a simulation blowing up) would poison the
+        // filters and the convolution for good
+        const double value = std::isfinite(data[i]) ? data[i] : 0.0;
         const size_t baseIndex = buffer.writeIndex();
         const double distance =
             inputDistance(m_inputWriteOffset, m_lastInputSampleOffset);
@@ -317,14 +320,14 @@ void Synthesizer::writeInput(const double *data) {
             if (s >= m_inputBufferSize) s -= m_inputBufferSize;
 
             const double f = s / distance;
-            const double sample = lastInputSample * (1 - f) + data[i] * f;
+            const double sample = lastInputSample * (1 - f) + value * f;
 
             buffer.write(aux
                 ? static_cast<float>(sample)
                 : m_filters[i].antialiasing.fast_f(static_cast<float>(sample)));
         }
 
-        m_inputChannels[i].lastInputSample = data[i];
+        m_inputChannels[i].lastInputSample = value;
     }
 
     m_lastInputSampleOffset = m_inputWriteOffset;

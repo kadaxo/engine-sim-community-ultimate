@@ -74,6 +74,7 @@ EngineSimApplication::EngineSimApplication() {
     m_geometryIndexBuffer = nullptr;
 
     m_paused = false;
+    m_unstableReloadTried = false;
     m_fineThrottleControlUsed = false;
     m_smartShifting = false;
     m_brakePressure = 0.0;
@@ -404,6 +405,12 @@ void EngineSimApplication::process(float frame_dt) {
     auto proc_t1 = std::chrono::steady_clock::now();
 
     m_simulator->endFrame();
+
+    if (m_simulator->isUnstable() && !m_unstableReloadTried) {
+        // The engine and its views are replaced: nothing below may use them
+        handleUnstableSimulation();
+        return;
+    }
 
     auto duration = proc_t1 - proc_t0;
     if (iterationCount > 0) {
@@ -746,6 +753,7 @@ void EngineSimApplication::loadEngine(
     m_transmission = transmission;
 
     m_simulator = engine->createSimulator(vehicle, transmission);
+    m_unstableReloadTried = false;
 
     if (engine == nullptr || vehicle == nullptr || transmission == nullptr) {
         m_iceEngine = nullptr;
@@ -1021,6 +1029,23 @@ namespace {
         return std::regex_search(script, match, std::regex(R"(public\s+node\s+(use_\w+))"))
             ? match[1].str() + "()"
             : std::string();
+    }
+}
+
+// The simulation blew up (Simulator::isUnstable): load the engine again, which
+// starts it over at rest at its script's own simulation frequency, and say why
+void EngineSimApplication::handleUnstableSimulation() {
+    const int frequency = m_simulator->getSimulationFrequency();
+    m_unstableReloadTried = true;
+    reloadScript();
+
+    if (m_simulator->isUnstable()) {
+        // The reload failed (a script error) and the old engine stays stopped
+        m_infoCluster->setLogMessage("SIMULATION UNSTABLE - ENGINE STOPPED");
+    }
+    else {
+        m_infoCluster->setLogMessage("SIMULATION UNSTABLE AT "
+            + std::to_string(frequency) + " HZ - ENGINE RELOADED");
     }
 }
 

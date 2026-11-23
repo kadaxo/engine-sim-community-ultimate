@@ -127,6 +127,10 @@ namespace game_audio {
         // The simulated engine, for reading its state (gauges, boost)
         const Engine *engine() const { return m_engine; }
 
+        // The simulation blew up (a step too coarse for the engine) and
+        // stopped; nothing it renders after that is usable
+        bool unstable() const;
+
     private:
         EngineSession() = default;
 

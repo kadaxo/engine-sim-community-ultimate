@@ -11,6 +11,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <string>
 
@@ -62,6 +63,11 @@ namespace {
             m_sim->startFrame(dt);
             while (m_sim->simulateStep()) { /* run */ }
             m_sim->endFrame();
+            if (m_sim->isUnstable()) {
+                std::fprintf(stderr, "the simulation became unstable at %d Hz (try a higher simulation_frequency)\n",
+                    m_sim->getSimulationFrequency());
+                std::exit(4);
+            }
             m_sim->readAudioOutput(735, m_audio);
             m_time += dt;
         }

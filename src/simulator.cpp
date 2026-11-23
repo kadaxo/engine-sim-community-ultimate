@@ -1,5 +1,6 @@
 #include "../include/simulator.h"
 
+#include <cmath>
 #include <cstdint>
 
 Simulator::Simulator() {
@@ -21,6 +22,7 @@ Simulator::Simulator() {
     m_dynoTorqueSamples = nullptr;
     m_lastDynoTorqueSample = 0;
     m_sinceLastUpdate = 0.0;
+    m_unstable = false;
 }
 
 Simulator::~Simulator() {
@@ -99,6 +101,8 @@ void Simulator::startFrame(double dt) {
 }
 
 bool Simulator::simulateStep() {
+    if (m_unstable) return false;
+
     if (getCurrentIteration() >= simulationSteps()) {
         auto s1 = std::chrono::steady_clock::now();
 
@@ -116,9 +120,19 @@ bool Simulator::simulateStep() {
     m_vehicle->update(timestep);
     m_transmission->update(timestep);
 
+    Crankshaft *outputShaft = m_engine->getOutputCrankshaft();
+
+    // A step too coarse for the engine (a script's rate, or the rate turned
+    // down with N) can blow the simulation up: the crank runs away to absurd
+    // speeds and then to NaN, which the dyno's torque index below and the
+    // sound can't take. Stop stepping instead.
+    if (blownUp()) {
+        m_unstable = true;
+        return false;
+    }
+
     updateFilteredEngineSpeed(timestep);
 
-    Crankshaft *outputShaft = m_engine->getOutputCrankshaft();
     outputShaft->resetAngle();
 
     for (int i = 0; i < m_engine->getCrankshaftCount(); ++i) {
@@ -152,12 +166,36 @@ bool Simulator::simulateStep() {
 
     simulateStep_();
 
+    // The gas can blow up before the crank does; its values would turn the
+    // sound's filters to NaN for good
+    if (blownUp()) {
+        m_unstable = true;
+        return false;
+    }
+
     writeToSynthesizer();
 
     ++m_currentIteration;
 
     m_sinceLastUpdate += timestep;
     return true;
+}
+
+bool Simulator::blownUp() const {
+    const Crankshaft *crank = m_engine->getOutputCrankshaft();
+    if (!std::isfinite(crank->m_body.theta)
+        || !std::isfinite(crank->m_body.v_theta)
+        || std::abs(crank->m_body.v_theta) > MaxCrankSpeed)
+    {
+        return true;
+    }
+
+    for (int i = 0; i < m_engine->getCylinderCount(); ++i) {
+        const double p = m_engine->getChamber(i)->m_system.pressure();
+        if (!std::isfinite(p) || std::abs(p) > MaxChamberPressure) return true;
+    }
+
+    return false;
 }
 
 double Simulator::getTotalExhaustFlow() const {
