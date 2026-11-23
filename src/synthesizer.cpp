@@ -154,9 +154,9 @@ void Synthesizer::initialize(const Parameters &p) {
     m_levelingFilter.p_minLevel = m_audioParameters.levelerMinGain;
     m_antialiasing.setCutoffFrequency(m_audioSampleRate * 0.45f, m_audioSampleRate);
 
-    for (int i = 0; i < m_audioBufferSize; ++i) {
-        m_audioBuffer.write(0);
-    }
+    // No silence is queued up front. The original wrote audioBufferSize
+    // zeros, which a RingBuffer of that capacity can't tell from empty, so it
+    // did nothing; working, it would have delayed the sound by a full buffer.
 }
 
 void Synthesizer::initializeImpulseResponse(

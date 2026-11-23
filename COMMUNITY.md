@@ -2,7 +2,7 @@
 
 The original repository stopped receiving updates in 2024. This branch collects the work people published in their forks so it isn't lost.
 
-In October 2026 every repository in the fork network was checked: 951 forks, including forks of forks, with all of their branches, tags and pull request refs, plus the open pull requests on the original repository. 116 of them contain commits that aren't upstream, about 1,700 commits in all. In November 2026 the network was checked again for forks created or pushed to since then (eight, with about 70 new commits). The sections below list what was merged.
+In October 2026 every repository in the fork network was checked: 951 forks, including forks of forks, with all of their branches, tags and pull request refs, plus the open pull requests on the original repository. 116 of them contain commits that aren't upstream, about 1,700 commits in all. Through November 2026 the network was checked again several times for forks created or pushed to since the previous check. The sections below list what was merged.
 
 Merged work keeps its authors. Fork branches are merged as they are, single commits are cherry-picked with `-x`, and files taken out of larger commits are committed under the original author with the source commit noted in the message. `git log --format='%an %s'` shows who wrote what.
 

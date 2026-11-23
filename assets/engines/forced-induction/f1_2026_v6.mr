@@ -74,6 +74,9 @@ public node f1_v6_engine {
 
     engine engine(
         name: "F1 2026 V6 turbo",
+        // A gentler first part of the pedal, as most engines here have: with
+        // the default 1.0, the B58 gave 74% of its full-throttle torque at 15%
+        throttle_gamma: 2.0,
         starter_torque: 87.9985 * units.lb_ft,
         starter_speed: 300 * units.rpm,
         redline: 15000 * units.rpm,

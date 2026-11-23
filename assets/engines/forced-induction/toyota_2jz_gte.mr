@@ -74,6 +74,9 @@ public node t2jz_gte_engine {
 
     engine engine(
         name: "Toyota 2JZ-GTE",
+        // A gentler first part of the pedal, as most engines here have: with
+        // the default 1.0, the B58 gave 74% of its full-throttle torque at 15%
+        throttle_gamma: 2.0,
         starter_torque: 129.92 * units.lb_ft,
         starter_speed: 300 * units.rpm,
         redline: 6800 * units.rpm,

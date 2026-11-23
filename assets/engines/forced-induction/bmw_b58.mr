@@ -74,6 +74,9 @@ public node b58_engine {
 
     engine engine(
         name: "BMW B58",
+        // A gentler first part of the pedal, as most engines here have: with
+        // the default 1.0, 15% gave 74% of the full-throttle torque
+        throttle_gamma: 2.0,
         starter_torque: 129.925 * units.lb_ft,
         starter_speed: 300 * units.rpm,
         redline: 7000 * units.rpm,
