@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  Runs the program with UTF-8 as its ANSI code page (Windows 10 1903 and
+  later). The code keeps paths in narrow strings; without this, a folder name
+  with characters the system code page lacks (ş or ı on a Western Windows,
+  any Cyrillic or Chinese name) made std::filesystem throw at startup.
+-->
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <activeCodePage xmlns="http://schemas.microsoft.com/SMI/2019/WindowsSettings">UTF-8</activeCodePage>
+    </windowsSettings>
+  </application>
+</assembly>

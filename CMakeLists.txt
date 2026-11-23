@@ -574,6 +574,22 @@ if (NODE_EXECUTABLE)
 endif ()
 
 # ========================================================
+# UTF-8 ON WINDOWS
+#
+# Paths are kept in narrow strings, which Windows reads in the ANSI code page:
+# a folder name it can't represent crashed the programs at startup. The
+# manifest makes that code page UTF-8 (Windows 10 1903 and later).
+
+if (WIN32)
+    foreach (target engine-sim-app engine-sim-test boost-probe shift-probe
+                    engine-sim-export engine-sim-game-audio-test)
+        if (TARGET ${target})
+            target_sources(${target} PRIVATE cmake/windows/utf8.manifest)
+        endif ()
+    endforeach ()
+endif ()
+
+# ========================================================
 # RELEASE PACKAGE
 #
 # `cmake --install build --component release --prefix <dir>` lays out a folder
